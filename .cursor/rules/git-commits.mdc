@@ -1,0 +1,34 @@
+---
+description: Commit message convention for chatbot-EntelequIA-BE
+globs: [".git/COMMIT_EDITMSG"]
+alwaysApply: false
+---
+
+# Git Commit Rules
+
+## Format
+
+`<type>(<scope>): <message>`
+
+Examples:
+
+- `feat(wf1): add order detail intent enrichment`
+- `fix(repository): prevent duplicate message persistence`
+- `refactor(adapters): simplify entelequia error mapping`
+- `test(e2e): cover requiresAuth response contract`
+- `docs(rules): add cursor rules for wf1 backend`
+
+## Recommended types
+
+- `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`, `build`, `ci`
+
+## Scope guidance
+
+- `wf1`, `health`, `controllers`, `use-cases`, `ports`, `adapters`, `repository`, `security`, `sql`, `rules`
+
+## Practical rules
+
+- One logical change per commit.
+- Keep subject line concrete and imperative.
+- Avoid mixing unrelated functional changes in the same commit.
+

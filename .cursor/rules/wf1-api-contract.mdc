@@ -1,0 +1,56 @@
+---
+description: Contract and response mapping rules for WF1 endpoint behavior
+globs: ["src/modules/wf1/controllers/**/*.ts", "src/modules/wf1/dto/**/*.ts", "src/modules/wf1/application/use-cases/**/*.ts", "src/modules/wf1/infrastructure/adapters/**/*.ts"]
+alwaysApply: false
+---
+
+# WF1 API Contract Rules
+
+## Inbound contract (`POST /wf1/chat/message`)
+
+Expected fields:
+
+- `source`: `web | whatsapp`
+- `userId`: required, max 255
+- `conversationId`: required, max 255
+- `text`: required (sanitized, non-empty)
+- Optional: `accessToken`, `currency` (`ARS|USD`), `locale` (`xx-YY`)
+
+## Outbound union (must remain compatible)
+
+- Success: `{ ok: true, message, conversationId, intent? }`
+- Auth required: `{ ok: false, requiresAuth: true, message }`
+- Failure: `{ ok: false, message }`
+
+## Error mapping (non-negotiable)
+
+- Missing auth for `order_status` intent -> `requiresAuth: true`
+- Entelequia `401` -> `requiresAuth: true`
+- Entelequia `403` -> safe permission message
+- Entelequia `442` -> safe ownership message
+- Entelequia `404` -> safe not-found message
+- Entelequia `5xx`, timeout, network -> generic safe fallback
+- Invalid payload -> HTTP `400` with safe validation message
+
+## Allowed Entelequia endpoints only
+
+Allowed:
+
+1. `GET /api/v1/products-list/{categorySlug?}`
+2. `GET /api/v1/product/{idOrSlug}`
+3. `GET /api/v1/products/recommended`
+4. `GET /api/v1/cart/payment-info`
+5. `GET /api/v1/account/orders`
+6. `GET /api/v1/account/orders/{id}`
+
+Forbidden:
+
+- `GET /api/v1/products`
+- `POST /chatbot/context`
+
+## Idempotency key resolution
+
+- Prefer `x-external-event-id` or `x-idempotency-key`.
+- Fallback to deterministic SHA-256 hash from raw body/request payload.
+- External event IDs must be stable and bounded.
+

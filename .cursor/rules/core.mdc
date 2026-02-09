@@ -1,0 +1,41 @@
+---
+description: Core context and non-negotiable rules for chatbot-EntelequIA-BE
+globs: []
+alwaysApply: true
+---
+
+# Chatbot WF1 Backend - Core Rules
+
+## Project objective
+
+This repository is the dedicated WF1 backend that replaces the N8N WF1 flow while keeping contract parity and safe rollback behavior.
+
+## Real stack (source of truth: code)
+
+- Node.js 20 target runtime
+- NestJS 11 + TypeScript strict
+- PostgreSQL with `users`, `conversations`, `messages`, `external_events`, `outbox_messages`, `audit_logs`
+- `class-validator` + `class-transformer`
+- Jest (unit/integration/e2e)
+
+## Non-negotiable behavior
+
+- Keep `POST /wf1/chat/message` as the main workflow endpoint.
+- Keep `GET /health` for runtime health checks.
+- Preserve WF1 response union compatibility (`ok=true`, `requiresAuth`, generic failure).
+- Keep idempotency, persistence, and audit behavior aligned with current implementation.
+
+## Coding and change policy
+
+- Prefer minimal, local, and verifiable changes over broad refactors.
+- Reuse existing patterns before introducing new abstractions.
+- Keep dependency injection with port tokens in `src/modules/wf1/application/ports/tokens.ts`.
+- Do not add new runtime dependencies unless strictly necessary.
+- If introducing new env vars, update `.env.example` in the same change.
+- Enforce Clean Architecture and Clean Code principles from Robert C. Martin as default design criteria.
+- Never hardcode credentials, secrets, or API keys.
+
+## Rule precedence (to avoid conflicts)
+
+- If multiple rules apply, prefer the most specific rule by file/domain.
+- Keep this file as the project baseline; keep detailed decisions in scoped rules.

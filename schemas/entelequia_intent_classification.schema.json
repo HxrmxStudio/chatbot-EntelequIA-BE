@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "products",
+        "orders",
+        "tickets",
+        "store_info",
+        "payment_shipping",
+        "recommendations",
+        "general"
+      ]
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "intent",
+    "confidence",
+    "entities"
+  ],
+  "additionalProperties": false
+}

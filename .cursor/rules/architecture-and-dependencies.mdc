@@ -1,0 +1,61 @@
+---
+description: Layer boundaries and dependency rules for NestJS WF1 clean architecture
+globs: ["src/modules/wf1/**/*.ts", "src/common/**/*.ts", "src/app.module.ts", "src/main.ts"]
+alwaysApply: false
+---
+
+# Architecture and Dependency Rules
+
+## Robert C. Martin focus (mandatory)
+
+- Apply Clean Architecture with strict dependency direction.
+- Apply SOLID, with emphasis on:
+  - SRP: each module/use-case/class has one reason to change.
+  - OCP: extend behavior through ports/adapters before modifying stable core rules.
+  - DIP: business/application flow depends on abstractions (ports), not concrete adapters.
+
+## Layer mapping in this project
+
+1. Interface: `src/modules/wf1/controllers/`, `src/modules/health/`
+2. Application: `src/modules/wf1/application/use-cases/`, `src/modules/wf1/application/ports/`
+3. Domain: `src/modules/wf1/domain/`
+4. Infrastructure: `src/modules/wf1/infrastructure/`, `src/common/`
+
+## Dependency direction (mandatory)
+
+- Dependencies must point inward.
+- `domain` cannot import from `application`, `infrastructure`, `controllers`, or Nest/Express APIs.
+- `application/ports` must define interfaces/contracts only.
+- `use-cases` can depend on `domain`, `ports`, and framework-agnostic helpers.
+- `controllers` must delegate business flow to use-cases.
+- `infrastructure/adapters` and `infrastructure/repositories` implement port interfaces and stay behind DI tokens.
+
+## Controller rules
+
+- Keep controllers thin: input extraction + delegation + HTTP glue only.
+- No business decisions in controllers.
+- No direct SQL or external API orchestration in controllers.
+
+## Use-case rules
+
+- Use-cases own WF1 orchestration and decision mapping.
+- Keep use-cases independent from HTTP-specific concerns.
+- Handle domain/application errors explicitly and map them to safe contract responses.
+
+## Adapter and repository rules
+
+- Adapters map external systems (OpenAI, Entelequia API) to port contracts.
+- Repositories own SQL and persistence details only.
+- Keep SQL parameterized and explicit.
+
+## Module wiring
+
+- Bind concrete implementations through token providers in `src/modules/wf1/wf1.module.ts`.
+- Avoid bypassing ports by directly injecting adapters into unrelated layers.
+
+## Forbidden anti-patterns
+
+- Business rules in controllers, guards, filters, or repositories.
+- Direct external API logic inside use-cases without port abstractions.
+- Shared "god classes" that mix orchestration, persistence, and transport concerns.
+- Circular imports between `application`, `infrastructure`, and `controllers`.

@@ -1,0 +1,47 @@
+---
+description: PostgreSQL persistence invariants, idempotency flow, and SQL safety rules for WF1
+globs: ["src/modules/wf1/infrastructure/repositories/**/*.ts", "sql/**/*.sql"]
+alwaysApply: false
+---
+
+# Persistence and Idempotency Rules
+
+## Core persistence behavior
+
+- Always upsert `users` and `conversations` before writing chat turn data.
+- Persist both user and bot messages for each processed turn.
+- Keep `conversation_id`, `source/channel`, and `external_event_id` coherence across writes.
+
+## Idempotency invariants
+
+- Idempotency source of truth: `external_events` unique key (`source`, `external_event_id`).
+- `startProcessing` must detect duplicates without race-prone logic.
+- Duplicate events must not duplicate message writes.
+- Duplicate responses should reuse previously stored bot message when available.
+
+## Transaction boundaries
+
+- `persistTurn` operations must remain atomic (single transaction).
+- On transaction errors: rollback and propagate safe error handling to use-case flow.
+
+## Audit requirements
+
+- Every handled request path must emit `audit_logs` entry:
+  - success
+  - requires_auth
+  - failure
+  - duplicate
+- Audit rows must include request and latency metadata.
+
+## WhatsApp outbox behavior
+
+- For `source=whatsapp`, insert `outbox_messages` with pending status.
+- Keep outbox payload minimal, structured, and traceable.
+
+## SQL and migration safety
+
+- Use parameterized SQL only.
+- Avoid destructive schema changes in single-step edits.
+- Prefer additive, reversible migrations and explicit indexes for frequent lookups.
+- Preserve existing enum and index compatibility unless migration scope explicitly includes controlled changes.
+

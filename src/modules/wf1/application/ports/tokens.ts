@@ -1,0 +1,6 @@
+export const INTENT_EXTRACTOR_PORT = Symbol('INTENT_EXTRACTOR_PORT');
+export const ENTELEQUIA_CONTEXT_PORT = Symbol('ENTELEQUIA_CONTEXT_PORT');
+export const LLM_PORT = Symbol('LLM_PORT');
+export const CHAT_PERSISTENCE_PORT = Symbol('CHAT_PERSISTENCE_PORT');
+export const IDEMPOTENCY_PORT = Symbol('IDEMPOTENCY_PORT');
+export const AUDIT_PORT = Symbol('AUDIT_PORT');

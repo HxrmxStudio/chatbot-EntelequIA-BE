@@ -1,0 +1,17 @@
+# Sensitive env files
+.env
+.env.*
+!.env.example
+
+# Private keys and certificates
+**/*.pem
+**/*.key
+**/*.p12
+**/*.crt
+
+# Large/generated artifacts
+node_modules/
+dist/
+coverage/
+.git/
+*.log

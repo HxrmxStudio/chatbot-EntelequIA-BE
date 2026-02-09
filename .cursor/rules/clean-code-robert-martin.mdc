@@ -1,0 +1,51 @@
+---
+description: Clean Code rules based on Robert C. Martin for TypeScript/NestJS code in this repository
+globs: []
+alwaysApply: false
+---
+
+# Clean Code Rules (Robert C. Martin)
+
+## Core principles
+
+- Prioritize readability over cleverness.
+- Keep names intention-revealing and domain-specific.
+- Keep functions/classes small and focused (single responsibility).
+- Prefer explicit code over hidden side effects.
+
+## Naming
+
+- Use clear names for use-cases, ports, adapters, and DTOs.
+- Avoid generic names like `data`, `result`, `handler`, `util` when a specific domain name exists.
+- Boolean names must read as predicates (`isDuplicate`, `requiresAuth`, `hasAccessToken`).
+
+## Function and class design
+
+- One level of abstraction per function.
+- Prefer early returns to reduce nesting.
+- Avoid boolean flags that switch multiple behaviors; split into dedicated methods.
+- Extract reusable logic when duplication appears in more than one place.
+
+## Error handling
+
+- Raise and map explicit error types for expected domain/application failures.
+- Do not swallow exceptions silently.
+- Keep user-facing messages safe and actionable.
+- Keep internal diagnostic detail in logs, not in API responses.
+
+## Comments
+
+- Comment only to explain intent/tradeoffs, not obvious code.
+- Remove obsolete comments when behavior changes.
+
+## TypeScript discipline
+
+- Avoid `any`; use precise interfaces/types.
+- Keep strict null handling explicit.
+- Keep public function return types explicit when it improves contract clarity.
+
+## Maintainability rules
+
+- Replace magic values with named constants when they represent domain policy.
+- Keep imports organized and avoid unused dependencies.
+- Prefer cohesive modules over large multi-purpose files.

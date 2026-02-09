@@ -1,0 +1,42 @@
+---
+description: Mandatory validation checks and non-regression test expectations for WF1 backend changes
+globs: ["src/modules/wf1/**/*.ts", "src/common/**/*.ts", "test/**/*.ts", "sql/**/*.sql", "package.json"]
+alwaysApply: false
+---
+
+# Testing and Validation Rules
+
+## Mandatory checks before closing a change
+
+Run, in this order when possible:
+
+```bash
+npm run build
+npm run lint
+npm test -- --runInBand
+npm run test:e2e -- --runInBand
+```
+
+If a check cannot run, document exactly why and what was verified instead.
+
+## Required non-regression scenarios
+
+At minimum, preserve coverage for:
+
+1. Invalid payload -> HTTP 400 with safe message
+2. `GET /health` -> HTTP 200
+3. Guest order intent -> `requiresAuth: true`
+4. Duplicate external event -> idempotent behavior (no duplicate turn writes)
+5. Backend error mapping (including 442 ownership case)
+
+## Change-driven testing rules
+
+- If DTOs/contracts change, update corresponding controller/use-case tests.
+- If persistence/idempotency changes, update integration tests around duplicate processing and audit writes.
+- If security/signature behavior changes, add or update guard-related tests.
+- If SQL schema changes, validate repository queries remain compatible with schema assumptions.
+
+## Evidence policy
+
+- Do not claim "done" without command outputs or explicit limitations.
+- Prefer focused regression tests over broad unverified claims.

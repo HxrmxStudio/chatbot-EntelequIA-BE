@@ -1,0 +1,21 @@
+export type ContextType =
+  | 'products'
+  | 'product_detail'
+  | 'orders'
+  | 'order_detail'
+  | 'payment_info'
+  | 'tickets'
+  | 'recommendations'
+  | 'store_info'
+  | 'general';
+
+export interface ContextBlock {
+  contextType: ContextType;
+  contextPayload: Record<string, unknown>;
+}
+
+export interface MessageHistoryItem {
+  sender: 'user' | 'bot' | 'agent' | 'system';
+  content: string;
+  createdAt: string;
+}

@@ -1,0 +1,56 @@
+---
+description: Best practices for NestJS, TypeScript, PostgreSQL, and external integrations in this backend
+globs: []
+alwaysApply: false
+---
+
+# Stack Best Practices
+
+## NestJS
+
+- Keep controllers thin and use-cases as orchestration entrypoints.
+- Use guards only for auth/signature concerns, not business flow.
+- Keep global validation/filter behavior consistent with `src/main.ts`.
+- Keep module providers wired through DI tokens for swappable adapters.
+
+## DTOs and validation
+
+- Validate all inbound payloads with DTOs + `class-validator`.
+- Preserve whitelist behavior (`whitelist`, `forbidNonWhitelisted`, `transform`).
+- Keep request contract changes synchronized across DTOs, controller, and tests.
+
+## Config and environment
+
+- Validate env vars in `src/common/config/env.validation.ts`.
+- Use explicit defaults for optional envs and fail fast for required ones.
+- Any new env var must be added to `.env.example`.
+
+## TypeScript and domain contracts
+
+- Keep `domain` framework-agnostic.
+- Keep `application/ports` as stable contracts.
+- Keep adapters/repositories implementing ports explicitly.
+
+## External HTTP calls
+
+- Use explicit timeout handling (`AbortController`) for remote dependencies.
+- Normalize external errors to typed internal errors before mapping responses.
+- Do not leak downstream raw errors to clients.
+
+## PostgreSQL
+
+- Keep SQL parameterized.
+- Use transactions for multi-write operations that must be atomic.
+- Preserve idempotency guarantees through unique constraints and conflict-safe inserts.
+- Add indexes for new high-frequency query paths.
+
+## Observability
+
+- Preserve request correlation via `x-request-id`.
+- Keep structured logs with operation context.
+- Emit audit records for all handled request outcomes.
+
+## Testing
+
+- Keep test coverage across unit/integration/e2e for critical WF1 paths.
+- Every contract/security/persistence change must include non-regression validation.
