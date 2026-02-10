@@ -2,6 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EntelequiaContextPort } from '../../../application/ports/entelequia-context.port';
 import type { ContextBlock } from '../../../domain/context-block';
+import {
+  accountOrderDetailEndpoint,
+  accountOrdersEndpoint,
+  cartPaymentInfoEndpoint,
+  productDetailEndpoint,
+  productsListEndpoint,
+  productsRecommendedEndpoint,
+} from './endpoints';
 import { fetchEntelequiaJson } from './entelequia-client';
 import {
   normalizeProductDetailPayload,
@@ -27,7 +35,6 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
     categorySlug?: string;
     currency?: 'ARS' | 'USD';
   }): Promise<ContextBlock> {
-    const categoryPath = input.categorySlug ? `/${encodeURIComponent(input.categorySlug)}` : '';
     const params = new URLSearchParams({
       orderBy: 'recent',
       page: '1',
@@ -38,9 +45,10 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
       params.set('q', input.query.trim());
     }
 
+    const endpoint = productsListEndpoint(input.categorySlug);
     const data = await fetchEntelequiaJson(
       this.baseUrl,
-      `/products-list${categoryPath}?${params.toString()}`,
+      `${endpoint}?${params.toString()}`,
       this.timeoutMs,
     );
     const normalized = normalizeProductsListPayload(data, input.query, this.webBaseUrl);
@@ -59,9 +67,10 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
       currency: input.currency ?? 'ARS',
     });
 
+    const endpoint = productDetailEndpoint(input.idOrSlug);
     const data = await fetchEntelequiaJson(
       this.baseUrl,
-      `/product/${encodeURIComponent(input.idOrSlug)}?${params.toString()}`,
+      `${endpoint}?${params.toString()}`,
       this.timeoutMs,
     );
     const normalized = normalizeProductDetailPayload(data, this.webBaseUrl);
@@ -78,9 +87,10 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
       currency: input.currency ?? 'ARS',
     });
 
+    const endpoint = productsRecommendedEndpoint();
     const data = await fetchEntelequiaJson(
       this.baseUrl,
-      `/products/recommended?${params.toString()}`,
+      `${endpoint}?${params.toString()}`,
       this.timeoutMs,
     );
 
@@ -91,7 +101,8 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
   }
 
   async getPaymentInfo(): Promise<ContextBlock> {
-    const data = await fetchEntelequiaJson(this.baseUrl, '/cart/payment-info', this.timeoutMs);
+    const endpoint = cartPaymentInfoEndpoint();
+    const data = await fetchEntelequiaJson(this.baseUrl, endpoint, this.timeoutMs);
 
     return {
       contextType: 'payment_info',
@@ -100,9 +111,10 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
   }
 
   async getOrders(input: { accessToken: string }): Promise<ContextBlock> {
+    const endpoint = accountOrdersEndpoint();
     const data = await fetchEntelequiaJson(
       this.baseUrl,
-      '/account/orders',
+      endpoint,
       this.timeoutMs,
       {
         Authorization: `Bearer ${input.accessToken}`,
@@ -116,9 +128,10 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
   }
 
   async getOrderDetail(input: { accessToken: string; orderId: string }): Promise<ContextBlock> {
+    const endpoint = accountOrderDetailEndpoint(input.orderId);
     const data = await fetchEntelequiaJson(
       this.baseUrl,
-      `/account/orders/${encodeURIComponent(input.orderId)}`,
+      endpoint,
       this.timeoutMs,
       {
         Authorization: `Bearer ${input.accessToken}`,

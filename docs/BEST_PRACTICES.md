@@ -255,16 +255,18 @@ Cada adapter vive en su **propia carpeta** siguiendo Clean Code principles y DRY
 
 - **Entrada pública**: `index.ts` que exporta la clase del adapter.
 - **Clase principal**: `nombre.adapter.ts` con `@Injectable()` que implementa el port.
+- **Endpoints**: `endpoints.ts` centraliza todas las URLs/rutas de la API externa (p. ej. funciones helper para construir endpoints).
 - **Helpers específicos**: funciones puras extraídas en módulos separados dentro de la carpeta del adapter (p. ej. `openai-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`).
 - **Helpers compartidos**: código duplicado extraído a `shared/` dentro de `adapters/` (p. ej. `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts`).
 - **Imports**: los consumidores importan `from '.../infrastructure/adapters/nombre-adapter'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `adapters/openai/` — `openai.adapter.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `retry-helpers.ts`, `index.ts`
-- `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `index.ts`
+- `adapters/openai/` — `openai.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `retry-helpers.ts`, `index.ts`
+- `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `constants.ts`, `index.ts`
+- `adapters/entelequia-http/` — `entelequia-http.adapter.ts`, `endpoints.ts`, `entelequia-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`, `index.ts`
 - `adapters/shared/` — `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts` (compartidos por múltiples adapters)
 
-Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON.
+Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON. Los archivos `endpoints.ts` centralizan las definiciones de endpoints para mejorar mantenibilidad y seguir Single Responsibility Principle.
 
 ### 9.4 Infrastructure: security con carpeta por concepto y helpers compartidos (DRY)
 

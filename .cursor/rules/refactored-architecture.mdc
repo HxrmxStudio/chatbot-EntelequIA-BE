@@ -37,10 +37,11 @@ wf1/
       shared/       # prompt-loader.ts, http-client.ts, schema-loader.ts (DRY helpers)
       openai-retry/ # withRetry utility
       intent-validator/ # IntentValidationError, validateAndNormalizeIntentPayload
-      openai/       # openai.adapter.ts, openai-client.ts, prompt-builder.ts, fallback-builder.ts, index.ts
-      intent-extractor/  # intent-extractor.adapter.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, index.ts
-      entelequia-http/   # entelequia-http.adapter.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
+      openai/       # openai.adapter.ts, endpoints.ts, openai-client.ts, prompt-builder.ts, fallback-builder.ts, index.ts
+      intent-extractor/  # intent-extractor.adapter.ts, endpoints.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, constants.ts, index.ts
+      entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
       # Each adapter in its own folder with index.ts as public API
+      # endpoints.ts centralizes all API endpoint definitions for better maintainability
     repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
       shared/       # json-helpers.ts (toJsonb for jsonb columns)
     security/       # Guards, validation, sanitization

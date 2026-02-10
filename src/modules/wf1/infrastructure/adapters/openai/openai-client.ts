@@ -1,6 +1,7 @@
 import type { ContextBlock } from '../../../domain/context-block';
 import { fetchWithTimeout } from '../shared';
 import { OpenAiHttpError } from './errors';
+import { openaiResponsesUrl } from './endpoints';
 import type { OpenAiResponse } from './types';
 import { buildPrompt } from './prompt-builder';
 
@@ -25,7 +26,7 @@ export async function requestOpenAi(
   );
 
   const response = await fetchWithTimeout(
-    'https://api.openai.com/v1/responses',
+    openaiResponsesUrl(),
     {
       method: 'POST',
       headers: {

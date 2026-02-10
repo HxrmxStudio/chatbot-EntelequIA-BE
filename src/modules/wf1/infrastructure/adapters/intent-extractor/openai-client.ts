@@ -5,9 +5,9 @@ import {
   INTENT_MODEL,
   INTENT_TEMPERATURE,
   INTENT_VERBOSITY,
-  OPENAI_URL,
   SCHEMA_NAME,
 } from './constants';
+import { openaiResponsesUrl } from './endpoints';
 import { IntentExtractorHttpError, IntentExtractorNetworkError } from './errors';
 import type { OpenAiResponse } from './types';
 
@@ -20,7 +20,7 @@ export async function requestIntent(input: {
 }): Promise<OpenAiResponse> {
   try {
     const response = await fetchWithTimeout(
-      OPENAI_URL,
+      openaiResponsesUrl(),
       {
         method: 'POST',
         headers: {

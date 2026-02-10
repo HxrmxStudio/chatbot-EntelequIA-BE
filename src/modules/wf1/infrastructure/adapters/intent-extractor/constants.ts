@@ -1,6 +1,5 @@
 import { INTENT_NAMES } from '../../../domain/intent';
 
-export const OPENAI_URL = 'https://api.openai.com/v1/responses';
 export const INTENT_MODEL = 'gpt-4o-mini';
 export const PROMPT_VERSION = 'v1';
 export const SCHEMA_NAME = 'entelequia_intent_classification';
