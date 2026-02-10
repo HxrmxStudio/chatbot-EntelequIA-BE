@@ -10,7 +10,11 @@ import {
 import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
-import { resolveProductsQuery, resolveOrderId } from './query-resolvers';
+import {
+  resolveOrderId,
+  resolveProductsQuery,
+  type DetectedProductCategory,
+} from './query-resolvers';
 import { extractProductItems } from './product-parsers';
 
 @Injectable()
@@ -32,9 +36,12 @@ export class EnrichContextByIntentUseCase {
 
     switch (intentResult.intent) {
       case 'products': {
-        const query = resolveProductsQuery(intentResult.entities, input.text);
+        const resolvedQuery = resolveProductsQuery(intentResult.entities, input.text);
+        const categorySlug = mapDetectedCategoryToCategorySlug(resolvedQuery.category);
+        const query = resolvedQuery.productName;
         const products = await this.entelequiaContextPort.getProducts({
           query,
+          ...(categorySlug ? { categorySlug } : {}),
           currency: input.currency,
         });
 
@@ -61,6 +68,7 @@ export class EnrichContextByIntentUseCase {
             productCount: aiContext.productCount,
             totalCount: aiContext.totalCount,
             inStockCount: aiContext.inStockCount,
+            resolvedQuery,
           },
         };
         const bestMatch = selectBestProductMatch({
@@ -170,5 +178,24 @@ export class EnrichContextByIntentUseCase {
         ];
       }
     }
+  }
+}
+
+function mapDetectedCategoryToCategorySlug(
+  category: DetectedProductCategory | null,
+): string | undefined {
+  switch (category) {
+    case 'manga':
+      return 'mangas';
+    case 'comic':
+      return 'comics';
+    case 'juego':
+      return 'juegos';
+    case 'merch':
+      return 'merchandising';
+    case 'tarot':
+      return 'tarot-y-magia';
+    default:
+      return undefined;
   }
 }

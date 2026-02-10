@@ -74,6 +74,7 @@ describe('EnrichContextByIntentUseCase', () => {
 
     expect(entelequiaPort.getProducts).toHaveBeenCalledWith({
       query: 'Attack on Titan',
+      categorySlug: 'mangas',
       currency: 'ARS',
     });
   });
@@ -176,8 +177,8 @@ describe('EnrichContextByIntentUseCase', () => {
 
   it('calls getOrderDetail when orderId is extracted from entities', async () => {
     const result = await useCase.execute({
-      intentResult: { intent: 'orders', confidence: 0.9, entities: ['pedido 123'] },
-      text: 'estado del pedido 123',
+      intentResult: { intent: 'orders', confidence: 0.9, entities: ['pedido 123456'] },
+      text: 'estado del pedido 123456',
       accessToken: 'token',
     });
 
@@ -185,7 +186,7 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(result[0].contextType).toBe('order_detail');
     expect(entelequiaPort.getOrderDetail).toHaveBeenCalledWith({
       accessToken: 'token',
-      orderId: '123',
+      orderId: '123456',
     });
     expect(entelequiaPort.getOrders).not.toHaveBeenCalled();
   });

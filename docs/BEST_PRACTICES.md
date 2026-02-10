@@ -246,12 +246,12 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 
 - **Entrada pública**: `index.ts` que exporta la clase del use case.
 - **Clase principal**: `nombre-use-case.use-case.ts` con el método `execute` que orquesta el flujo.
-- **Helpers/utilities**: funciones puras extraídas en módulos separados (p. ej. `error-mapper.ts`, `query-resolvers.ts`, `product-parsers.ts`).
+- **Helpers/utilities**: funciones puras extraídas en módulos separados (p. ej. `error-mapper.ts`, `query-resolvers/`, `product-parsers.ts`).
 - **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
 
 Ejemplos:
 - `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `index.ts`
-- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers.ts`, `product-parsers.ts`, `index.ts`
+- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, index), `product-parsers.ts`, `index.ts`
 
 Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos.
 
