@@ -13,7 +13,6 @@ import type { EntelequiaContextPort } from '../../ports/entelequia-context.port'
 import {
   resolveOrderId,
   resolveProductsQuery,
-  type DetectedProductCategory,
 } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
 
@@ -37,11 +36,10 @@ export class EnrichContextByIntentUseCase {
     switch (intentResult.intent) {
       case 'products': {
         const resolvedQuery = resolveProductsQuery(intentResult.entities, input.text);
-        const categorySlug = mapDetectedCategoryToCategorySlug(resolvedQuery.category);
         const query = resolvedQuery.productName;
         const products = await this.entelequiaContextPort.getProducts({
           query,
-          ...(categorySlug ? { categorySlug } : {}),
+          ...(resolvedQuery.categorySlug ? { categorySlug: resolvedQuery.categorySlug } : {}),
           currency: input.currency,
         });
 
@@ -178,24 +176,5 @@ export class EnrichContextByIntentUseCase {
         ];
       }
     }
-  }
-}
-
-function mapDetectedCategoryToCategorySlug(
-  category: DetectedProductCategory | null,
-): string | undefined {
-  switch (category) {
-    case 'manga':
-      return 'mangas';
-    case 'comic':
-      return 'comics';
-    case 'juego':
-      return 'juegos';
-    case 'merch':
-      return 'merchandising';
-    case 'tarot':
-      return 'tarot-y-magia';
-    default:
-      return undefined;
   }
 }

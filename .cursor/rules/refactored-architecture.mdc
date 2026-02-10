@@ -30,7 +30,7 @@ wf1/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
       handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, index.ts
-      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, index), product-parsers.ts, index.ts
+      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
     adapters/       # OpenAI, Entelequia, IntentExtractor, PromptTemplates

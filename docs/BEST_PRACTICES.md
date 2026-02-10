@@ -251,9 +251,13 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 
 Ejemplos:
 - `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `index.ts`
-- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, index), `product-parsers.ts`, `index.ts`
+- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index), `product-parsers.ts`, `index.ts`
 
 Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos.
+
+#### 9.2.1 Query resolvers: category detection and categorySlug
+
+Product category detection and the mapping to Entelequia `categorySlug` live in `query-resolvers/` (`detect-category.ts`, `resolve-products.ts`, `category-slugs.ts`). `ResolvedProductsQuery.categorySlug` is passed to `getProducts({ categorySlug })` to filter by the store's product tree. Slug values are centralized in `category-slugs.ts` as the single source of truth and must be kept aligned with the Entelequia API (e.g. `GET /api/v1/products-list/{categorySlug}`).
 
 ### 9.3 Infrastructure: adapters con carpeta por concepto y helpers compartidos (DRY)
 

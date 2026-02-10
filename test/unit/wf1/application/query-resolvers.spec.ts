@@ -11,12 +11,14 @@ describe('Query Resolvers', () => {
       expect(result.productName).toBe('One Piece');
       expect(result.hasFormatHint).toBe(true);
       expect(result.category).toBeNull();
+      expect(result.categorySlug).toBeUndefined();
     });
 
     it('detects category based on original text', () => {
       const result = resolveProductsQuery(['Magic', 'cartas'], 'Dame cartas de Magic');
       expect(result.productName).toBe('Magic');
-      expect(result.category).toBe('juego');
+      expect(result.category).toBe('juego_tcg');
+      expect(result.categorySlug).toBe('juegos-de-cartas-coleccionables-magic');
     });
 
     it('falls back to originalText when entities are generic or empty', () => {
@@ -44,12 +46,12 @@ describe('Query Resolvers', () => {
   });
 
   describe('detectProductCategory', () => {
-    it('detects games category', () => {
-      expect(detectProductCategory('Dame cartas de Magic')).toBe('juego');
+    it('detects tcg category', () => {
+      expect(detectProductCategory('Dame cartas de Magic')).toBe('juego_tcg');
     });
 
-    it('detects merch category', () => {
-      expect(detectProductCategory('Figuras de One Piece')).toBe('merch');
+    it('detects merch figures category', () => {
+      expect(detectProductCategory('Figuras de One Piece')).toBe('merch_figuras');
     });
 
     it('detects tarot category', () => {
@@ -62,6 +64,22 @@ describe('Query Resolvers', () => {
 
     it('detects comic category', () => {
       expect(detectProductCategory('Comic Transformers grapa')).toBe('comic');
+    });
+
+    it('detects merch clothing category', () => {
+      expect(detectProductCategory('Busco una remera de Naruto')).toBe('merch_ropa');
+    });
+
+    it('detects board games category', () => {
+      expect(detectProductCategory('Tienen juegos de mesa?')).toBe('juego_mesa');
+    });
+
+    it('detects rpg category', () => {
+      expect(detectProductCategory('Busco un juego de rol D&D')).toBe('juego_rol');
+    });
+
+    it('detects books category', () => {
+      expect(detectProductCategory('Tenes un libro de One Piece?')).toBe('libro');
     });
 
     it('returns null when no category is detected', () => {
