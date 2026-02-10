@@ -1,4 +1,4 @@
-import { ExternalServiceError } from '../../../domain/errors';
+import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import { fetchWithTimeout } from '../shared';
 import { parseJson } from './product-helpers';
 

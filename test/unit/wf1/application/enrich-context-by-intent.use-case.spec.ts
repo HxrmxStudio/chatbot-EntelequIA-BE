@@ -54,6 +54,93 @@ describe('EnrichContextByIntentUseCase', () => {
     });
   });
 
+  it('strips volume hints and generic tokens from products query entities', async () => {
+    await useCase.execute({
+      intentResult: { intent: 'products', confidence: 0.9, entities: ['manga', 'Attack on Titan', 'Nro 1'] },
+      text: 'Hola, tienen manga Nro 1 de Attack on Titan?',
+      currency: 'ARS',
+    });
+
+    expect(entelequiaPort.getProducts).toHaveBeenCalledWith({
+      query: 'Attack on Titan',
+      currency: 'ARS',
+    });
+  });
+
+  it('adds bestMatch, availabilityHint and aiContext when matching products are available', async () => {
+    entelequiaPort.getProducts.mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        query: 'Attack on Titan',
+        total: 136,
+        items: [
+          {
+            id: 61716,
+            slug: 'attack-on-titan-edicion-deluxe-04_61716',
+            title: 'ATTACK ON TITAN EDICIÓN DELUXE 04',
+            stock: 8,
+            categorySlug: 'mangas-seinen',
+            categoryName: 'Seinen',
+            price: { currency: 'ARS', amount: 24999 },
+            url: 'https://entelequia.com.ar/producto/attack-on-titan-edicion-deluxe-04_61716',
+          },
+          {
+            id: 54297,
+            slug: 'attack-on-titan-edicion-deluxe-01_54297',
+            title: 'ATTACK ON TITAN EDICIÓN DELUXE 01',
+            stock: 6,
+            categorySlug: 'mangas-seinen',
+            categoryName: 'Seinen',
+            price: { currency: 'ARS', amount: 24999 },
+            url: 'https://entelequia.com.ar/producto/attack-on-titan-edicion-deluxe-01_54297',
+          },
+          {
+            id: 57231,
+            slug: 'attack-on-titan-edicion-deluxe-02_57231',
+            title: 'ATTACK ON TITAN EDICIÓN DELUXE 02',
+            stock: 18,
+            categorySlug: 'mangas-seinen',
+            categoryName: 'Seinen',
+            price: { currency: 'ARS', amount: 24999 },
+            url: 'https://entelequia.com.ar/producto/attack-on-titan-edicion-deluxe-02_57231',
+          },
+        ],
+        summary: '...',
+      },
+    });
+
+    entelequiaPort.getProductDetail.mockResolvedValueOnce({
+      contextType: 'product_detail',
+      contextPayload: { product: { slug: 'attack-on-titan-edicion-deluxe-01_54297' } },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'products', confidence: 0.97, entities: ['manga', 'Attack on Titan', 'Nro 1'] },
+      text: 'Hola, tienen manga Nro 1 de Attack on Titan?',
+      currency: 'ARS',
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].contextType).toBe('products');
+    expect(result[1].contextType).toBe('product_detail');
+
+    const payload = result[0].contextPayload;
+    expect(payload).toHaveProperty('aiContext');
+    expect(payload).toHaveProperty('bestMatch');
+    expect(payload).toHaveProperty('availabilityHint');
+    expect(payload).toHaveProperty('productCount');
+    expect(payload).toHaveProperty('inStockCount');
+
+    expect((payload.bestMatch as { slug?: string }).slug).toBe('attack-on-titan-edicion-deluxe-01_54297');
+    expect(typeof payload.availabilityHint).toBe('string');
+    expect(String(payload.availabilityHint)).toContain('DELUXE 01');
+
+    expect(entelequiaPort.getProductDetail).toHaveBeenCalledWith({
+      idOrSlug: 'attack-on-titan-edicion-deluxe-01_54297',
+      currency: 'ARS',
+    });
+  });
+
   it('returns store_info static context', async () => {
     const result = await useCase.execute({
       intentResult: { intent: 'store_info', confidence: 0.95, entities: [] },

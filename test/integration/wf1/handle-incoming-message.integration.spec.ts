@@ -11,7 +11,7 @@ import {
 import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import type { AuditEntryInput } from '@/modules/wf1/application/ports/audit.port';
 import type { PersistTurnInput } from '@/modules/wf1/application/ports/chat-persistence.port';
-import { TextSanitizer } from '@/modules/wf1/infrastructure/security/text-sanitizer';
+import { TextSanitizer } from '@/modules/wf1/infrastructure/security/services/text-sanitizer';
 import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from '@/modules/wf1/application/use-cases/handle-incoming-message';
 

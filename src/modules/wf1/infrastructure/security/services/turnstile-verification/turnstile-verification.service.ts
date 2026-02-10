@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '@/common/utils/logger';
-import { resolveOptionalString } from '../shared';
+import { resolveOptionalString } from '../../shared';
 import { verifyTurnstileToken } from './turnstile-client';
 
 @Injectable()

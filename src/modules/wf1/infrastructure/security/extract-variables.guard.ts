@@ -5,7 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ExtractVariablesService } from './extract-variables';
+import { ExtractVariablesService } from './services/extract-variables';
 
 @Injectable()
 export class ExtractVariablesGuard implements CanActivate {

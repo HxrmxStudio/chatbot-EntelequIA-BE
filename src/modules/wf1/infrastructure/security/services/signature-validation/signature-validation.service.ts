@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { createLogger } from '@/common/utils/logger';
 import type { ChannelSource } from '@/modules/wf1/domain/source';
-import { resolveBody } from '../shared';
+import { resolveBody } from '../../shared';
 import { TurnstileVerificationService } from '../turnstile-verification';
 import { validateWebSignature } from './web-signature-validator';
 import { validateWhatsappSignature } from './whatsapp-signature-validator';

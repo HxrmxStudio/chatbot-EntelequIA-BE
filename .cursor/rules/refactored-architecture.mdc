@@ -41,18 +41,19 @@ wf1/
       intent-extractor/  # intent-extractor.adapter.ts, endpoints.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, constants.ts, index.ts
       entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
       # Each adapter in its own folder with index.ts as public API
-      # endpoints.ts centralizes all API endpoint definitions for better maintainability
+      # endpoints.ts centralizes all endpoint definitions (API endpoints and web frontend URLs like productWebUrl, storageImageUrl) for better maintainability
     repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
       shared/       # json-helpers.ts (toJsonb for jsonb columns)
     security/       # Guards, validation, sanitization
+      services/     # All security services grouped here (NestJS best practice)
+        signature-validation/  # signature-validation.service.ts, web-signature-validator.ts, whatsapp-signature-validator.ts, index.ts
+        turnstile-verification/  # turnstile-verification.service.ts, turnstile-client.ts, index.ts
+        input-validation/  # input-validation.service.ts, field-validators.ts, index.ts
+        extract-variables/  # extract-variables.service.ts, field-extractor.ts, index.ts
+        text-sanitizer/  # text-sanitizer.ts, index.ts
+        # Each service in its own folder with index.ts as public API
       shared/       # string-helpers.ts, crypto-helpers.ts, body-helpers.ts (DRY helpers)
-      signature-validation/  # signature-validation.service.ts, web-signature-validator.ts, whatsapp-signature-validator.ts, index.ts
-      turnstile-verification/  # turnstile-verification.service.ts, turnstile-client.ts, index.ts
-      input-validation/  # input-validation.service.ts, field-validators.ts, index.ts
-      extract-variables/  # extract-variables.service.ts, field-extractor.ts, index.ts
-      text-sanitizer/  # text-sanitizer.ts, index.ts
       # Guards remain in root: signature.guard.ts, input-validation.guard.ts, extract-variables.guard.ts
-      # Each service in its own folder with index.ts as public API
   controllers/
   dto/
 ```
@@ -100,6 +101,13 @@ Defined in `application/ports/tokens.ts`:
 
 ## Externalized Prompts
 
-- `prompts/entelequia_intent_system_prompt_v1.txt`
-- `prompts/entelequia_assistant_system_prompt_v1.txt`
-- Load at adapter init, fallback to default if file missing
+All prompts and instructions are externalized to `prompts/` for versioning and maintainability:
+
+- `prompts/entelequia_intent_system_prompt_v1.txt` - Intent classification system prompt
+- `prompts/entelequia_assistant_system_prompt_v1.txt` - Assistant system prompt
+- `prompts/entelequia_products_context_header_v1.txt` - Products context header
+- `prompts/entelequia_products_context_additional_info_v1.txt` - Additional store information
+- `prompts/entelequia_products_context_instructions_v1.txt` - Instructions for product responses
+- `prompts/entelequia_general_context_hint_v1.txt` - General context hint
+
+Load prompts using `loadPromptFile` from `adapters/shared` at adapter/domain initialization. Maintain fallback defaults in `constants.ts` if file is missing. Version prompts with `_v1.txt`, `_v2.txt`, etc.

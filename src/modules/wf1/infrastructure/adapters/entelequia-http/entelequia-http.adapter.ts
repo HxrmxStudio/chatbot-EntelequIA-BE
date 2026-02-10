@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { EntelequiaContextPort } from '../../../application/ports/entelequia-context.port';
-import type { ContextBlock } from '../../../domain/context-block';
+import type { EntelequiaContextPort } from '@/modules/wf1/application/ports/entelequia-context.port';
+import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 import {
   accountOrderDetailEndpoint,
   accountOrdersEndpoint,

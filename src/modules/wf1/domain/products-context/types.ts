@@ -5,6 +5,8 @@ export interface ProductSearchItem {
   slug: string;
   title: string;
   stock: number;
+  categoryName?: string;
+  categorySlug?: string;
   price?: Money;
   priceWithDiscount?: Money | null;
   discountPercent?: number | null;
@@ -19,4 +21,8 @@ export interface ProductsContextPayload {
   bestMatch?: ProductSearchItem;
   summary?: string;
   availabilityHint?: string;
+  aiContext?: string;
+  productCount?: number;
+  totalCount?: number;
+  inStockCount?: number;
 }

@@ -1,5 +1,6 @@
 import {
   buildProductAvailabilityHint,
+  buildProductsAiContext,
   buildProductsSummary,
   selectBestProductMatch,
 } from '@/modules/wf1/domain/products-context';
@@ -44,6 +45,33 @@ describe('Products Context', () => {
     });
   });
 
+  describe('buildProductsAiContext', () => {
+    it('formats a markdown-like context with counts', () => {
+      const result = buildProductsAiContext({
+        query: 'Attack on Titan',
+        total: 2,
+        items: [
+          {
+            id: 1,
+            slug: 'attack-on-titan-edicion-deluxe-01',
+            title: 'ATTACK ON TITAN EDICIÓN DELUXE 01',
+            stock: 6,
+            categoryName: 'Seinen',
+            price: { currency: 'ARS', amount: 24999 },
+            url: 'https://entelequia.com.ar/producto/attack-on-titan-edicion-deluxe-01',
+          },
+        ],
+      });
+
+      expect(result.productCount).toBe(1);
+      expect(result.totalCount).toBe(2);
+      expect(result.inStockCount).toBe(1);
+      expect(result.contextText).toContain('PRODUCTOS ENTELEQUIA');
+      expect(result.contextText).toContain('ATTACK ON TITAN EDICIÓN DELUXE 01');
+      expect(result.contextText).toContain('Mostrando 1 de 2');
+    });
+  });
+
   describe('selectBestProductMatch', () => {
     it('prefers volume + series match and picks highest stock among matches', () => {
       const items = [
@@ -76,6 +104,37 @@ describe('Products Context', () => {
       expect(match?.slug).toBe('attack-on-titan-tomo-1-especial');
     });
 
+    it('matches zero-padded volume titles like "DELUXE 01"', () => {
+      const items = [
+        {
+          id: 1,
+          slug: 'attack-on-titan-edicion-deluxe-04',
+          title: 'ATTACK ON TITAN EDICIÓN DELUXE 04',
+          stock: 8,
+        },
+        {
+          id: 2,
+          slug: 'attack-on-titan-edicion-deluxe-01',
+          title: 'ATTACK ON TITAN EDICIÓN DELUXE 01',
+          stock: 6,
+        },
+        {
+          id: 3,
+          slug: 'attack-on-titan-edicion-deluxe-02',
+          title: 'ATTACK ON TITAN EDICIÓN DELUXE 02',
+          stock: 18,
+        },
+      ];
+
+      const match = selectBestProductMatch({
+        items,
+        entities: ['manga', 'Attack on Titan', 'Nro 1'],
+        text: 'Hola, tienen manga Nro 1 de Attack on Titan?',
+      });
+
+      expect(match?.slug).toBe('attack-on-titan-edicion-deluxe-01');
+    });
+
     it('returns undefined when it cannot extract series tokens', () => {
       const match = selectBestProductMatch({
         items: [
@@ -90,4 +149,3 @@ describe('Products Context', () => {
     });
   });
 });
-

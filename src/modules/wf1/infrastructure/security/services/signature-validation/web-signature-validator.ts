@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { resolveOptionalString, secureEquals } from '../shared';
+import { resolveOptionalString, secureEquals } from '../../shared';
 import { HEADER_TURNSTILE_TOKEN, HEADER_WEBHOOK_SECRET } from './constants';
 import type { TurnstileVerificationService } from '../turnstile-verification';
 

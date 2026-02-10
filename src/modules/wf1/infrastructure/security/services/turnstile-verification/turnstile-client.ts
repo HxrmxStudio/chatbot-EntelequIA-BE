@@ -1,5 +1,5 @@
 import { ensureObject } from '@/common/utils/object.utils';
-import { resolveOptionalString } from '../shared';
+import { resolveOptionalString } from '../../shared';
 import { TURNSTILE_VERIFY_URL } from './constants';
 import type { TurnstileVerifyResponse } from './types';
 

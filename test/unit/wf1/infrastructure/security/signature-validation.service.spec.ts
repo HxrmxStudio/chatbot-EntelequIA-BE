@@ -2,8 +2,8 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
 import type { Request } from 'express';
-import { SignatureValidationService } from '@/modules/wf1/infrastructure/security/signature-validation';
-import { TurnstileVerificationService } from '@/modules/wf1/infrastructure/security/turnstile-verification';
+import { SignatureValidationService } from '@/modules/wf1/infrastructure/security/services/signature-validation';
+import { TurnstileVerificationService } from '@/modules/wf1/infrastructure/security/services/turnstile-verification';
 
 describe('SignatureValidationService', () => {
   const originalConsoleError = console.error;

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import type { Request } from 'express';
-import { secureEquals } from '../shared';
+import { secureEquals } from '../../shared';
 import { HEADER_WHATSAPP_SIGNATURE } from './constants';
 
 export function validateWhatsappSignature(

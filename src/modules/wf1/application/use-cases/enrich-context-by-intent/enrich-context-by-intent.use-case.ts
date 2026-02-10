@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ContextBlock } from '../../../domain/context-block';
-import { ExternalServiceError, MissingAuthForOrdersError } from '../../../domain/errors';
-import type { IntentResult } from '../../../domain/intent';
+import { loadPromptFile } from '@/modules/wf1/infrastructure/adapters/shared';
+import type { ContextBlock } from '@/modules/wf1/domain/context-block';
+import { ExternalServiceError, MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
+import type { IntentResult } from '@/modules/wf1/domain/intent';
 import {
+  buildProductsAiContext,
   buildProductAvailabilityHint,
   selectBestProductMatch,
-} from '../../../domain/products-context';
+} from '@/modules/wf1/domain/products-context';
 import { ENTELEQUIA_CONTEXT_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
 import { resolveProductsQuery, resolveOrderId } from './query-resolvers';
@@ -35,6 +37,25 @@ export class EnrichContextByIntentUseCase {
         });
 
         const items = extractProductItems(products.contextPayload);
+        const total =
+          typeof products.contextPayload.total === 'number'
+            ? products.contextPayload.total
+            : undefined;
+        const aiContext = buildProductsAiContext({
+          items,
+          total,
+          query,
+        });
+        const productsWithAi: ContextBlock = {
+          ...products,
+          contextPayload: {
+            ...products.contextPayload,
+            aiContext: aiContext.contextText,
+            productCount: aiContext.productCount,
+            totalCount: aiContext.totalCount,
+            inStockCount: aiContext.inStockCount,
+          },
+        };
         const bestMatch = selectBestProductMatch({
           items,
           entities: intentResult.entities,
@@ -42,13 +63,13 @@ export class EnrichContextByIntentUseCase {
         });
 
         if (!bestMatch) {
-          return [products];
+          return [productsWithAi];
         }
 
         const productsWithBest: ContextBlock = {
-          ...products,
+          ...productsWithAi,
           contextPayload: {
-            ...products.contextPayload,
+            ...productsWithAi.contextPayload,
             bestMatch,
             availabilityHint: buildProductAvailabilityHint(bestMatch),
           },
@@ -130,15 +151,20 @@ export class EnrichContextByIntentUseCase {
       }
 
       case 'general':
-      default:
+      default: {
+        const hint = loadPromptFile(
+          'prompts/entelequia_general_context_hint_v1.txt',
+          'Responder con claridad y pedir precision cuando falten datos.',
+        );
         return [
           {
             contextType: 'general',
             contextPayload: {
-              hint: 'Responder con claridad y pedir precision cuando falten datos.',
+              hint,
             },
           },
         ];
+      }
     }
   }
 }

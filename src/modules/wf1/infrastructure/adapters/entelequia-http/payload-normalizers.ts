@@ -5,8 +5,10 @@ import {
   type ProductSearchItem,
 } from '@/modules/wf1/domain/products-context';
 import { parseMoney } from '@/modules/wf1/domain/money';
+import { productWebUrl } from './endpoints';
 import {
   coerceNumber,
+  extractCategoryInfo,
   extractTotal,
   pickImageUrl,
 } from './product-helpers';
@@ -38,16 +40,19 @@ export function normalizeProductsListPayload(
     const priceWithDiscount = parseMoney(raw.priceWithDiscount);
     const discountPercent = coerceNumber(raw.discount_percent, null);
     const imageUrl = pickImageUrl(raw.images, webBaseUrl);
+    const categoryInfo = extractCategoryInfo(raw.categories);
 
     items.push({
       id,
       slug,
       title,
       stock,
+      ...(categoryInfo.name ? { categoryName: categoryInfo.name } : {}),
+      ...(categoryInfo.slug ? { categorySlug: categoryInfo.slug } : {}),
       ...(price ? { price } : {}),
       ...(priceWithDiscount ? { priceWithDiscount } : {}),
       ...(typeof discountPercent === 'number' ? { discountPercent } : {}),
-      url: `${webBaseUrl}/producto/${encodeURIComponent(slug)}`,
+      url: productWebUrl(webBaseUrl, slug),
       ...(imageUrl ? { imageUrl } : {}),
     });
   }
@@ -86,7 +91,7 @@ export function normalizeProductDetailPayload(
     slug,
     title,
     stock,
-    url: slug.length > 0 ? `${webBaseUrl}/producto/${encodeURIComponent(slug)}` : undefined,
+    url: slug.length > 0 ? productWebUrl(webBaseUrl, slug) : undefined,
     ...(price ? { price } : {}),
     ...(priceWithDiscount ? { priceWithDiscount } : {}),
     ...(typeof discountPercent === 'number' ? { discountPercent } : {}),

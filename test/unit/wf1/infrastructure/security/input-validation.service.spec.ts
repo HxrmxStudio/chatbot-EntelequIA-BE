@@ -1,6 +1,6 @@
 import {
   InputValidationService,
-} from '@/modules/wf1/infrastructure/security/input-validation';
+} from '@/modules/wf1/infrastructure/security/services/input-validation';
 
 describe('InputValidationService', () => {
   let service: InputValidationService;

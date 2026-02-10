@@ -25,12 +25,16 @@ export function extractProductItems(payload: Record<string, unknown>): ProductSe
     const id = typeof record.id === 'string' || typeof record.id === 'number' ? record.id : slug;
     const price = parseMoney(record.price);
     const priceWithDiscount = parseMoney(record.priceWithDiscount);
+    const categoryName = typeof record.categoryName === 'string' ? record.categoryName.trim() : undefined;
+    const categorySlug = typeof record.categorySlug === 'string' ? record.categorySlug.trim() : undefined;
 
     parsed.push({
       id,
       slug,
       title,
       stock,
+      ...(categoryName ? { categoryName } : {}),
+      ...(categorySlug ? { categorySlug } : {}),
       ...(typeof record.url === 'string' ? { url: record.url } : {}),
       ...(typeof record.imageUrl === 'string' ? { imageUrl: record.imageUrl } : {}),
       ...(price ? { price } : {}),

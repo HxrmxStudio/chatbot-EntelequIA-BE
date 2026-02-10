@@ -1,4 +1,5 @@
 import { isRecord } from '@/common/utils/object.utils';
+import { storageImageUrl } from './endpoints';
 
 export async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -43,6 +44,27 @@ export function extractTotal(productsContainer: Record<string, unknown> | undefi
   return typeof total === 'number' ? total : undefined;
 }
 
+export function extractCategoryInfo(
+  categories: unknown,
+): { name?: string; slug?: string } {
+  if (!Array.isArray(categories) || categories.length === 0) {
+    return {};
+  }
+
+  const first = categories[0];
+  if (!isRecord(first)) {
+    return {};
+  }
+
+  const name = typeof first.name === 'string' ? first.name.trim() : undefined;
+  const slug = typeof first.slug === 'string' ? first.slug.trim() : undefined;
+
+  return {
+    ...(name && name.length > 0 ? { name } : {}),
+    ...(slug && slug.length > 0 ? { slug } : {}),
+  };
+}
+
 export function pickImageUrl(images: unknown, webBaseUrl: string): string | undefined {
   if (!Array.isArray(images) || images.length === 0) {
     return undefined;
@@ -58,8 +80,7 @@ export function pickImageUrl(images: unknown, webBaseUrl: string): string | unde
   }
 
   if (typeof first.path === 'string' && first.path.trim().length > 0) {
-    const path = first.path.trim().replace(/^\//, '');
-    return `${webBaseUrl}/storage/${path}`;
+    return storageImageUrl(webBaseUrl, first.path);
   }
 
   return undefined;

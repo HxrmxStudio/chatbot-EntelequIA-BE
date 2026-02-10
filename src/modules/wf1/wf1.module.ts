@@ -22,13 +22,12 @@ import { PgAuditRepository } from './infrastructure/repositories/pg-audit.reposi
 import { PgChatRepository } from './infrastructure/repositories/pg-chat.repository';
 import { PgIdempotencyRepository } from './infrastructure/repositories/pg-idempotency.repository';
 import { ExtractVariablesGuard } from './infrastructure/security/extract-variables.guard';
-import { ExtractVariablesService } from './infrastructure/security/extract-variables';
+import { ExtractVariablesService } from './infrastructure/security/services/extract-variables';
 import { InputValidationGuard } from './infrastructure/security/input-validation.guard';
-import { InputValidationService } from './infrastructure/security/input-validation';
+import { InputValidationService } from './infrastructure/security/services/input-validation';
 import { SignatureGuard } from './infrastructure/security/signature.guard';
-import { SignatureValidationService } from './infrastructure/security/signature-validation';
-import { TextSanitizer } from './infrastructure/security/text-sanitizer';
-import { TurnstileVerificationService } from './infrastructure/security/turnstile-verification';
+import { SignatureValidationService } from './infrastructure/security/services/signature-validation';
+import { TurnstileVerificationService } from './infrastructure/security/services/turnstile-verification';
 
 @Module({
   controllers: [ChatController, IntentController],
@@ -40,7 +39,6 @@ import { TurnstileVerificationService } from './infrastructure/security/turnstil
     TurnstileVerificationService,
     InputValidationService,
     ExtractVariablesService,
-    TextSanitizer,
     EnrichContextByIntentUseCase,
     HandleIncomingMessageUseCase,
     IntentExtractorAdapter,

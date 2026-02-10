@@ -152,7 +152,13 @@ Dependencies point **inward**: Domain has no dependencies. Use cases depend only
 - Abstract behind `LlmPort`.
 - Retry with exponential backoff for transient failures.
 - Fallback responses when API is unavailable.
-- Externalize prompts to `prompts/` for versioning.
+- **Externalize all prompts/instructions** to `prompts/` for versioning:
+  - System prompts for LLM adapters
+  - Context templates and instructions
+  - Hints and guidance text
+  - Use `loadPromptFile` from `adapters/shared` to load prompts
+  - Maintain fallback defaults in `constants.ts` if file is missing
+  - Version prompts with `_v1.txt`, `_v2.txt`, etc.
 
 ### Context Enrichment
 
@@ -255,7 +261,9 @@ Cada adapter vive en su **propia carpeta** siguiendo Clean Code principles y DRY
 
 - **Entrada pública**: `index.ts` que exporta la clase del adapter.
 - **Clase principal**: `nombre.adapter.ts` con `@Injectable()` que implementa el port.
-- **Endpoints**: `endpoints.ts` centraliza todas las URLs/rutas de la API externa (p. ej. funciones helper para construir endpoints).
+- **Endpoints**: `endpoints.ts` centraliza todas las URLs/rutas, incluyendo:
+  - Endpoints de API externa (p. ej. funciones helper para construir rutas de API)
+  - URLs del web frontend (p. ej. `productWebUrl`, `storageImageUrl` para URLs públicas)
 - **Helpers específicos**: funciones puras extraídas en módulos separados dentro de la carpeta del adapter (p. ej. `openai-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`).
 - **Helpers compartidos**: código duplicado extraído a `shared/` dentro de `adapters/` (p. ej. `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts`).
 - **Imports**: los consumidores importan `from '.../infrastructure/adapters/nombre-adapter'` (resuelve al `index.ts`).
@@ -266,24 +274,26 @@ Ejemplos:
 - `adapters/entelequia-http/` — `entelequia-http.adapter.ts`, `endpoints.ts`, `entelequia-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`, `index.ts`
 - `adapters/shared/` — `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts` (compartidos por múltiples adapters)
 
-Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON. Los archivos `endpoints.ts` centralizan las definiciones de endpoints para mejorar mantenibilidad y seguir Single Responsibility Principle.
+Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON. Los archivos `endpoints.ts` centralizan las definiciones de endpoints (tanto de API como URLs del web frontend como `productWebUrl` y `storageImageUrl`) para mejorar mantenibilidad y seguir Single Responsibility Principle.
 
-### 9.4 Infrastructure: security con carpeta por concepto y helpers compartidos (DRY)
+### 9.4 Infrastructure: security con carpeta services y helpers compartidos (DRY)
 
-Cada servicio de seguridad vive en su **propia carpeta** siguiendo Clean Code principles y DRY:
+Todos los servicios de seguridad están agrupados bajo `services/` siguiendo las mejores prácticas de NestJS. Cada servicio vive en su **propia carpeta** siguiendo Clean Code principles y DRY:
 
+- **Estructura**: `security/services/nombre-servicio/` agrupa todos los servicios relacionados.
 - **Entrada pública**: `index.ts` que exporta la clase del servicio.
 - **Clase principal**: `nombre.service.ts` con `@Injectable()` que implementa la lógica de seguridad.
 - **Helpers específicos**: funciones puras extraídas en módulos separados dentro de la carpeta del servicio (p. ej. `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `field-validators.ts`, `field-extractor.ts`).
 - **Helpers compartidos**: código duplicado extraído a `shared/` dentro de `security/` (p. ej. `string-helpers.ts`, `crypto-helpers.ts`, `body-helpers.ts`).
 - **Guards**: se mantienen en la raíz de `security/` (patrón estándar de NestJS).
-- **Imports**: los consumidores importan `from '.../infrastructure/security/nombre-servicio'` (resuelve al `index.ts`).
+- **Imports**: los consumidores importan `from '.../infrastructure/security/services/nombre-servicio'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `security/signature-validation/` — `signature-validation.service.ts`, `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `types.ts`, `constants.ts`, `index.ts`
-- `security/turnstile-verification/` — `turnstile-verification.service.ts`, `turnstile-client.ts`, `types.ts`, `constants.ts`, `index.ts`
-- `security/input-validation/` — `input-validation.service.ts`, `field-validators.ts`, `types.ts`, `constants.ts`, `index.ts`
-- `security/extract-variables/` — `extract-variables.service.ts`, `field-extractor.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/services/signature-validation/` — `signature-validation.service.ts`, `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/services/turnstile-verification/` — `turnstile-verification.service.ts`, `turnstile-client.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/services/input-validation/` — `input-validation.service.ts`, `field-validators.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/services/extract-variables/` — `extract-variables.service.ts`, `field-extractor.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/services/text-sanitizer/` — `text-sanitizer.ts`, `index.ts`
 - `security/shared/` — `string-helpers.ts`, `crypto-helpers.ts`, `body-helpers.ts` (compartidos por múltiples servicios)
 
 Los helpers compartidos eliminan duplicación (DRY) de funciones como `secureEquals` y `resolveBody`. Nota: `resolveOptionalString` se consolidó en `common/utils/string.utils.ts` y se re-exporta desde `security/shared/string-helpers.ts`.

@@ -27,3 +27,17 @@ export function accountOrdersEndpoint(): string {
 export function accountOrderDetailEndpoint(orderId: string): string {
   return `/account/orders/${encodeURIComponent(orderId)}`;
 }
+
+/**
+ * Frontend/web URLs for Entelequia.
+ * These are public-facing URLs, not API endpoints.
+ */
+
+export function productWebUrl(webBaseUrl: string, slug: string): string {
+  return `${webBaseUrl}/producto/${encodeURIComponent(slug)}`;
+}
+
+export function storageImageUrl(webBaseUrl: string, path: string): string {
+  const normalizedPath = path.trim().replace(/^\//, '');
+  return `${webBaseUrl}/storage/${normalizedPath}`;
+}

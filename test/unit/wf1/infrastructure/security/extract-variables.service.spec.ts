@@ -1,7 +1,7 @@
 import {
   ExtractVariablesService,
   type ExtractedVariablesNodeOutput,
-} from '@/modules/wf1/infrastructure/security/extract-variables';
+} from '@/modules/wf1/infrastructure/security/services/extract-variables';
 
 describe('ExtractVariablesService', () => {
   let service: ExtractVariablesService;

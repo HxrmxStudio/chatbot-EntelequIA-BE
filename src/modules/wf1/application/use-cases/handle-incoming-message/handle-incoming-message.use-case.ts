@@ -20,9 +20,9 @@ import {
   WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
   mapConversationHistoryRowsToMessageHistoryItems,
 } from '../../../domain/conversation-history';
+import { sanitizeText } from '../../../domain/text-sanitizer';
 import { validateAndEnrichIntentOutput } from '../../../domain/output-validation';
 import { resolveIntentRoute } from '../../../domain/intent-routing';
-import { TextSanitizer } from '../../../infrastructure/security/text-sanitizer';
 import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
 import { mapContextOrBackendError } from './error-mapper';
@@ -44,7 +44,6 @@ export class HandleIncomingMessageUseCase {
     @Inject(AUDIT_PORT)
     private readonly auditPort: AuditPort,
     private readonly enrichContextByIntent: EnrichContextByIntentUseCase,
-    private readonly textSanitizer: TextSanitizer,
     private readonly configService: ConfigService,
   ) {
     const configuredLimit =
@@ -68,7 +67,7 @@ export class HandleIncomingMessageUseCase {
       throw new BadRequestException('Payload invalido.');
     }
 
-    const sanitizedText = this.textSanitizer.sanitize(input.payload.text);
+    const sanitizedText = sanitizeText(input.payload.text);
 
     if (sanitizedText.length === 0 || sanitizedText.length > WF1_MAX_TEXT_CHARS) {
       throw new BadRequestException('Payload invalido.');

@@ -1,6 +1,6 @@
 import { formatMoney } from '../money';
 import type { ProductSearchItem } from './types';
-import { WF1_PRODUCTS_CONTEXT_MAX_ITEMS } from './constants';
+import { WF1_PRODUCTS_CONTEXT_SUMMARY_MAX_ITEMS } from './constants';
 
 export function buildProductsSummary(items: ProductSearchItem[]): string {
   if (items.length === 0) {
@@ -8,9 +8,10 @@ export function buildProductsSummary(items: ProductSearchItem[]): string {
   }
 
   const lines = items
-    .slice(0, WF1_PRODUCTS_CONTEXT_MAX_ITEMS)
+    .slice(0, WF1_PRODUCTS_CONTEXT_SUMMARY_MAX_ITEMS)
     .map((item) => {
-      const price = item.price ? formatMoney(item.price) : 'precio no disponible';
+      const priceMoney = item.priceWithDiscount ?? item.price;
+      const price = priceMoney ? formatMoney(priceMoney) : 'precio no disponible';
       return `- ${item.title}: ${price} (Stock: ${item.stock})`;
     });
 
@@ -18,7 +19,8 @@ export function buildProductsSummary(items: ProductSearchItem[]): string {
 }
 
 export function buildProductAvailabilityHint(item: ProductSearchItem): string {
-  const price = item.price ? formatMoney(item.price) : undefined;
+  const priceMoney = item.priceWithDiscount ?? item.price;
+  const price = priceMoney ? formatMoney(priceMoney) : undefined;
   const url = item.url ? `Link: ${item.url}` : undefined;
 
   if (item.stock > 0) {

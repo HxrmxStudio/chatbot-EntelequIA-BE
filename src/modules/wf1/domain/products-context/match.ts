@@ -9,31 +9,45 @@ export function selectBestProductMatch(input: {
     return undefined;
   }
 
-  const volume = extractVolumeNumber(input.text, input.entities);
+  const requestedVolume = extractVolumeNumber(input.text, input.entities);
   const seriesTokens = extractSeriesTokens(input.entities, input.text);
   if (seriesTokens.length === 0) {
     return undefined;
   }
 
-  const withTitle = input.items.map((item) => ({
+  const candidates = input.items.map((item) => ({
     item,
-    title: normalizeForMatch(item.title),
+    normalizedTitle: normalizeForMatch(item.title),
+    volumeFromTitle: extractVolumeNumberFromTitle(item.title),
   }));
 
-  const volumeTokens = volume ? buildVolumeTokens(volume) : [];
+  if (requestedVolume) {
+    const volumeTokens = buildVolumeTokens(requestedVolume);
 
-  const exact = withTitle.filter(({ title }) => {
-    const matchesSeries = seriesTokens.every((t) => title.includes(t));
-    if (!matchesSeries) return false;
-    if (volumeTokens.length === 0) return true;
-    return volumeTokens.some((vt) => title.includes(vt));
-  });
+    const matchingVolume = candidates.filter(({ normalizedTitle, volumeFromTitle }) => {
+      const matchesSeries = seriesTokens.every((t) => normalizedTitle.includes(t));
+      if (!matchesSeries) return false;
 
-  if (exact.length > 0) {
-    return pickPreferredByStock(exact.map((x) => x.item));
+      if (volumeFromTitle === requestedVolume) {
+        return true;
+      }
+
+      // Fallback for titles that encode volume as text tokens (e.g. "tomo 1").
+      return volumeTokens.some((vt) => normalizedTitle.includes(vt));
+    });
+
+    if (matchingVolume.length > 0) {
+      return pickPreferredByStock(matchingVolume.map((x) => x.item));
+    }
+
+    // If the user asked for a specific volume and we can't match it,
+    // don't pick an arbitrary other volume.
+    return undefined;
   }
 
-  const seriesOnly = withTitle.filter(({ title }) => seriesTokens.every((t) => title.includes(t)));
+  const seriesOnly = candidates.filter(({ normalizedTitle }) =>
+    seriesTokens.every((t) => normalizedTitle.includes(t)),
+  );
   if (seriesOnly.length > 0) {
     return pickPreferredByStock(seriesOnly.map((x) => x.item));
   }
@@ -136,4 +150,33 @@ function normalizeForMatch(value: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+}
+
+function extractVolumeNumberFromTitle(title: string): number | undefined {
+  const normalized = normalizeForMatch(title);
+
+  const keywordMatch = normalized.match(
+    /(?:tomo|vol(?:umen)?|nro|n|no|numero|#)\s*0*(\d{1,3})\b/i,
+  );
+  if (keywordMatch?.[1]) {
+    const value = Number.parseInt(keywordMatch[1], 10);
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+
+  // Avoid treating dimensions like "30 x 40" as a volume number.
+  if (/\b\d{1,3}\s*x\s*\d{1,3}\b\s*$/.test(normalized)) {
+    return undefined;
+  }
+
+  const trailingMatch = normalized.match(/\b0*(\d{1,3})\b\s*$/);
+  if (trailingMatch?.[1]) {
+    const value = Number.parseInt(trailingMatch[1], 10);
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
 }

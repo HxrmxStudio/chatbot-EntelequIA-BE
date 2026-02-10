@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { SignatureValidationService } from './signature-validation';
+import { SignatureValidationService } from './services/signature-validation';
 
 @Injectable()
 export class SignatureGuard implements CanActivate {

@@ -4,29 +4,52 @@ import type { Request } from 'express';
 import { randomUUID, createHash } from 'node:crypto';
 import type { Pool } from 'pg';
 import { validateEnv } from '../src/common/config/env.validation';
-import { SignatureValidationService } from '../src/modules/wf1/infrastructure/security/signature-validation';
-import { TurnstileVerificationService } from '../src/modules/wf1/infrastructure/security/turnstile-verification';
-import { InputValidationService } from '../src/modules/wf1/infrastructure/security/input-validation';
-import { ExtractVariablesService } from '../src/modules/wf1/infrastructure/security/extract-variables';
-import { TextSanitizer } from '../src/modules/wf1/infrastructure/security/text-sanitizer';
+import { SignatureValidationService } from '../src/modules/wf1/infrastructure/security/services/signature-validation';
+import { TurnstileVerificationService } from '../src/modules/wf1/infrastructure/security/services/turnstile-verification';
+import { InputValidationService } from '../src/modules/wf1/infrastructure/security/services/input-validation';
+import { ExtractVariablesService } from '../src/modules/wf1/infrastructure/security/services/extract-variables';
+import { TextSanitizer } from '../src/modules/wf1/infrastructure/security/services/text-sanitizer';
 import { IntentExtractorAdapter } from '../src/modules/wf1/infrastructure/adapters/intent-extractor';
 import { prepareConversationQuery } from '../src/modules/wf1/domain/prepare-conversation-query';
 import { validateAndEnrichIntentOutput } from '../src/modules/wf1/domain/output-validation';
+import { resolveIntentRoute } from '../src/modules/wf1/domain/intent-routing';
+import { mapConversationHistoryRowsToMessageHistoryItems } from '../src/modules/wf1/domain/conversation-history';
+import type { ContextBlock } from '../src/modules/wf1/domain/context-block';
+import type { Wf1Response } from '../src/modules/wf1/domain/wf1-response';
+import { mapContextOrBackendError } from '../src/modules/wf1/application/use-cases/handle-incoming-message/error-mapper';
 import { PG_POOL } from '../src/modules/wf1/application/ports/tokens';
+import { ENTELEQUIA_CONTEXT_PORT } from '../src/modules/wf1/application/ports/tokens';
+import { EnrichContextByIntentUseCase } from '../src/modules/wf1/application/use-cases/enrich-context-by-intent';
+import { EntelequiaHttpAdapter } from '../src/modules/wf1/infrastructure/adapters/entelequia-http';
+import { OpenAiAdapter } from '../src/modules/wf1/infrastructure/adapters/openai';
 import {
   PgPoolProvider,
   pgPoolFactory,
 } from '../src/modules/wf1/infrastructure/repositories/pg-pool.provider';
 import { PgIdempotencyRepository } from '../src/modules/wf1/infrastructure/repositories/pg-idempotency.repository';
 import { PgChatRepository } from '../src/modules/wf1/infrastructure/repositories/pg-chat.repository';
+import { PgAuditRepository } from '../src/modules/wf1/infrastructure/repositories/pg-audit.repository';
 
 type PlainObject = Record<string, unknown>;
+
+type TraceStage = 'output' | 'context' | 'llm' | 'persist';
 
 function redact(value: unknown): unknown {
   if (typeof value === 'string') {
     return value.length === 0 ? '' : '<redacted>';
   }
   return '<redacted>';
+}
+
+function resolveTraceStage(value: unknown): TraceStage {
+  if (typeof value !== 'string') {
+    return 'output';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'context' || normalized === 'llm' || normalized === 'persist') {
+    return normalized;
+  }
+  return 'output';
 }
 
 function buildWebRequest(input: {
@@ -50,6 +73,11 @@ function buildWebRequest(input: {
   return request as unknown as Request;
 }
 
+function getRequestRawBody(request: Request): string {
+  const candidate = (request as unknown as { rawBody?: unknown }).rawBody;
+  return typeof candidate === 'string' ? candidate : '';
+}
+
 function computeExternalEventId(input: { request: Request; payload: PlainObject }): string {
   const explicitHeader =
     input.request.header('x-external-event-id') ?? input.request.header('x-idempotency-key');
@@ -58,7 +86,7 @@ function computeExternalEventId(input: { request: Request; payload: PlainObject 
     return explicitHeader.trim().slice(0, 255);
   }
 
-  const rawBody = typeof input.request.body === 'string' ? input.request.body : '';
+  const rawBody = getRequestRawBody(input.request);
   const rawCandidate =
     rawBody.trim().length > 0
       ? rawBody
@@ -93,7 +121,27 @@ async function safeSelectOne<T extends Record<string, unknown>>(
   return (result.rows[0] as T | undefined) ?? null;
 }
 
+function resolveTraceFullFlag(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
+
+function stageAtLeast(current: TraceStage, minimum: TraceStage): boolean {
+  const rank: Record<TraceStage, number> = {
+    output: 0,
+    context: 1,
+    llm: 2,
+    persist: 3,
+  };
+  return rank[current] >= rank[minimum];
+}
+
 async function main(): Promise<void> {
+  const startedAt = Date.now();
+
   // Provide a safe default for local trace runs.
   // Real deployments should set WEBHOOK_SECRET explicitly.
   if (!process.env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET.trim().length === 0) {
@@ -114,10 +162,18 @@ async function main(): Promise<void> {
       ExtractVariablesService,
       TextSanitizer,
       IntentExtractorAdapter,
+      EnrichContextByIntentUseCase,
+      EntelequiaHttpAdapter,
+      OpenAiAdapter,
       PgPoolProvider,
       pgPoolFactory,
       PgIdempotencyRepository,
       PgChatRepository,
+      PgAuditRepository,
+      {
+        provide: ENTELEQUIA_CONTEXT_PORT,
+        useExisting: EntelequiaHttpAdapter,
+      },
     ],
   }).compile();
 
@@ -126,11 +182,16 @@ async function main(): Promise<void> {
   const extractVariables = moduleRef.get(ExtractVariablesService);
   const textSanitizer = moduleRef.get(TextSanitizer);
   const intentExtractor = moduleRef.get(IntentExtractorAdapter);
+  const enrichContextByIntent = moduleRef.get(EnrichContextByIntentUseCase);
+  const llmAdapter = moduleRef.get(OpenAiAdapter);
   const idempotencyRepository = moduleRef.get(PgIdempotencyRepository);
   const chatRepository = moduleRef.get(PgChatRepository);
+  const auditRepository = moduleRef.get(PgAuditRepository);
   const pool = moduleRef.get<Pool>(PG_POOL);
 
   const requestId = `trace-${randomUUID()}`;
+  const traceStage = resolveTraceStage(process.env.TRACE_STAGE);
+  const traceFull = resolveTraceFullFlag(process.env.TRACE_FULL) || traceStage !== 'output';
 
   const traceUserId = process.env.TRACE_USER_ID?.trim();
   const traceConversationId = process.env.TRACE_CONVERSATION_ID?.trim();
@@ -239,8 +300,118 @@ async function main(): Promise<void> {
 
   const enrichedData = { ...conversationContext, ...outputValidated };
 
+  const history = mapConversationHistoryRowsToMessageHistoryItems(conversationHistoryRows);
+
+  let downstream:
+    | {
+        intentRouted: string;
+        contextBlocks: ContextBlock[] | null;
+        assistantReply: string | null;
+        response: Wf1Response;
+      }
+    | null = null;
+
+  if (traceFull && idempotencyStart.isDuplicate === false) {
+    const routedIntent = resolveIntentRoute(outputValidated.intent);
+    const routedIntentResult = { ...outputValidated, intent: routedIntent };
+
+    let contextBlocks: ContextBlock[] | null = null;
+    let assistantReply: string | null = null;
+    let response: Wf1Response;
+
+    try {
+      if (stageAtLeast(traceStage, 'context')) {
+        contextBlocks = await enrichContextByIntent.execute({
+          intentResult: routedIntentResult,
+          text: sanitizedText,
+        });
+      }
+
+      if (stageAtLeast(traceStage, 'llm')) {
+        assistantReply = await llmAdapter.buildAssistantReply({
+          userText: sanitizedText,
+          intent: routedIntent,
+          history,
+          contextBlocks: contextBlocks ?? [],
+        });
+      }
+
+      response = {
+        ok: true,
+        message: assistantReply ?? '(TRACE) Skipped LLM stage',
+        conversationId: canonicalPayload.conversationId,
+        intent: routedIntent,
+      };
+    } catch (error: unknown) {
+      response = mapContextOrBackendError(error);
+    }
+
+    if (stageAtLeast(traceStage, 'persist')) {
+      await chatRepository.persistTurn({
+        conversationId: canonicalPayload.conversationId,
+        userId: canonicalPayload.userId,
+        source: canonicalPayload.source,
+        externalEventId,
+        userMessage: sanitizedText,
+        botMessage: response.message,
+        intent: response.ok ? (response.intent ?? 'general') : 'error',
+        metadata: {
+          requiresAuth: response.ok === false && 'requiresAuth' in response,
+          predictedIntent: routedIntent,
+          predictedConfidence: outputValidated.confidence,
+          predictedEntitiesCount: outputValidated.entities.length,
+          sentiment: outputValidated.sentiment,
+        },
+      });
+
+      await idempotencyRepository.markProcessed({
+        source: canonicalPayload.source,
+        externalEventId,
+      });
+
+      await auditRepository.writeAudit({
+        requestId,
+        userId: canonicalPayload.userId,
+        conversationId: canonicalPayload.conversationId,
+        source: canonicalPayload.source,
+        intent: response.ok ? (response.intent ?? 'general') : 'error',
+        status:
+          response.ok === true
+            ? 'success'
+            : response.ok === false && 'requiresAuth' in response
+              ? 'requires_auth'
+              : 'failure',
+        message: response.message,
+        httpStatus: 200,
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          externalEventId,
+          predictedIntent: routedIntent,
+          predictedConfidence: outputValidated.confidence,
+          predictedEntitiesCount: outputValidated.entities.length,
+          sentiment: outputValidated.sentiment,
+          responseType:
+            response.ok === true
+              ? 'success'
+              : response.ok === false && 'requiresAuth' in response
+                ? 'requiresAuth'
+                : 'failure',
+        },
+      });
+    }
+
+    downstream = {
+      intentRouted: routedIntent,
+      contextBlocks,
+      assistantReply,
+      response,
+    };
+  }
+
   const trace = {
     requestId,
+    traceFull,
+    traceStage,
     inbound: {
       headers: {
         'x-webhook-secret': redact(webSecret),
@@ -266,9 +437,11 @@ async function main(): Promise<void> {
     prepareConversationQuery: conversationContext,
     conversationHistory: {
       rows: conversationHistoryRows,
+      items: history,
     },
     extractIntent: intentResult,
     outputValidation: outputValidated,
+    downstream,
     enrichedDataKeys: Object.keys(enrichedData),
   };
 
