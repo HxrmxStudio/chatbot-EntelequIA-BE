@@ -1,7 +1,7 @@
 ---
 description: Commit message convention for chatbot-EntelequIA-BE
-globs: [".git/COMMIT_EDITMSG"]
-alwaysApply: false
+globs: ['.git/COMMIT_EDITMSG']
+alwaysApply: true
 ---
 
 # Git Commit Rules
@@ -33,3 +33,6 @@ Examples:
 - Avoid mixing unrelated functional changes in the same commit.
 - **Never add co-author trailers** (`--trailer "Co-authored-by: ..."`). Commits should only have the author.
 
+## Automatic enforcement
+
+A git hook (`.git/hooks/prepare-commit-msg`) automatically removes any `Co-authored-by` trailers from commit messages to ensure compliance with this rule, even if Cursor IDE adds them automatically.
