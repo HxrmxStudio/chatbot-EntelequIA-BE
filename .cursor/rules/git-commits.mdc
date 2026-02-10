@@ -31,4 +31,5 @@ Examples:
 - One logical change per commit.
 - Keep subject line concrete and imperative.
 - Avoid mixing unrelated functional changes in the same commit.
+- **Never add co-author trailers** (`--trailer "Co-authored-by: ..."`). Commits should only have the author.
 
