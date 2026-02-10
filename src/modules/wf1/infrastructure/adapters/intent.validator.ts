@@ -1,3 +1,4 @@
+import { ensureObject } from '../../../../common/utils/object.utils';
 import {
   INTENT_NAMES,
   type IntentName,
@@ -60,21 +61,21 @@ function parsePayload(payload: unknown): Record<string, unknown> {
     }
 
     try {
-      return ensureObject(JSON.parse(raw) as unknown);
+      return ensureObject(
+        JSON.parse(raw) as unknown,
+        'Model output must be a JSON object',
+        IntentValidationError,
+      );
     } catch {
       throw new IntentValidationError('Model output is not valid JSON');
     }
   }
 
-  return ensureObject(payload);
-}
-
-function ensureObject(payload: unknown): Record<string, unknown> {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-    throw new IntentValidationError('Model output must be a JSON object');
-  }
-
-  return payload as Record<string, unknown>;
+  return ensureObject(
+    payload,
+    'Model output must be a JSON object',
+    IntentValidationError,
+  );
 }
 
 function normalizeEntities(entities: string[]): string[] {

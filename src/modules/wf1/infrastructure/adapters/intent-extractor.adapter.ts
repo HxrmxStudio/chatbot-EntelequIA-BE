@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -13,6 +13,8 @@ import {
   IntentValidationError,
   validateAndNormalizeIntentPayload,
 } from './intent.validator';
+import { createLogger } from '../../../../common/utils/logger';
+import { withRetry } from './openai-retry.client';
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const INTENT_MODEL = 'gpt-4o-mini';
@@ -21,6 +23,9 @@ const SCHEMA_NAME = 'entelequia_intent_classification';
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 250;
 const MAX_INPUT_CHARS = 4000;
+const INTENT_MAX_OUTPUT_TOKENS = 150;
+const INTENT_TEMPERATURE = 0.2;
+const INTENT_VERBOSITY = 'medium';
 
 interface OpenAiResponse {
   usage?: {
@@ -57,7 +62,7 @@ class IntentExtractorNetworkError extends Error {
 
 @Injectable()
 export class IntentExtractorAdapter implements IntentExtractorPort {
-  private readonly logger = new Logger(IntentExtractorAdapter.name);
+  private readonly logger = createLogger(IntentExtractorAdapter.name);
   private readonly timeoutMs: number;
   private readonly systemPrompt: string;
   private readonly schema: Record<string, unknown>;
@@ -80,94 +85,7 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
     const { text, truncated } = truncateText(normalizedText, MAX_INPUT_CHARS);
 
     if (!apiKey) {
-      this.logger.warn(
-        JSON.stringify({
-          event: 'intent_classification_fallback',
-          request_id: input.requestId,
-          source: input.source,
-          user_id: input.userId,
-          conversation_id: input.conversationId,
-          model: INTENT_MODEL,
-          prompt_version: PROMPT_VERSION,
-          attempts: 0,
-          fallback: true,
-          fallback_reason: 'missing_openai_api_key',
-        }),
-      );
-      return { ...FALLBACK_INTENT_RESULT };
-    }
-
-    const textHash = hashText(text);
-    let attempts = 0;
-    let fallbackReason = 'unknown_error';
-
-    while (attempts < MAX_ATTEMPTS) {
-      attempts += 1;
-      const attemptStartedAt = Date.now();
-
-      try {
-        const response = await this.requestIntent({
-          apiKey,
-          text,
-        });
-        const modelPayload = resolveModelPayload(response);
-        const intent = validateAndNormalizeIntentPayload(modelPayload);
-
-        this.logger.log(
-          JSON.stringify({
-            event: 'intent_classification_success',
-            request_id: input.requestId,
-            source: input.source,
-            user_id: input.userId,
-            conversation_id: input.conversationId,
-            model: INTENT_MODEL,
-            prompt_version: PROMPT_VERSION,
-            attempts,
-            latency_ms: Date.now() - attemptStartedAt,
-            text_hash: textHash,
-            text_len: text.length,
-            truncated,
-            fallback: false,
-            token_usage: response.usage ?? null,
-            intent: intent.intent,
-            confidence: intent.confidence,
-            entities_count: intent.entities.length,
-          }),
-        );
-
-        return intent;
-      } catch (error: unknown) {
-        fallbackReason = classifyFailure(error);
-        const canRetry = shouldRetry(error) && attempts < MAX_ATTEMPTS;
-
-        this.logger.warn(
-          JSON.stringify({
-            event: 'intent_classification_attempt_failed',
-            request_id: input.requestId,
-            source: input.source,
-            user_id: input.userId,
-            conversation_id: input.conversationId,
-            model: INTENT_MODEL,
-            prompt_version: PROMPT_VERSION,
-            attempts,
-            fallback_reason: fallbackReason,
-            retrying: canRetry,
-            text_hash: textHash,
-            text_len: text.length,
-            truncated,
-          }),
-        );
-
-        if (!canRetry) {
-          break;
-        }
-
-        await sleep(computeBackoffDelayMs(attempts));
-      }
-    }
-
-    this.logger.warn(
-      JSON.stringify({
+      this.logger.warn('intent_classification_fallback', {
         event: 'intent_classification_fallback',
         request_id: input.requestId,
         source: input.source,
@@ -175,13 +93,82 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
         conversation_id: input.conversationId,
         model: INTENT_MODEL,
         prompt_version: PROMPT_VERSION,
-        attempts,
+        attempts: 0,
         fallback: true,
-        fallback_reason: fallbackReason,
-      }),
-    );
+        fallback_reason: 'missing_openai_api_key',
+      });
+      return { ...FALLBACK_INTENT_RESULT };
+    }
 
-    return { ...FALLBACK_INTENT_RESULT };
+    const textHash = hashText(text);
+
+    try {
+      const attemptStartedAt = Date.now();
+      const { intent, usage } = await withRetry({
+        maxAttempts: MAX_ATTEMPTS,
+        baseBackoffMs: BASE_BACKOFF_MS,
+        fn: async () => {
+          const response = await this.requestIntent({ apiKey, text });
+          const modelPayload = resolveModelPayload(response);
+          const intentResult = validateAndNormalizeIntentPayload(modelPayload);
+          return { intent: intentResult, usage: response.usage ?? null };
+        },
+        shouldRetry,
+        onAttemptFailed: (error, attempt, retrying) => {
+          this.logger.warn('intent_classification_attempt_failed', {
+            event: 'intent_classification_attempt_failed',
+            request_id: input.requestId,
+            source: input.source,
+            user_id: input.userId,
+            conversation_id: input.conversationId,
+            model: INTENT_MODEL,
+            prompt_version: PROMPT_VERSION,
+            attempts: attempt,
+            fallback_reason: classifyFailure(error),
+            retrying,
+            text_hash: textHash,
+            text_len: text.length,
+            truncated,
+          });
+        },
+      });
+
+      this.logger.info('intent_classification_success', {
+        event: 'intent_classification_success',
+        request_id: input.requestId,
+        source: input.source,
+        user_id: input.userId,
+        conversation_id: input.conversationId,
+        model: INTENT_MODEL,
+        prompt_version: PROMPT_VERSION,
+        latency_ms: Date.now() - attemptStartedAt,
+        text_hash: textHash,
+        text_len: text.length,
+        truncated,
+        fallback: false,
+        token_usage: usage,
+        intent: intent.intent,
+        confidence: intent.confidence,
+        entities_count: intent.entities.length,
+      });
+
+      return intent;
+    } catch {
+      this.logger.warn('intent_classification_fallback', {
+        event: 'intent_classification_fallback',
+        request_id: input.requestId,
+        source: input.source,
+        user_id: input.userId,
+        conversation_id: input.conversationId,
+        model: INTENT_MODEL,
+        prompt_version: PROMPT_VERSION,
+        attempts: MAX_ATTEMPTS,
+        fallback: true,
+        fallback_reason: 'max_attempts_exceeded',
+      });
+
+      return { ...FALLBACK_INTENT_RESULT };
+    }
   }
 
   private async requestIntent(input: { apiKey: string; text: string }): Promise<OpenAiResponse> {
@@ -197,6 +184,8 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
         },
         body: JSON.stringify({
           model: INTENT_MODEL,
+          temperature: INTENT_TEMPERATURE,
+          max_output_tokens: INTENT_MAX_OUTPUT_TOKENS,
           input: [
             {
               role: 'system',
@@ -208,6 +197,7 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
             },
           ],
           text: {
+            verbosity: INTENT_VERBOSITY,
             format: {
               type: 'json_schema',
               name: SCHEMA_NAME,
@@ -255,9 +245,10 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
 
       return value;
     } catch (error: unknown) {
-      this.logger.warn(
-        `Failed to load intent prompt from ${promptPath}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn('Failed to load intent prompt', {
+        path: promptPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return DEFAULT_SYSTEM_PROMPT;
     }
   }
@@ -273,9 +264,10 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
 
       return parsed as Record<string, unknown>;
     } catch (error: unknown) {
-      this.logger.warn(
-        `Failed to load intent schema from ${schemaPath}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn('Failed to load intent schema', {
+        path: schemaPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return DEFAULT_SCHEMA;
     }
   }
@@ -357,18 +349,6 @@ function classifyFailure(error: unknown): string {
   }
 
   return 'unknown_error';
-}
-
-function computeBackoffDelayMs(attempt: number): number {
-  const base = BASE_BACKOFF_MS * 2 ** (attempt - 1);
-  const jitter = base * (Math.random() * 0.4 - 0.2);
-  return Math.max(0, Math.round(base + jitter));
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolveDelay) => {
-    setTimeout(resolveDelay, ms);
-  });
 }
 
 function hashText(text: string): string {

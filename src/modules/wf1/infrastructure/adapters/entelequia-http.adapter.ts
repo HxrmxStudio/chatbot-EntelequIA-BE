@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  EntelequiaApiError,
-  type EntelequiaContextPort,
-} from '../../application/ports/entelequia-context.port';
+import type { EntelequiaContextPort } from '../../application/ports/entelequia-context.port';
+import { ExternalServiceError } from '../../domain/errors';
 import type { ContextBlock } from '../../domain/context-block';
 
 @Injectable()
@@ -119,7 +117,7 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
       const body = await parseJson(response);
 
       if (!response.ok) {
-        throw new EntelequiaApiError(
+        throw new ExternalServiceError(
           `Entelequia backend error ${response.status}`,
           response.status,
           'http',
@@ -133,15 +131,15 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
 
       return body as Record<string, unknown>;
     } catch (error: unknown) {
-      if (error instanceof EntelequiaApiError) {
+      if (error instanceof ExternalServiceError) {
         throw error;
       }
 
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new EntelequiaApiError('Entelequia request timeout', 0, 'timeout');
+        throw new ExternalServiceError('Entelequia request timeout', 0, 'timeout');
       }
 
-      throw new EntelequiaApiError('Entelequia network error', 0, 'network');
+      throw new ExternalServiceError('Entelequia network error', 0, 'network');
     } finally {
       clearTimeout(timeoutId);
     }

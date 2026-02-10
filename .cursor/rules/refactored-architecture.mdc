@@ -1,0 +1,69 @@
+---
+description: Refactored Clean Architecture layer boundaries and patterns
+globs: ["src/**/*.ts"]
+alwaysApply: false
+---
+
+# Refactored Architecture - WF1 Module
+
+## Layer Structure
+
+```
+wf1/
+  domain/           # Pure logic, no framework deps
+    errors/         # MissingAuthForOrdersError, ExternalServiceError
+    *.ts            # Entities, value objects, text-sanitizer (pure fn)
+  application/
+    ports/          # Interfaces only, Symbol tokens
+    use-cases/      # Orchestrate ports, inject via tokens
+  infrastructure/
+    adapters/       # OpenAI, Entelequia, IntentExtractor
+    repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
+    security/       # Guards, validation, sanitization
+  controllers/
+  dto/
+```
+
+## Dependency Rule
+
+- Domain: zero imports from app/infra
+- Use cases: import ports (interfaces), domain, NOT infrastructure
+- Adapters: implement ports, import domain
+- Controllers: import use cases, DTOs, guards
+
+## Port Tokens
+
+Defined in `application/ports/tokens.ts`:
+- INTENT_EXTRACTOR_PORT, ENTELEQUIA_CONTEXT_PORT, LLM_PORT
+- CHAT_PERSISTENCE_PORT, IDEMPOTENCY_PORT, AUDIT_PORT
+- PG_POOL (for repository implementations)
+
+## Repository Split
+
+- PgChatRepository: ChatPersistencePort
+- PgIdempotencyRepository: IdempotencyPort
+- PgAuditRepository: AuditPort
+- All inject PG_POOL from PgPoolProvider
+
+## Shared Utilities
+
+- `src/common/utils/string.utils.ts`: resolveOptionalString
+- `src/common/utils/object.utils.ts`: ensureObject
+- `infrastructure/adapters/openai-retry.client.ts`: withRetry
+
+## Domain Errors
+
+- `MissingAuthForOrdersError`: orders intent without accessToken
+- `ExternalServiceError`: Entelequia/LLM failures (statusCode, errorCode)
+
+## Validation Flow
+
+- Guard pipeline: SignatureGuard → InputValidationGuard → ExtractVariablesGuard
+- ChatRequestDto is an interface; validation via guards, not class-validator
+- Controllers build payload from request.extractedVariables
+
+## Externalized Prompts
+
+- `prompts/entelequia_intent_system_prompt_v1.txt`
+- `prompts/entelequia_assistant_system_prompt_v1.txt`
+- Load at adapter init, fallback to default if file missing

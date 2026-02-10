@@ -13,7 +13,7 @@
     "test": "jest",
     "test:unit": "jest --testPathPattern=src",
     "test:integration": "jest --testPathPattern=integration",
-    "test:integration:pg": "jest --runInBand --testPathPattern=pg-wf1.repository.integration.spec.ts",
+    "test:integration:pg": "jest --runInBand --testPathPattern=pg-.*.repository.integration.spec",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -21,8 +21,10 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.13",
     "@nestjs/platform-express": "^11.1.13",
+    "@nestjs/throttler": "^6.5.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "helmet": "^8.1.0",
     "pg": "^8.18.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",

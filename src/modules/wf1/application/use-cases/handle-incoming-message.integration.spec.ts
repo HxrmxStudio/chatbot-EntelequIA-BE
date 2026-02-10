@@ -8,7 +8,7 @@ import {
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
 } from '../ports/tokens';
-import { EntelequiaApiError } from '../ports/entelequia-context.port';
+import { ExternalServiceError } from '../../domain/errors';
 import type { AuditEntryInput } from '../ports/audit.port';
 import type { PersistTurnInput } from '../ports/chat-persistence.port';
 import { TextSanitizer } from '../../infrastructure/security/text-sanitizer';
@@ -30,15 +30,15 @@ class InMemoryPersistence {
   async getLastBotMessageByExternalEvent(input: {
     channel: 'web' | 'whatsapp';
     externalEventId: string;
-    conversationId: string;
+    conversationId?: string;
   }): Promise<string | null> {
-    const key = `${input.channel}:${input.externalEventId}:${input.conversationId}`;
+    const key = `${input.channel}:${input.externalEventId}`;
     return this.botByEvent.get(key) ?? null;
   }
 
   async persistTurn(input: PersistTurnInput): Promise<void> {
     this.turns.push(input);
-    const key = `${input.source}:${input.externalEventId}:${input.conversationId}`;
+    const key = `${input.source}:${input.externalEventId}`;
     this.botByEvent.set(key, input.botMessage);
   }
 }
@@ -136,7 +136,7 @@ class StubEntelequia {
 
   async getOrders(): Promise<{ contextType: 'orders'; contextPayload: Record<string, unknown> }> {
     if (this.mode === 'order-not-owned') {
-      throw new EntelequiaApiError('Order mismatch', 442, 'http');
+      throw new ExternalServiceError('Order mismatch', 442, 'http');
     }
 
     return {
@@ -204,6 +204,16 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         conversationId: 'conv-1',
         text: 'donde esta mi pedido?',
       },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde esta mi pedido?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
     });
 
     expect(response.ok).toBe(false);
@@ -222,6 +232,16 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         conversationId: 'conv-1',
         text: 'busco un libro',
       },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'busco un libro',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
     });
 
     const second = await useCase.execute({
@@ -232,6 +252,16 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         userId: 'user-1',
         conversationId: 'conv-1',
         text: 'busco un libro',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'busco un libro',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
       },
     });
 
@@ -252,6 +282,16 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         conversationId: 'conv-1',
         text: 'pedido pendiente',
         accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido pendiente',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
       },
     });
 

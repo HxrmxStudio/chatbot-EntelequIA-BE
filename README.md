@@ -57,6 +57,7 @@ Dedicated backend service for WF1 migration from N8N with functional parity, ide
 
 Behavior:
 - Uses OpenAI Responses API (`gpt-4o-mini`) with system+user messages.
+- Uses `max_output_tokens=150`, `temperature=0.2` and `verbosity=medium`.
 - Enforces JSON schema output and retries on transient/validation failures.
 - Falls back to `{ intent: "general", confidence: 0.55, entities: [] }` when classification cannot be produced.
 - Prompt source: `prompts/entelequia_intent_system_prompt_v1.txt`

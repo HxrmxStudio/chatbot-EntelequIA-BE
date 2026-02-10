@@ -10,7 +10,9 @@ import { AppModule } from '../src/app.module';
 import { EntelequiaHttpAdapter } from '../src/modules/wf1/infrastructure/adapters/entelequia-http.adapter';
 import { IntentExtractorAdapter } from '../src/modules/wf1/infrastructure/adapters/intent-extractor.adapter';
 import { OpenAiAdapter } from '../src/modules/wf1/infrastructure/adapters/openai.adapter';
-import { PgWf1Repository } from '../src/modules/wf1/infrastructure/repositories/pg-wf1.repository';
+import { PgAuditRepository } from '../src/modules/wf1/infrastructure/repositories/pg-audit.repository';
+import { PgChatRepository } from '../src/modules/wf1/infrastructure/repositories/pg-chat.repository';
+import { PgIdempotencyRepository } from '../src/modules/wf1/infrastructure/repositories/pg-idempotency.repository';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 
 class E2ERepository {
@@ -20,7 +22,9 @@ class E2ERepository {
 
   async onModuleDestroy(): Promise<void> {}
 
-  async upsertUser(): Promise<void> {}
+  async upsertUser(): Promise<{ id: string; email: string; phone: string; name: string; createdAt: string; updatedAt: string }> {
+    return { id: '', email: '', phone: '', name: 'Customer', createdAt: '', updatedAt: '' };
+  }
 
   async upsertConversation(): Promise<void> {}
 
@@ -28,7 +32,15 @@ class E2ERepository {
     return [];
   }
 
-  async getLastBotMessageByExternalEvent(): Promise<string | null> {
+  async getLastBotMessageByExternalEvent(input: {
+    channel: 'web' | 'whatsapp';
+    externalEventId: string;
+    conversationId?: string;
+  }): Promise<string | null> {
+    const key = `${input.channel}:${input.externalEventId}`;
+    if (this.seen.has(key)) {
+      return 'Respuesta e2e';
+    }
     return null;
   }
 
@@ -138,7 +150,10 @@ describe('WF1 API (e2e)', () => {
       imports: [AppModule],
     });
 
-    moduleBuilder.overrideProvider(PgWf1Repository).useValue(new E2ERepository());
+    const e2eRepo = new E2ERepository();
+    moduleBuilder.overrideProvider(PgChatRepository).useValue(e2eRepo);
+    moduleBuilder.overrideProvider(PgIdempotencyRepository).useValue(e2eRepo);
+    moduleBuilder.overrideProvider(PgAuditRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(IntentExtractorAdapter).useValue(new E2EIntent());
     moduleBuilder.overrideProvider(EntelequiaHttpAdapter).useValue(new E2EEntelequia());
     moduleBuilder.overrideProvider(OpenAiAdapter).useValue(new E2ELlm());
@@ -165,7 +180,7 @@ describe('WF1 API (e2e)', () => {
     }
   });
 
-  it('rejects invalid payload with 400', async () => {
+  it('rejects missing text with semantic validation message', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
       .set('x-webhook-secret', 'test-secret')
@@ -177,7 +192,7 @@ describe('WF1 API (e2e)', () => {
       .expect(400)
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
-        expect(body.message).toContain('Payload invalido');
+        expect(body.message).toContain('Invalid message: text is required');
       });
   });
 
@@ -187,6 +202,43 @@ describe('WF1 API (e2e)', () => {
       .expect(200)
       .expect(({ body }) => {
         expect(body.status).toBe('ok');
+      });
+  });
+
+  it('returns 401 with SECURITY prefix when web secret is missing', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+      })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain(
+          'SECURITY: Missing web webhook secret header (x-webhook-secret)',
+        );
+      });
+  });
+
+  it('returns 401 with SECURITY prefix for unknown source', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send({
+        source: 'mobile',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+      })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain(
+          'SECURITY: Unknown source: "mobile". Must be \'web\' or \'whatsapp\'',
+        );
       });
   });
 
@@ -205,6 +257,42 @@ describe('WF1 API (e2e)', () => {
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
         expect(body.requiresAuth).toBe(true);
+      });
+  });
+
+  it('rejects text longer than 4096 characters with semantic validation message', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'a'.repeat(4097),
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain(
+          'Invalid message: message exceeds maximum length',
+        );
+      });
+  });
+
+  it('rejects non-string text with semantic validation message', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 1,
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain('Invalid message: must be a string');
       });
   });
 
@@ -249,6 +337,34 @@ describe('WF1 API (e2e)', () => {
         expect(body.ok).toBe(true);
         expect(body.conversationId).toBe('conv-1');
         expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('uses deterministic payload hash for duplicate detection when idempotency header is missing', async () => {
+    const payload = {
+      source: 'web',
+      userId: 'user-2',
+      conversationId: 'conv-2',
+      text: 'busco mangas',
+    };
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send(payload)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send(payload)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toBe('Respuesta e2e');
       });
   });
 });

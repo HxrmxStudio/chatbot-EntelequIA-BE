@@ -1,0 +1,2 @@
+export const WF1_MAX_TEXT_CHARS = 4096;
+export const WF1_PRE_SANITIZE_TEXT_MAX_CHARS = 10000;

@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3090:3090"
+    environment:
+      - NODE_ENV=development
+      - PORT=3090
+      - CHATBOT_DB_URL=postgresql://chatbot_user:chatbot_pass@db:5432/chatbot
+      - ENTELEQUIA_API_BASE_URL=${ENTELEQUIA_API_BASE_URL:-https://entelequia.com.ar/api/v1}
+      - ENTELEQUIA_API_TIMEOUT_MS=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-mini}
+      - OPENAI_TIMEOUT_MS=12000
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - WHATSAPP_SECRET=${WHATSAPP_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://entelequia.com.ar,http://localhost:5173}
+      - LOG_LEVEL=log
+      - CHAT_HISTORY_LIMIT=10
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chatbot_user
+      POSTGRES_PASSWORD: chatbot_pass
+      POSTGRES_DB: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot_user -d chatbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

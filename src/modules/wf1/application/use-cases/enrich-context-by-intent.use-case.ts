@@ -1,17 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  ENTELEQUIA_CONTEXT_PORT,
-} from '../ports/tokens';
-import type { EntelequiaContextPort } from '../ports/entelequia-context.port';
 import type { ContextBlock } from '../../domain/context-block';
+import { MissingAuthForOrdersError } from '../../domain/errors';
 import type { IntentResult } from '../../domain/intent';
-
-export class MissingAuthForOrdersError extends Error {
-  constructor() {
-    super('Missing authentication token for order intent');
-    this.name = 'MissingAuthForOrdersError';
-  }
-}
+import { ENTELEQUIA_CONTEXT_PORT } from '../ports/tokens';
+import type { EntelequiaContextPort } from '../ports/entelequia-context.port';
 
 @Injectable()
 export class EnrichContextByIntentUseCase {

@@ -1,17 +1,23 @@
 import { randomUUID } from 'node:crypto';
-import type { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
-import { PgWf1Repository } from './pg-wf1.repository';
+import { PgChatRepository } from './pg-chat.repository';
+import { PG_POOL } from '../../application/ports/tokens';
 
 const REQUIRED_TABLES = ['users', 'conversations', 'messages', 'external_events'];
 
 jest.setTimeout(30_000);
 
-describe('PgWf1Repository (PostgreSQL integration)', () => {
-  let repository: PgWf1Repository | undefined;
+const hasDbUrl = Boolean(
+  (process.env.CHATBOT_DB_TEST_URL ?? process.env.CHATBOT_DB_URL)?.trim(),
+);
+
+describe('PgChatRepository (PostgreSQL integration)', () => {
+  let repository: PgChatRepository | undefined;
   let pool: Pool | undefined;
 
   beforeAll(async () => {
+    if (!hasDbUrl) return;
+
     const databaseUrl = resolveDatabaseUrl();
     pool = new Pool({
       connectionString: databaseUrl,
@@ -31,25 +37,28 @@ describe('PgWf1Repository (PostgreSQL integration)', () => {
     await assertRequiredTables(pool);
     await assertDedupeMigrationApplied(pool);
 
-    const configService: Pick<ConfigService, 'get'> = {
-      get: (key: string): string | undefined => (key === 'CHATBOT_DB_URL' ? databaseUrl : undefined),
-    };
+    const moduleRef = await import('@nestjs/testing').then((m) =>
+      m.Test.createTestingModule({
+        providers: [
+          {
+            provide: PG_POOL,
+            useFactory: () => pool,
+          },
+          PgChatRepository,
+        ],
+      }).compile(),
+    );
 
-    repository = new PgWf1Repository(configService as ConfigService);
-    await repository.onModuleInit();
+    repository = moduleRef.get(PgChatRepository);
   });
 
   afterAll(async () => {
-    if (repository) {
-      await repository.onModuleDestroy();
-    }
-
     if (pool) {
       await pool.end();
     }
   });
 
-  it('persists user+bot messages with same external_event_id without unique violations', async () => {
+  (hasDbUrl ? it : it.skip)('persists user+bot messages with same external_event_id without unique violations', async () => {
     if (!repository || !pool) {
       throw new Error('Repository test setup failed');
     }
@@ -91,38 +100,6 @@ describe('PgWf1Repository (PostgreSQL integration)', () => {
       expect(lastBotMessage).toBe('hola, en que te ayudo?');
     } finally {
       await cleanupConversationData(pool, { conversationId, userId });
-    }
-  });
-
-  it('detects duplicate processing by external_events(source, external_event_id)', async () => {
-    if (!repository || !pool) {
-      throw new Error('Repository test setup failed');
-    }
-
-    const externalEventId = `it-external-event-${randomUUID()}`;
-
-    try {
-      const first = await repository.startProcessing({
-        source: 'web',
-        externalEventId,
-        payload: { test: true },
-        requestId: `req-${randomUUID()}`,
-      });
-
-      const second = await repository.startProcessing({
-        source: 'web',
-        externalEventId,
-        payload: { test: true },
-        requestId: `req-${randomUUID()}`,
-      });
-
-      expect(first.isDuplicate).toBe(false);
-      expect(second.isDuplicate).toBe(true);
-    } finally {
-      await pool.query('DELETE FROM external_events WHERE source = $1 AND external_event_id = $2', [
-        'web',
-        externalEventId,
-      ]);
     }
   });
 });

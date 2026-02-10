@@ -1,7 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createLogger } from '../../../../common/utils/logger';
 import type { LlmPort } from '../../application/ports/llm.port';
 import type { ContextBlock } from '../../domain/context-block';
+import { withRetry } from './openai-retry.client';
+
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 250;
+const ASSISTANT_PROMPT_PATH = 'prompts/entelequia_assistant_system_prompt_v1.txt';
+const DEFAULT_SYSTEM_PROMPT =
+  'Sos el asistente de Entelequia. Responde en espanol rioplatense, claro y breve.';
 
 interface OpenAiResponse {
   output_text?: string;
@@ -14,11 +24,27 @@ interface OpenAiResponse {
 
 @Injectable()
 export class OpenAiAdapter implements LlmPort {
-  private readonly logger = new Logger(OpenAiAdapter.name);
+  private readonly logger = createLogger(OpenAiAdapter.name);
   private readonly timeoutMs: number;
+  private readonly systemPrompt: string;
 
   constructor(private readonly configService: ConfigService) {
     this.timeoutMs = this.configService.get<number>('OPENAI_TIMEOUT_MS') ?? 8000;
+    this.systemPrompt = this.loadSystemPrompt();
+  }
+
+  private loadSystemPrompt(): string {
+    const promptPath = resolve(process.cwd(), ASSISTANT_PROMPT_PATH);
+    try {
+      const value = readFileSync(promptPath, 'utf8').trim();
+      return value.length > 0 ? value : DEFAULT_SYSTEM_PROMPT;
+    } catch (error: unknown) {
+      this.logger.warn('Failed to load assistant prompt', {
+        path: promptPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return DEFAULT_SYSTEM_PROMPT;
+    }
   }
 
   async buildAssistantReply(input: {
@@ -34,7 +60,48 @@ export class OpenAiAdapter implements LlmPort {
       return buildFallbackResponse(input.intent, input.contextBlocks);
     }
 
-    const prompt = buildPrompt(input.userText, input.intent, input.history, input.contextBlocks);
+    try {
+      return await withRetry({
+        maxAttempts: MAX_ATTEMPTS,
+        baseBackoffMs: BASE_BACKOFF_MS,
+        fn: () => this.requestOpenAi(apiKey, model, input),
+        shouldRetry: (err) =>
+          isRetryableHttpStatus(err) || isTimeoutOrNetwork(err),
+        onAttemptFailed: (err, attempt, retrying) => {
+          if (retrying) {
+            this.logger.warn('OpenAI attempt failed, retrying', {
+              attempt,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        },
+      });
+    } catch (error: unknown) {
+      this.logger.error(
+        'OpenAI request failed after retries',
+        error instanceof Error ? error : undefined,
+      );
+      return buildFallbackResponse(input.intent, input.contextBlocks);
+    }
+  }
+
+  private async requestOpenAi(
+    apiKey: string,
+    model: string,
+    input: {
+      userText: string;
+      intent: string;
+      history: Array<{ sender: string; content: string; createdAt: string }>;
+      contextBlocks: ContextBlock[];
+    },
+  ): Promise<string> {
+    const prompt = buildPrompt(
+      this.systemPrompt,
+      input.userText,
+      input.intent,
+      input.history,
+      input.contextBlocks,
+    );
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -55,45 +122,53 @@ export class OpenAiAdapter implements LlmPort {
       });
 
       if (!response.ok) {
-        this.logger.error(`OpenAI error status ${response.status}`);
-        return buildFallbackResponse(input.intent, input.contextBlocks);
+        throw new OpenAiHttpError(response.status);
       }
 
       const parsed = (await response.json()) as OpenAiResponse;
 
       const text =
         parsed.output_text ??
-        parsed.output?.[0]?.content?.find((content) => typeof content.text === 'string')?.text;
+        parsed.output?.[0]?.content?.find((c) => typeof c.text === 'string')?.text;
 
       if (!text || text.trim().length === 0) {
-        return buildFallbackResponse(input.intent, input.contextBlocks);
+        throw new Error('OpenAI response missing text');
       }
 
       return text.trim();
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        this.logger.warn(`OpenAI request timeout after ${this.timeoutMs}ms`);
-        return buildFallbackResponse(input.intent, input.contextBlocks);
-      }
-
-      this.logger.error('OpenAI request failed', error instanceof Error ? error.stack : undefined);
-      return buildFallbackResponse(input.intent, input.contextBlocks);
     } finally {
       clearTimeout(timeoutId);
     }
   }
 }
 
+class OpenAiHttpError extends Error {
+  constructor(public readonly status: number) {
+    super(`OpenAI HTTP ${status}`);
+    this.name = 'OpenAiHttpError';
+  }
+}
+
+function isRetryableHttpStatus(err: unknown): boolean {
+  if (err instanceof OpenAiHttpError) {
+    return [429, 500, 502, 503, 504].includes(err.status);
+  }
+  return false;
+}
+
+function isTimeoutOrNetwork(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'AbortError' || err.message?.includes('fetch'));
+}
+
 function buildPrompt(
+  systemPrompt: string,
   userText: string,
   intent: string,
   history: Array<{ sender: string; content: string; createdAt: string }>,
   contextBlocks: ContextBlock[],
 ): string {
   return [
-    'Sos el asistente de Entelequia. Responde en espanol rioplatense, claro y breve.',
-    'No inventes datos fuera del contexto provisto.',
-    'Si faltan datos, pedilos en una sola pregunta corta.',
+    systemPrompt,
     `Intent detectado: ${intent}`,
     `Mensaje usuario: ${userText}`,
     `Historial reciente: ${JSON.stringify(history.slice(-6))}`,

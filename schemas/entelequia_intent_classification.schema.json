@@ -23,10 +23,6 @@
       }
     }
   },
-  "required": [
-    "intent",
-    "confidence",
-    "entities"
-  ],
+  "required": ["intent", "confidence", "entities"],
   "additionalProperties": false
 }

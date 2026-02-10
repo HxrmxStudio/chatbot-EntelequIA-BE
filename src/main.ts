@@ -1,17 +1,24 @@
 import 'reflect-metadata';
-import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { json } from 'express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware';
 import { validateEnv, type AppEnv } from './common/config/env.validation';
+import { createLogger, logger } from './common/utils/logger';
 
 async function bootstrap(): Promise<void> {
+  logger.boot();
+
   const validatedEnv = validateEnv(process.env);
+  const nestLogLevel = validatedEnv.LOG_LEVEL === 'info' ? 'log' : validatedEnv.LOG_LEVEL;
   const app = await NestFactory.create(AppModule, {
-    logger: [validatedEnv.LOG_LEVEL, 'warn', 'error'],
+    logger: [nestLogLevel, 'warn', 'error'],
   });
+
+  app.use(helmet());
 
   app.use(
     json({
@@ -39,7 +46,7 @@ async function bootstrap(): Promise<void> {
 
   await app.listen(validatedEnv.PORT);
 
-  Logger.log(`WF1 service listening on port ${validatedEnv.PORT}`, 'Bootstrap');
+  createLogger('Bootstrap').info(`WF1 service listening on port ${validatedEnv.PORT}`);
 }
 
 function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>, env: AppEnv): void {
@@ -61,7 +68,9 @@ function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>, env:
 }
 
 bootstrap().catch((error: unknown) => {
-  const logger = new Logger('Bootstrap');
-  logger.error('Failed to bootstrap WF1 service', error instanceof Error ? error.stack : error);
+  createLogger('Bootstrap').error(
+    'Failed to bootstrap WF1 service',
+    error instanceof Error ? error : undefined,
+  );
   process.exit(1);
 });

@@ -4,13 +4,13 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { createLogger } from '../utils/logger';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name);
+  private readonly logger = createLogger(HttpExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -28,12 +28,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : 'No pudimos procesar tu mensaje.';
 
     if (status >= 500) {
-      this.logger.error('Unhandled exception', {
-        path: request.path,
-        requestId: request.requestId,
-        message:
-          exception instanceof Error ? exception.message : 'Unknown internal error',
-      });
+      this.logger.error(
+        'Unhandled exception',
+        exception instanceof Error ? exception : undefined,
+        {
+          path: request.path,
+          requestId: request.requestId,
+        },
+      );
     }
 
     response.status(status).json({

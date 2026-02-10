@@ -10,7 +10,7 @@ export interface AppEnv {
   WEBHOOK_SECRET?: string;
   WHATSAPP_SECRET?: string;
   ALLOWED_ORIGINS: string[];
-  LOG_LEVEL: 'debug' | 'log' | 'warn' | 'error';
+  LOG_LEVEL: 'debug' | 'log' | 'info' | 'warn' | 'error';
   CHAT_HISTORY_LIMIT: number;
 }
 
@@ -49,6 +49,9 @@ function parseNodeEnv(value: unknown): AppEnv['NODE_ENV'] {
 function parseLogLevel(value: unknown): AppEnv['LOG_LEVEL'] {
   if (value === 'debug' || value === 'warn' || value === 'error') {
     return value;
+  }
+  if (value === 'info' || value === 'log') {
+    return value as 'info' | 'log';
   }
 
   return 'log';

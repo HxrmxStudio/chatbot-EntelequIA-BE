@@ -14,21 +14,41 @@ import { HandleIncomingMessageUseCase } from './application/use-cases/handle-inc
 import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http.adapter';
 import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor.adapter';
 import { OpenAiAdapter } from './infrastructure/adapters/openai.adapter';
-import { PgWf1Repository } from './infrastructure/repositories/pg-wf1.repository';
+import {
+  pgPoolFactory,
+  PgPoolProvider,
+} from './infrastructure/repositories/pg-pool.provider';
+import { PgAuditRepository } from './infrastructure/repositories/pg-audit.repository';
+import { PgChatRepository } from './infrastructure/repositories/pg-chat.repository';
+import { PgIdempotencyRepository } from './infrastructure/repositories/pg-idempotency.repository';
+import { ExtractVariablesGuard } from './infrastructure/security/extract-variables.guard';
+import { ExtractVariablesService } from './infrastructure/security/extract-variables.service';
+import { InputValidationGuard } from './infrastructure/security/input-validation.guard';
+import { InputValidationService } from './infrastructure/security/input-validation.service';
 import { SignatureGuard } from './infrastructure/security/signature.guard';
+import { SignatureValidationService } from './infrastructure/security/signature-validation.service';
 import { TextSanitizer } from './infrastructure/security/text-sanitizer';
 
 @Module({
   controllers: [ChatController, IntentController],
   providers: [
     SignatureGuard,
+    InputValidationGuard,
+    ExtractVariablesGuard,
+    SignatureValidationService,
+    InputValidationService,
+    ExtractVariablesService,
     TextSanitizer,
     EnrichContextByIntentUseCase,
     HandleIncomingMessageUseCase,
     IntentExtractorAdapter,
     EntelequiaHttpAdapter,
     OpenAiAdapter,
-    PgWf1Repository,
+    PgPoolProvider,
+    pgPoolFactory,
+    PgChatRepository,
+    PgIdempotencyRepository,
+    PgAuditRepository,
     {
       provide: INTENT_EXTRACTOR_PORT,
       useExisting: IntentExtractorAdapter,
@@ -43,15 +63,15 @@ import { TextSanitizer } from './infrastructure/security/text-sanitizer';
     },
     {
       provide: CHAT_PERSISTENCE_PORT,
-      useExisting: PgWf1Repository,
+      useExisting: PgChatRepository,
     },
     {
       provide: IDEMPOTENCY_PORT,
-      useExisting: PgWf1Repository,
+      useExisting: PgIdempotencyRepository,
     },
     {
       provide: AUDIT_PORT,
-      useExisting: PgWf1Repository,
+      useExisting: PgAuditRepository,
     },
   ],
 })

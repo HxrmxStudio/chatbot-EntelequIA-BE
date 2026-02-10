@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AUDIT_PORT,
@@ -9,23 +9,21 @@ import {
 } from '../ports/tokens';
 import type { AuditPort } from '../ports/audit.port';
 import type { ChatPersistencePort } from '../ports/chat-persistence.port';
-import {
-  EntelequiaApiError,
-} from '../ports/entelequia-context.port';
+import { ExternalServiceError } from '../../domain/errors';
 import type { IdempotencyPort } from '../ports/idempotency.port';
 import type { IntentExtractorPort } from '../ports/intent-extractor.port';
 import type { LlmPort } from '../ports/llm.port';
 import type { ChatRequestDto } from '../../dto/chat-request.dto';
 import type { Wf1Response } from '../../domain/wf1-response';
+import { WF1_MAX_TEXT_CHARS } from '../../domain/text-policy';
 import { TextSanitizer } from '../../infrastructure/security/text-sanitizer';
-import {
-  EnrichContextByIntentUseCase,
-  MissingAuthForOrdersError,
-} from './enrich-context-by-intent.use-case';
+import { MissingAuthForOrdersError } from '../../domain/errors';
+import { createLogger } from '../../../../common/utils/logger';
+import { EnrichContextByIntentUseCase } from './enrich-context-by-intent.use-case';
 
 @Injectable()
 export class HandleIncomingMessageUseCase {
-  private readonly logger = new Logger(HandleIncomingMessageUseCase.name);
+  private readonly logger = createLogger(HandleIncomingMessageUseCase.name);
   private readonly historyLimit: number;
 
   constructor(
@@ -50,6 +48,7 @@ export class HandleIncomingMessageUseCase {
     requestId: string;
     externalEventId: string;
     payload: ChatRequestDto;
+    idempotencyPayload: Record<string, unknown>;
   }): Promise<Wf1Response> {
     const startedAt = Date.now();
 
@@ -59,17 +58,14 @@ export class HandleIncomingMessageUseCase {
 
     const sanitizedText = this.textSanitizer.sanitize(input.payload.text);
 
-    if (sanitizedText.length === 0) {
+    if (sanitizedText.length === 0 || sanitizedText.length > WF1_MAX_TEXT_CHARS) {
       throw new BadRequestException('Payload invalido.');
     }
 
     const idempotency = await this.idempotencyPort.startProcessing({
       source: input.payload.source,
       externalEventId: input.externalEventId,
-      payload: {
-        ...input.payload,
-        text: sanitizedText,
-      } as unknown as Record<string, unknown>,
+      payload: input.idempotencyPayload,
       requestId: input.requestId,
     });
 
@@ -77,7 +73,6 @@ export class HandleIncomingMessageUseCase {
       const previous = await this.chatPersistence.getLastBotMessageByExternalEvent({
         channel: input.payload.source,
         externalEventId: input.externalEventId,
-        conversationId: input.payload.conversationId,
       });
 
       const duplicateResponse: Wf1Response = {
@@ -200,8 +195,9 @@ export class HandleIncomingMessageUseCase {
       return response;
     } catch (error: unknown) {
       this.logger.error(
-        `WF1 processing failed for requestId=${input.requestId}`,
-        error instanceof Error ? error.stack : undefined,
+        'WF1 processing failed',
+        error instanceof Error ? error : undefined,
+        { requestId: input.requestId },
       );
 
       await this.idempotencyPort.markFailed({
@@ -244,7 +240,7 @@ export class HandleIncomingMessageUseCase {
       };
     }
 
-    if (error instanceof EntelequiaApiError) {
+    if (error instanceof ExternalServiceError) {
       if (error.statusCode === 401) {
         return {
           ok: false,

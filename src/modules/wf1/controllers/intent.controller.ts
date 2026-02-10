@@ -6,9 +6,12 @@ import {
   Post,
   Req,
   UnprocessableEntityException,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
+import { resolveOptionalString } from '../../../common/utils/string.utils';
 import { INTENT_EXTRACTOR_PORT } from '../application/ports/tokens';
 import type { IntentExtractorPort } from '../application/ports/intent-extractor.port';
 import type { IntentResult } from '../domain/intent';
@@ -22,6 +25,7 @@ export class IntentController {
 
   @Post('intent')
   @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
   async classifyIntent(
     @Body() body: Record<string, unknown>,
     @Req() request: Request,
@@ -39,13 +43,4 @@ export class IntentController {
       conversationId: resolveOptionalString(body.conversationId),
     });
   }
-}
-
-function resolveOptionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }

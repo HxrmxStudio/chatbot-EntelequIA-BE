@@ -44,11 +44,22 @@ describe('IntentExtractorAdapter', () => {
       requestId: 'req-1',
     });
 
+    const call = (global.fetch as unknown as jest.Mock).mock.calls[0];
+    const requestInit = call[1] as RequestInit;
+    const requestBody = JSON.parse(String(requestInit.body)) as {
+      temperature: number;
+      max_output_tokens: number;
+      text: { verbosity: string };
+    };
+
     expect(result).toEqual({
       intent: 'products',
       confidence: 1,
       entities: ['One Piece', 'tomo 33'],
     });
+    expect(requestBody.temperature).toBe(0.2);
+    expect(requestBody.max_output_tokens).toBe(150);
+    expect(requestBody.text.verbosity).toBe('medium');
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
