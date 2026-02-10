@@ -89,12 +89,13 @@ Dependencies point **inward**: Domain has no dependencies. Use cases depend only
 ### Shared Utilities
 
 - Extract repeated logic to `src/common/utils/`.
-- Examples: `resolveOptionalString`, `ensureObject`, `withRetry`.
+- Examples: `resolveOptionalString` (string.utils.ts), `coerceTimestamp` (date.utils.ts), `ensureObject` (object.utils.ts).
 - Keep utilities pure and framework-agnostic when possible.
+- Domain-specific utilities (e.g., `parseMoney`, `formatMoney`) belong in domain modules (e.g., `domain/money/`).
 
 ### Constants
 
-- Single source of truth for limits (e.g. `WF1_MAX_TEXT_CHARS` in `domain/text-policy.ts`).
+- Single source of truth for limits (e.g. `WF1_MAX_TEXT_CHARS` in `domain/text-policy/constants.ts`).
 - Do not duplicate magic numbers. Use named constants.
 
 ### Domain Errors
@@ -182,16 +183,131 @@ src/
     wf1/
       domain/
         errors/
+        products-context/
+        money/
+        intent/
+        intent-routing/
+        text-policy/
+        context-block/
+        user/
+        wf1-response/
+        conversation-history/
+        output-validation/
+        prepare-conversation-query/
+        text-sanitizer/
+        source/
       application/
         ports/
         use-cases/
+          handle-incoming-message/
+          enrich-context-by-intent/
       infrastructure/
         adapters/
+          shared/
+          openai-retry/
+          intent-validator/
+          openai/
+          intent-extractor/
+          entelequia-http/
         repositories/
+          shared/
         security/
       controllers/
       dto/
 ```
+
+### 9.1 Domain: una carpeta por concepto
+
+Cada concepto de domain vive en su **propia carpeta** para mantener el orden y un criterio uniforme:
+
+- **Entrada pública**: siempre `index.ts` que reexporta tipos, constantes y funciones del concepto.
+- **Contenido opcional**: según el tamaño del concepto:
+  - `types.ts` — interfaces y tipos
+  - `constants.ts` — constantes
+  - Módulos de lógica pura (p. ej. `summary.ts`, `match.ts`, `resolve.ts`, `map.ts`, `sentiment.ts`, `build-query.ts`, `sanitize.ts`)
+- **Imports**: los consumidores importan `from '.../domain/nombre-concepto'` (el path no cambia al migrar de archivo plano a carpeta porque se resuelve al `index.ts`).
+
+Ejemplos:
+- `domain/products-context/` — `types.ts`, `constants.ts`, `summary.ts`, `match.ts`, `index.ts`
+- `domain/money/` — `types.ts`, `parse.ts`, `format.ts`, `index.ts` (concepto compartido entre productos y órdenes)
+- `domain/intent/` — `types.ts`, `constants.ts`, `index.ts`
+- `domain/text-policy/` — `constants.ts`, `index.ts`
+- `domain/source/` — solo `index.ts`
+
+### 9.2 Application: use cases con carpeta por concepto
+
+Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Single Responsibility, Separation of Concerns):
+
+- **Entrada pública**: `index.ts` que exporta la clase del use case.
+- **Clase principal**: `nombre-use-case.use-case.ts` con el método `execute` que orquesta el flujo.
+- **Helpers/utilities**: funciones puras extraídas en módulos separados (p. ej. `error-mapper.ts`, `query-resolvers.ts`, `product-parsers.ts`).
+- **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
+
+Ejemplos:
+- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `index.ts`
+- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers.ts`, `product-parsers.ts`, `index.ts`
+
+Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos.
+
+### 9.3 Infrastructure: adapters con carpeta por concepto y helpers compartidos (DRY)
+
+Cada adapter vive en su **propia carpeta** siguiendo Clean Code principles y DRY:
+
+- **Entrada pública**: `index.ts` que exporta la clase del adapter.
+- **Clase principal**: `nombre.adapter.ts` con `@Injectable()` que implementa el port.
+- **Helpers específicos**: funciones puras extraídas en módulos separados dentro de la carpeta del adapter (p. ej. `openai-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`).
+- **Helpers compartidos**: código duplicado extraído a `shared/` dentro de `adapters/` (p. ej. `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts`).
+- **Imports**: los consumidores importan `from '.../infrastructure/adapters/nombre-adapter'` (resuelve al `index.ts`).
+
+Ejemplos:
+- `adapters/openai/` — `openai.adapter.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `retry-helpers.ts`, `index.ts`
+- `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `index.ts`
+- `adapters/shared/` — `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts` (compartidos por múltiples adapters)
+
+Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON.
+
+### 9.4 Infrastructure: security con carpeta por concepto y helpers compartidos (DRY)
+
+Cada servicio de seguridad vive en su **propia carpeta** siguiendo Clean Code principles y DRY:
+
+- **Entrada pública**: `index.ts` que exporta la clase del servicio.
+- **Clase principal**: `nombre.service.ts` con `@Injectable()` que implementa la lógica de seguridad.
+- **Helpers específicos**: funciones puras extraídas en módulos separados dentro de la carpeta del servicio (p. ej. `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `field-validators.ts`, `field-extractor.ts`).
+- **Helpers compartidos**: código duplicado extraído a `shared/` dentro de `security/` (p. ej. `string-helpers.ts`, `crypto-helpers.ts`, `body-helpers.ts`).
+- **Guards**: se mantienen en la raíz de `security/` (patrón estándar de NestJS).
+- **Imports**: los consumidores importan `from '.../infrastructure/security/nombre-servicio'` (resuelve al `index.ts`).
+
+Ejemplos:
+- `security/signature-validation/` — `signature-validation.service.ts`, `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/turnstile-verification/` — `turnstile-verification.service.ts`, `turnstile-client.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/input-validation/` — `input-validation.service.ts`, `field-validators.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/extract-variables/` — `extract-variables.service.ts`, `field-extractor.ts`, `types.ts`, `constants.ts`, `index.ts`
+- `security/shared/` — `string-helpers.ts`, `crypto-helpers.ts`, `body-helpers.ts` (compartidos por múltiples servicios)
+
+Los helpers compartidos eliminan duplicación (DRY) de funciones como `secureEquals` y `resolveBody`. Nota: `resolveOptionalString` se consolidó en `common/utils/string.utils.ts` y se re-exporta desde `security/shared/string-helpers.ts`.
+
+### 9.5 Infrastructure: repositories con helpers compartidos (DRY)
+
+Los repositorios comparten helpers comunes para operaciones JSON y conversión de tipos:
+
+- **Helpers compartidos**: código común extraído a `repositories/shared/` (p. ej. `json-helpers.ts` con `toJsonb`).
+- **Imports**: los repositorios importan `from './shared'` para usar helpers compartidos.
+
+Ejemplos:
+- `repositories/shared/` — `json-helpers.ts` con `toJsonb` (convierte valores a JSON string para columnas jsonb)
+- `repositories/pg-chat.repository.ts` — usa `toJsonb` y `coerceTimestamp` (desde `common/utils/date.utils.ts`)
+
+Los helpers compartidos eliminan duplicación (DRY) de operaciones JSON y conversión de timestamps.
+
+### 9.6 Common utilities: consolidación de funciones compartidas
+
+Las funciones utilitarias compartidas se consolidan en `src/common/utils/`:
+
+- **string.utils.ts**: `resolveOptionalString` (consolidado desde security/shared)
+- **date.utils.ts**: `coerceTimestamp` (movido desde pg-chat.repository.ts)
+- **object.utils.ts**: `ensureObject`, `isRecord` (helpers para validación de objetos)
+
+Estas utilidades son puras (sin dependencias de framework) y pueden ser usadas en cualquier capa siguiendo las reglas de dependencia de Clean Architecture.
 
 ---
 

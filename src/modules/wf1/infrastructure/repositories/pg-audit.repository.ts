@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
+import { toJsonb } from './shared';
 import type { AuditEntryInput, AuditPort } from '../../application/ports/audit.port';
 import { PG_POOL } from '../../application/ports/tokens';
 
@@ -33,7 +34,7 @@ export class PgAuditRepository implements AuditPort {
         input.httpStatus,
         input.errorCode ?? null,
         input.latencyMs,
-        JSON.stringify(input.metadata ?? {}),
+        toJsonb(input.metadata ?? {}),
       ],
     );
   }

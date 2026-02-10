@@ -1,0 +1,1 @@
+export const WF1_PRODUCTS_CONTEXT_MAX_ITEMS = 5;

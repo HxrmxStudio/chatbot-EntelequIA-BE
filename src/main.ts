@@ -63,6 +63,18 @@ function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>, env:
       callback(new Error('Origin not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-request-id',
+      'x-webhook-secret',
+      'x-turnstile-token',
+      'x-shadow-mode',
+      'x-external-event-id',
+      'x-idempotency-key',
+      'x-hub-signature-256',
+    ],
+    exposedHeaders: ['x-request-id'],
     credentials: true,
   });
 }

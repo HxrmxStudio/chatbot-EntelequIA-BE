@@ -10,7 +10,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { resolveOptionalString } from '../../../common/utils/string.utils';
-import { HandleIncomingMessageUseCase } from '../application/use-cases/handle-incoming-message.use-case';
+import { HandleIncomingMessageUseCase } from '../application/use-cases/handle-incoming-message';
 import { ChatRequestDto } from '../dto/chat-request.dto';
 import type { Wf1Response } from '../domain/wf1-response';
 import { ExtractVariablesGuard } from '../infrastructure/security/extract-variables.guard';

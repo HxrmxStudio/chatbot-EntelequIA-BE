@@ -12,14 +12,46 @@ alwaysApply: false
 wf1/
   domain/           # Pure logic, no framework deps
     errors/         # MissingAuthForOrdersError, ExternalServiceError
-    *.ts            # Entities, value objects, text-sanitizer (pure fn)
+    products-context/  # types.ts, constants.ts, summary.ts, match.ts, index.ts
+    money/          # types.ts, parse.ts, format.ts, index.ts (shared domain concept)
+    intent/         # types.ts, constants.ts, index.ts
+    intent-routing/ # types.ts, resolve.ts, index.ts
+    text-policy/    # constants.ts, index.ts
+    context-block/  # types.ts, index.ts
+    user/           # types.ts, index.ts
+    wf1-response/   # types.ts, index.ts
+    conversation-history/  # types.ts, constants.ts, map.ts, index.ts
+    output-validation/     # types.ts, constants.ts, sentiment.ts, index.ts
+    prepare-conversation-query/  # types.ts, build-query.ts, index.ts
+    text-sanitizer/ # sanitize.ts, index.ts
+    source/         # index.ts
+    # Each concept in its own folder with index.ts as public API
   application/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
+      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, index.ts
+      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers.ts, product-parsers.ts, index.ts
+      # Each use case in its own folder with index.ts as public API
   infrastructure/
     adapters/       # OpenAI, Entelequia, IntentExtractor
+      shared/       # prompt-loader.ts, http-client.ts, schema-loader.ts (DRY helpers)
+      openai-retry/ # withRetry utility
+      intent-validator/ # IntentValidationError, validateAndNormalizeIntentPayload
+      openai/       # openai.adapter.ts, openai-client.ts, prompt-builder.ts, fallback-builder.ts, index.ts
+      intent-extractor/  # intent-extractor.adapter.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, index.ts
+      entelequia-http/   # entelequia-http.adapter.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
+      # Each adapter in its own folder with index.ts as public API
     repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
+      shared/       # json-helpers.ts (toJsonb for jsonb columns)
     security/       # Guards, validation, sanitization
+      shared/       # string-helpers.ts, crypto-helpers.ts, body-helpers.ts (DRY helpers)
+      signature-validation/  # signature-validation.service.ts, web-signature-validator.ts, whatsapp-signature-validator.ts, index.ts
+      turnstile-verification/  # turnstile-verification.service.ts, turnstile-client.ts, index.ts
+      input-validation/  # input-validation.service.ts, field-validators.ts, index.ts
+      extract-variables/  # extract-variables.service.ts, field-extractor.ts, index.ts
+      text-sanitizer/  # text-sanitizer.ts, index.ts
+      # Guards remain in root: signature.guard.ts, input-validation.guard.ts, extract-variables.guard.ts
+      # Each service in its own folder with index.ts as public API
   controllers/
   dto/
 ```
@@ -47,9 +79,12 @@ Defined in `application/ports/tokens.ts`:
 
 ## Shared Utilities
 
-- `src/common/utils/string.utils.ts`: resolveOptionalString
-- `src/common/utils/object.utils.ts`: ensureObject
+- `src/common/utils/string.utils.ts`: resolveOptionalString (consolidated from security/shared)
+- `src/common/utils/date.utils.ts`: coerceTimestamp (moved from pg-chat.repository.ts)
+- `src/common/utils/object.utils.ts`: ensureObject, isRecord
 - `infrastructure/adapters/openai-retry.client.ts`: withRetry
+- `infrastructure/repositories/shared/json-helpers.ts`: toJsonb (for PostgreSQL jsonb columns)
+- `domain/money/`: parseMoney, formatMoney (shared domain concept for products and orders)
 
 ## Domain Errors
 

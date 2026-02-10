@@ -10,10 +10,10 @@
     "start:dev": "ts-node --project tsconfig.json src/main.ts",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"*.{md,json}\"",
-    "test": "jest",
-    "test:unit": "jest --testPathPattern=src",
-    "test:integration": "jest --testPathPattern=integration",
-    "test:integration:pg": "jest --runInBand --testPathPattern=pg-.*.repository.integration.spec",
+    "test": "jest --testPathPattern=test",
+    "test:unit": "jest --testPathPattern=test/unit",
+    "test:integration": "jest --testPathPattern=test/integration --runInBand",
+    "test:integration:pg": "jest --runInBand --testPathPattern=test/integration/.*pg-.*.repository.integration.spec",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -45,6 +45,7 @@
     "supertest": "^7.2.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
   }
 }

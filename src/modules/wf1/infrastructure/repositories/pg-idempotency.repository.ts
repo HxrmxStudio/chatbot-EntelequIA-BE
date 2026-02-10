@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
+import { toJsonb } from './shared';
 import type {
   IdempotencyPort,
   IdempotencyStartResult,
@@ -36,7 +37,7 @@ export class PgIdempotencyRepository implements IdempotencyPort {
        )
        ON CONFLICT (source, external_event_id)
        DO NOTHING`,
-      [input.source, input.externalEventId, JSON.stringify(input.payload)],
+      [input.source, input.externalEventId, toJsonb(input.payload)],
     );
 
     return {

@@ -9,11 +9,11 @@ import {
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
 } from './application/ports/tokens';
-import { EnrichContextByIntentUseCase } from './application/use-cases/enrich-context-by-intent.use-case';
-import { HandleIncomingMessageUseCase } from './application/use-cases/handle-incoming-message.use-case';
-import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http.adapter';
-import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor.adapter';
-import { OpenAiAdapter } from './infrastructure/adapters/openai.adapter';
+import { EnrichContextByIntentUseCase } from './application/use-cases/enrich-context-by-intent';
+import { HandleIncomingMessageUseCase } from './application/use-cases/handle-incoming-message';
+import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http';
+import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor';
+import { OpenAiAdapter } from './infrastructure/adapters/openai';
 import {
   pgPoolFactory,
   PgPoolProvider,
@@ -22,12 +22,13 @@ import { PgAuditRepository } from './infrastructure/repositories/pg-audit.reposi
 import { PgChatRepository } from './infrastructure/repositories/pg-chat.repository';
 import { PgIdempotencyRepository } from './infrastructure/repositories/pg-idempotency.repository';
 import { ExtractVariablesGuard } from './infrastructure/security/extract-variables.guard';
-import { ExtractVariablesService } from './infrastructure/security/extract-variables.service';
+import { ExtractVariablesService } from './infrastructure/security/extract-variables';
 import { InputValidationGuard } from './infrastructure/security/input-validation.guard';
-import { InputValidationService } from './infrastructure/security/input-validation.service';
+import { InputValidationService } from './infrastructure/security/input-validation';
 import { SignatureGuard } from './infrastructure/security/signature.guard';
-import { SignatureValidationService } from './infrastructure/security/signature-validation.service';
+import { SignatureValidationService } from './infrastructure/security/signature-validation';
 import { TextSanitizer } from './infrastructure/security/text-sanitizer';
+import { TurnstileVerificationService } from './infrastructure/security/turnstile-verification';
 
 @Module({
   controllers: [ChatController, IntentController],
@@ -36,6 +37,7 @@ import { TextSanitizer } from './infrastructure/security/text-sanitizer';
     InputValidationGuard,
     ExtractVariablesGuard,
     SignatureValidationService,
+    TurnstileVerificationService,
     InputValidationService,
     ExtractVariablesService,
     TextSanitizer,

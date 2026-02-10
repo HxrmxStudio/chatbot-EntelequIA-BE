@@ -4,7 +4,8 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   testEnvironment: 'node',
-  testRegex: '.*\\.spec\\.ts$',
+  testRegex: 'test/(unit|integration)/.*\\.(spec|integration\\.spec)\\.ts$',
+  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   transform: {
     '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },

@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { SignatureValidationService } from './signature-validation.service';
+import { SignatureValidationService } from './signature-validation';
 
 @Injectable()
 export class SignatureGuard implements CanActivate {
@@ -8,10 +8,10 @@ export class SignatureGuard implements CanActivate {
     private readonly signatureValidationService: SignatureValidationService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     request.signatureValidation =
-      this.signatureValidationService.validateRequest(request);
+      await this.signatureValidationService.validateRequest(request);
     return true;
   }
 }

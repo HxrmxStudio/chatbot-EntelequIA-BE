@@ -1,11 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
+import { coerceTimestamp } from '@/common/utils/date.utils';
+import { toJsonb } from './shared';
 import type {
   ChatPersistencePort,
   PersistTurnInput,
 } from '../../application/ports/chat-persistence.port';
 import type { ChannelSource } from '../../domain/source';
 import type { MessageHistoryItem } from '../../domain/context-block';
+import {
+  WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
+  mapConversationHistoryRowsToMessageHistoryItems,
+  type ConversationHistoryRow,
+} from '../../domain/conversation-history';
 import type { UserContext } from '../../domain/user';
 import { PG_POOL } from '../../application/ports/tokens';
 
@@ -64,26 +71,45 @@ export class PgChatRepository implements ChatPersistencePort {
     conversationId: string;
     limit: number;
   }): Promise<MessageHistoryItem[]> {
+    const rows = await this.getConversationHistoryRows(input);
+    return mapConversationHistoryRowsToMessageHistoryItems(rows);
+  }
+
+  async getConversationHistoryRows(input: {
+    conversationId: string;
+    limit: number;
+  }): Promise<ConversationHistoryRow[]> {
+    const limit = Math.min(
+      Math.max(0, input.limit),
+      WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
+    );
+
     const result = await this.pool.query<{
-      sender: 'user' | 'bot' | 'agent' | 'system';
+      id: string;
       content: string;
+      sender: string;
+      type: string;
+      channel: string | null;
+      metadata: unknown;
       created_at: Date;
     }>(
-      `SELECT sender, content, created_at
+      `SELECT id, content, sender, type, channel, metadata, created_at
        FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
-      [input.conversationId, input.limit],
+      [input.conversationId, limit],
     );
 
-    return result.rows
-      .reverse()
-      .map((row) => ({
-        sender: row.sender,
-        content: row.content,
-        createdAt: row.created_at.toISOString(),
-      }));
+    return result.rows.map((row) => ({
+      id: row.id,
+      content: row.content ?? null,
+      sender: row.sender ?? null,
+      type: row.type ?? null,
+      channel: row.channel ?? null,
+      metadata: row.metadata ?? null,
+      created_at: row.created_at ? row.created_at.toISOString() : null,
+    }));
   }
 
   async getLastBotMessageByExternalEvent(input: {
@@ -128,7 +154,7 @@ export class PgChatRepository implements ChatPersistencePort {
           input.userMessage,
           input.source,
           input.externalEventId,
-          JSON.stringify({ intent: input.intent, ...(input.metadata ?? {}) }),
+          toJsonb({ intent: input.intent, ...(input.metadata ?? {}) }),
         ],
       );
 
@@ -141,7 +167,7 @@ export class PgChatRepository implements ChatPersistencePort {
           input.botMessage,
           input.source,
           input.externalEventId,
-          JSON.stringify({ intent: input.intent, ...(input.metadata ?? {}) }),
+          toJsonb({ intent: input.intent, ...(input.metadata ?? {}) }),
         ],
       );
 
@@ -151,7 +177,7 @@ export class PgChatRepository implements ChatPersistencePort {
            VALUES ('whatsapp', $1, $2::jsonb, 'pending')`,
           [
             input.userId,
-            JSON.stringify({
+            toJsonb({
               conversationId: input.conversationId,
               message: input.botMessage,
               externalEventId: input.externalEventId,
@@ -197,16 +223,4 @@ export class PgChatRepository implements ChatPersistencePort {
       [input.conversationId, input.userId, input.channel],
     );
   }
-}
-
-function coerceTimestamp(value: unknown): string {
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  return String(value);
 }

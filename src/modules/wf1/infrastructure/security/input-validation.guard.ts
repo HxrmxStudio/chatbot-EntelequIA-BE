@@ -1,6 +1,6 @@
 import { BadRequestException, CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { InputValidationService } from './input-validation.service';
+import { InputValidationService } from './input-validation';
 
 @Injectable()
 export class InputValidationGuard implements CanActivate {

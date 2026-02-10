@@ -1,5 +1,9 @@
 type ErrorConstructor = new (message: string) => Error;
 
+export function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === 'object' && input !== null && !Array.isArray(input);
+}
+
 /**
  * Ensures the input is a plain object (not null, neither an array).
  * Throws with the given message if validation fails.
@@ -10,7 +14,7 @@ export function ensureObject(
   message = 'Invalid payload: input must be an object',
   ErrorClass: ErrorConstructor = Error,
 ): Record<string, unknown> {
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+  if (!isRecord(input)) {
     throw new ErrorClass(message);
   }
 
