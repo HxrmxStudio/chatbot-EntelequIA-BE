@@ -35,4 +35,8 @@ Examples:
 
 ## Automatic enforcement
 
-A git hook (`.git/hooks/prepare-commit-msg`) automatically removes any `Co-authored-by` trailers from commit messages to ensure compliance with this rule, even if Cursor IDE adds them automatically.
+Git hooks automatically remove any `Co-authored-by` trailers from commit messages:
+- `.git/hooks/prepare-commit-msg`: Removes trailers before commit message is finalized
+- `.git/hooks/commit-msg`: Removes trailers after commit message is finalized (catches Cursor IDE additions)
+
+These hooks ensure compliance with this rule, even if Cursor IDE adds trailers automatically.
