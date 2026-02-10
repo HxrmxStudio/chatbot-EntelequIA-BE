@@ -7,7 +7,8 @@ export type ContextType =
   | 'tickets'
   | 'recommendations'
   | 'store_info'
-  | 'general';
+  | 'general'
+  | 'static_context';
 
 export interface ContextBlock {
   contextType: ContextType;

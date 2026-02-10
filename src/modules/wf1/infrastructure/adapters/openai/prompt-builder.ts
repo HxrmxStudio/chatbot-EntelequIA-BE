@@ -1,4 +1,4 @@
-import type { ContextBlock } from '../../../domain/context-block';
+import { renderContextBlocksForPrompt, type ContextBlock } from '@/modules/wf1/domain/context-block';
 
 export function buildPrompt(
   systemPrompt: string,
@@ -7,11 +7,14 @@ export function buildPrompt(
   history: Array<{ sender: string; content: string; createdAt: string }>,
   contextBlocks: ContextBlock[],
 ): string {
+  const renderedContext = renderContextBlocksForPrompt(contextBlocks);
+
   return [
     systemPrompt,
     `Intent detectado: ${intent}`,
     `Mensaje usuario: ${userText}`,
     `Historial reciente: ${JSON.stringify(history.slice(-6))}`,
-    `Contexto negocio: ${JSON.stringify(contextBlocks)}`,
+    'Contexto negocio:',
+    renderedContext.length > 0 ? renderedContext : '(Sin contexto adicional)',
   ].join('\n');
 }

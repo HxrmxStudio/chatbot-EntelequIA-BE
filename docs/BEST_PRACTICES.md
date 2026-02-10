@@ -276,6 +276,24 @@ Ejemplos:
 
 Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON. Los archivos `endpoints.ts` centralizan las definiciones de endpoints (tanto de API como URLs del web frontend como `productWebUrl` y `storageImageUrl`) para mejorar mantenibilidad y seguir Single Responsibility Principle.
 
+### 9.3.1 Infrastructure: prompt-templates adapter
+
+El adapter `prompt-templates/` centraliza la carga y acceso a todos los prompts del sistema:
+
+- **Port**: `PromptTemplatesPort` define la interfaz para acceder a prompts
+- **Adapter**: `PromptTemplatesAdapter` implementa el port, carga prompts desde filesystem en constructor
+- **Constantes**: `constants.ts` contiene todos los paths de prompts y valores DEFAULT como fallback
+- **Imports**: los use cases inyectan `PROMPT_TEMPLATES_PORT` para acceder a prompts
+
+Ejemplo:
+- `adapters/prompt-templates/` — `prompt-templates.adapter.ts`, `constants.ts`, `index.ts`
+
+**Beneficios**:
+- Centralización: todos los prompts accesibles desde un solo port
+- Testabilidad: fácil mockear prompts en tests
+- Mantenibilidad: cambios en prompts no requieren modificar use cases
+- DRY: elimina carga duplicada de prompts en múltiples lugares
+
 ### 9.4 Infrastructure: security con carpeta services y helpers compartidos (DRY)
 
 Todos los servicios de seguridad están agrupados bajo `services/` siguiendo las mejores prácticas de NestJS. Cada servicio vive en su **propia carpeta** siguiendo Clean Code principles y DRY:
@@ -297,6 +315,20 @@ Ejemplos:
 - `security/shared/` — `string-helpers.ts`, `crypto-helpers.ts`, `body-helpers.ts` (compartidos por múltiples servicios)
 
 Los helpers compartidos eliminan duplicación (DRY) de funciones como `secureEquals` y `resolveBody`. Nota: `resolveOptionalString` se consolidó en `common/utils/string.utils.ts` y se re-exporta desde `security/shared/string-helpers.ts`.
+
+### 9.6 Domain: context-block con funciones de renderizado
+
+El dominio `context-block/` proporciona funciones puras para manipular y renderizar context blocks:
+
+- **Tipos**: `types.ts` define `ContextBlock`, `ContextType`
+- **Renderizado**: `render.ts` con `renderContextBlocksForPrompt()` convierte blocks a string para prompts
+- **Manipulación**: `append-static-context.ts` con `appendStaticContextBlock()` agrega/reemplaza static context
+- **Imports**: los consumidores importan `from '@/modules/wf1/domain/context-block'` (resuelve al `index.ts`)
+
+Ejemplos:
+- `domain/context-block/` — `types.ts`, `render.ts`, `append-static-context.ts`, `index.ts`
+
+Las funciones de dominio son puras (sin side effects) y siguen principios de Clean Code (SRP, funciones pequeñas, bien documentadas con JSDoc).
 
 ### 9.5 Infrastructure: repositories con helpers compartidos (DRY)
 

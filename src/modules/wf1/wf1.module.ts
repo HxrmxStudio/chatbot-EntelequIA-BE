@@ -8,12 +8,14 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  PROMPT_TEMPLATES_PORT,
 } from './application/ports/tokens';
 import { EnrichContextByIntentUseCase } from './application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from './application/use-cases/handle-incoming-message';
 import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http';
 import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor';
 import { OpenAiAdapter } from './infrastructure/adapters/openai';
+import { PromptTemplatesAdapter } from './infrastructure/adapters/prompt-templates';
 import {
   pgPoolFactory,
   PgPoolProvider,
@@ -44,6 +46,7 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     IntentExtractorAdapter,
     EntelequiaHttpAdapter,
     OpenAiAdapter,
+    PromptTemplatesAdapter,
     PgPoolProvider,
     pgPoolFactory,
     PgChatRepository,
@@ -60,6 +63,10 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     {
       provide: LLM_PORT,
       useExisting: OpenAiAdapter,
+    },
+    {
+      provide: PROMPT_TEMPLATES_PORT,
+      useExisting: PromptTemplatesAdapter,
     },
     {
       provide: CHAT_PERSISTENCE_PORT,

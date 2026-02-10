@@ -1,14 +1,5 @@
-import { loadPromptFile } from '@/modules/wf1/infrastructure/adapters/shared';
 import { formatMoney } from '../money';
-import {
-  DEFAULT_PRODUCTS_CONTEXT_ADDITIONAL_INFO,
-  DEFAULT_PRODUCTS_CONTEXT_HEADER,
-  DEFAULT_PRODUCTS_CONTEXT_INSTRUCTIONS,
-  PRODUCTS_CONTEXT_ADDITIONAL_INFO_PATH,
-  PRODUCTS_CONTEXT_HEADER_PATH,
-  PRODUCTS_CONTEXT_INSTRUCTIONS_PATH,
-  WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS,
-} from './constants';
+import { WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS } from './constants';
 import type { ProductSearchItem } from './types';
 
 export interface ProductsAiContext {
@@ -18,9 +9,15 @@ export interface ProductsAiContext {
   inStockCount: number;
 }
 
+export interface ProductsContextTemplates {
+  header: string;
+  additionalInfo: string;
+  instructions: string;
+}
+
 /**
  * Builds the AI context text for products.
- * Loads prompts from filesystem and constructs the context with dynamic product data.
+ * Constructs the context with dynamic product data.
  *
  * @param input - Products data and query
  * @returns ProductsAiContext with formatted context text and metadata
@@ -29,30 +26,28 @@ export function buildProductsAiContext(input: {
   items: ProductSearchItem[];
   total?: number;
   query?: string;
+  templates?: Partial<ProductsContextTemplates>;
 }): ProductsAiContext {
-  const productCount = input.items.length;
-  const totalCount = typeof input.total === 'number' ? input.total : productCount;
-  const inStockCount = input.items.filter((item) => item.stock > 0).length;
+  const displayedItems = input.items.slice(0, WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS);
+  const productCount = displayedItems.length;
+  const totalCount = typeof input.total === 'number' ? input.total : input.items.length;
+  const inStockCount = displayedItems.filter((item) => item.stock > 0).length;
 
-  const formattedList = input.items
-    .slice(0, WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS)
-    .map((item, index) => formatProductItem(item, index))
-    .join('\n\n');
+  const formattedList = displayedItems.map((item, index) => formatProductItem(item, index)).join('\n\n');
 
   const queryLine =
     typeof input.query === 'string' && input.query.trim().length > 0
       ? `- Query: ${input.query.trim()}`
       : undefined;
 
-  const header = loadPromptFile(PRODUCTS_CONTEXT_HEADER_PATH, DEFAULT_PRODUCTS_CONTEXT_HEADER);
-  const additionalInfo = loadPromptFile(
-    PRODUCTS_CONTEXT_ADDITIONAL_INFO_PATH,
-    DEFAULT_PRODUCTS_CONTEXT_ADDITIONAL_INFO,
-  );
-  const instructions = loadPromptFile(
-    PRODUCTS_CONTEXT_INSTRUCTIONS_PATH,
-    DEFAULT_PRODUCTS_CONTEXT_INSTRUCTIONS,
-  );
+  // Use provided templates or empty strings (caller should always provide templates via PromptTemplatesPort)
+  const header = input.templates?.header ?? 'PRODUCTOS ENTELEQUIA';
+  const additionalInfo =
+    input.templates?.additionalInfo ??
+    'Informacion adicional:\n- Locales: Uruguay 341 (Centro) y Juramento 2584 (Belgrano)\n- Retiro sin cargo en tienda\n- Envios a todo el pais';
+  const instructions =
+    input.templates?.instructions ??
+    'Instrucciones para tu respuesta:\n- Responder breve y claro, en espanol rioplatense.\n- Mencionar stock, precio y link cuando esten disponibles.\n- Si el usuario pide un tomo/numero que no aparece exacto, sugerir la edicion deluxe si existe.\n- Si falta informacion, pedir una sola aclaracion corta.';
 
   const contextLines: string[] = [
     header,
@@ -104,4 +99,3 @@ function formatProductItem(item: ProductSearchItem, index: number): string {
     .filter((line): line is string => typeof line === 'string' && line.length > 0)
     .join('\n');
 }
-

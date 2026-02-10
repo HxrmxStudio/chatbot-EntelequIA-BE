@@ -6,12 +6,14 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  PROMPT_TEMPLATES_PORT,
 } from '../../ports/tokens';
 import type { AuditPort } from '../../ports/audit.port';
 import type { ChatPersistencePort } from '../../ports/chat-persistence.port';
 import type { IdempotencyPort } from '../../ports/idempotency.port';
 import type { IntentExtractorPort } from '../../ports/intent-extractor.port';
 import type { LlmPort } from '../../ports/llm.port';
+import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import type { ChatRequestDto } from '../../../dto/chat-request.dto';
 import type { Wf1Response } from '../../../domain/wf1-response';
 import { prepareConversationQuery } from '../../../domain/prepare-conversation-query';
@@ -20,6 +22,7 @@ import {
   WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
   mapConversationHistoryRowsToMessageHistoryItems,
 } from '../../../domain/conversation-history';
+import { appendStaticContextBlock } from '../../../domain/context-block';
 import { sanitizeText } from '../../../domain/text-sanitizer';
 import { validateAndEnrichIntentOutput } from '../../../domain/output-validation';
 import { resolveIntentRoute } from '../../../domain/intent-routing';
@@ -44,6 +47,8 @@ export class HandleIncomingMessageUseCase {
     @Inject(AUDIT_PORT)
     private readonly auditPort: AuditPort,
     private readonly enrichContextByIntent: EnrichContextByIntentUseCase,
+    @Inject(PROMPT_TEMPLATES_PORT)
+    private readonly promptTemplates: PromptTemplatesPort,
     private readonly configService: ConfigService,
   ) {
     const configuredLimit =
@@ -208,6 +213,11 @@ export class HandleIncomingMessageUseCase {
           currency: input.payload.currency,
           accessToken: input.payload.accessToken,
         });
+
+        contextBlocks = appendStaticContextBlock(
+          contextBlocks,
+          this.promptTemplates.getStaticContext(),
+        );
 
         const message = await this.llmPort.buildAssistantReply({
           userText: sanitizedText,

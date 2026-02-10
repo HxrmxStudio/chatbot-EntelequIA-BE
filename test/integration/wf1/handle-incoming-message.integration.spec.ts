@@ -7,6 +7,7 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  PROMPT_TEMPLATES_PORT,
 } from '@/modules/wf1/application/ports/tokens';
 import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import type { AuditEntryInput } from '@/modules/wf1/application/ports/audit.port';
@@ -184,6 +185,28 @@ class StubEntelequia {
   }
 }
 
+class StubPromptTemplates {
+  getProductsContextHeader(): string {
+    return 'PRODUCTOS ENTELEQUIA';
+  }
+
+  getProductsContextAdditionalInfo(): string {
+    return 'Info adicional';
+  }
+
+  getProductsContextInstructions(): string {
+    return 'Instrucciones';
+  }
+
+  getGeneralContextHint(): string {
+    return 'Hint general';
+  }
+
+  getStaticContext(): string {
+    return 'Contexto estatico';
+  }
+}
+
 describe('HandleIncomingMessageUseCase (integration)', () => {
   let useCase: HandleIncomingMessageUseCase;
   let persistence: InMemoryPersistence;
@@ -219,6 +242,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         { provide: IDEMPOTENCY_PORT, useValue: idempotency },
         { provide: AUDIT_PORT, useValue: audit },
         { provide: ENTELEQUIA_CONTEXT_PORT, useValue: entelequia },
+        { provide: PROMPT_TEMPLATES_PORT, useClass: StubPromptTemplates },
       ],
     }).compile();
 

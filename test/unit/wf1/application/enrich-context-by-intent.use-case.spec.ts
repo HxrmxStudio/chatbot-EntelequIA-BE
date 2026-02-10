@@ -1,12 +1,14 @@
 import { Test } from '@nestjs/testing';
 import { MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
 import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-cases/enrich-context-by-intent';
-import { ENTELEQUIA_CONTEXT_PORT } from '@/modules/wf1/application/ports/tokens';
+import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '@/modules/wf1/application/ports/tokens';
 import type { EntelequiaContextPort } from '@/modules/wf1/application/ports/entelequia-context.port';
+import type { PromptTemplatesPort } from '@/modules/wf1/application/ports/prompt-templates.port';
 
 describe('EnrichContextByIntentUseCase', () => {
   let useCase: EnrichContextByIntentUseCase;
   let entelequiaPort: jest.Mocked<EntelequiaContextPort>;
+  let promptTemplates: PromptTemplatesPort;
 
   beforeEach(async () => {
     entelequiaPort = {
@@ -18,10 +20,19 @@ describe('EnrichContextByIntentUseCase', () => {
       getOrderDetail: jest.fn().mockResolvedValue({ contextType: 'order_detail', contextPayload: {} }),
     };
 
+    promptTemplates = {
+      getProductsContextHeader: () => 'PRODUCTOS ENTELEQUIA',
+      getProductsContextAdditionalInfo: () => 'Info adicional',
+      getProductsContextInstructions: () => 'Instrucciones',
+      getGeneralContextHint: () => 'Hint general',
+      getStaticContext: () => 'Contexto estatico',
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         EnrichContextByIntentUseCase,
         { provide: ENTELEQUIA_CONTEXT_PORT, useValue: entelequiaPort },
+        { provide: PROMPT_TEMPLATES_PORT, useValue: promptTemplates },
       ],
     }).compile();
 

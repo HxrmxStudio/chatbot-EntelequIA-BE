@@ -4,4 +4,5 @@ export const LLM_PORT = Symbol('LLM_PORT');
 export const CHAT_PERSISTENCE_PORT = Symbol('CHAT_PERSISTENCE_PORT');
 export const IDEMPOTENCY_PORT = Symbol('IDEMPOTENCY_PORT');
 export const AUDIT_PORT = Symbol('AUDIT_PORT');
+export const PROMPT_TEMPLATES_PORT = Symbol('PROMPT_TEMPLATES_PORT');
 export const PG_POOL = Symbol('PG_POOL');

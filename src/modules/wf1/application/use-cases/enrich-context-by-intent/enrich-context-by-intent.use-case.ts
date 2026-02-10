@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { loadPromptFile } from '@/modules/wf1/infrastructure/adapters/shared';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 import { ExternalServiceError, MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
 import type { IntentResult } from '@/modules/wf1/domain/intent';
@@ -8,7 +7,8 @@ import {
   buildProductAvailabilityHint,
   selectBestProductMatch,
 } from '@/modules/wf1/domain/products-context';
-import { ENTELEQUIA_CONTEXT_PORT } from '../../ports/tokens';
+import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
+import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
 import { resolveProductsQuery, resolveOrderId } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
@@ -18,6 +18,8 @@ export class EnrichContextByIntentUseCase {
   constructor(
     @Inject(ENTELEQUIA_CONTEXT_PORT)
     private readonly entelequiaContextPort: EntelequiaContextPort,
+    @Inject(PROMPT_TEMPLATES_PORT)
+    private readonly promptTemplates: PromptTemplatesPort,
   ) {}
 
   async execute(input: {
@@ -45,6 +47,11 @@ export class EnrichContextByIntentUseCase {
           items,
           total,
           query,
+          templates: {
+            header: this.promptTemplates.getProductsContextHeader(),
+            additionalInfo: this.promptTemplates.getProductsContextAdditionalInfo(),
+            instructions: this.promptTemplates.getProductsContextInstructions(),
+          },
         });
         const productsWithAi: ContextBlock = {
           ...products,
@@ -152,10 +159,7 @@ export class EnrichContextByIntentUseCase {
 
       case 'general':
       default: {
-        const hint = loadPromptFile(
-          'prompts/entelequia_general_context_hint_v1.txt',
-          'Responder con claridad y pedir precision cuando falten datos.',
-        );
+        const hint = this.promptTemplates.getGeneralContextHint();
         return [
           {
             contextType: 'general',

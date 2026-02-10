@@ -14,14 +14,16 @@ import { prepareConversationQuery } from '../src/modules/wf1/domain/prepare-conv
 import { validateAndEnrichIntentOutput } from '../src/modules/wf1/domain/output-validation';
 import { resolveIntentRoute } from '../src/modules/wf1/domain/intent-routing';
 import { mapConversationHistoryRowsToMessageHistoryItems } from '../src/modules/wf1/domain/conversation-history';
-import type { ContextBlock } from '../src/modules/wf1/domain/context-block';
+import { appendStaticContextBlock, type ContextBlock } from '../src/modules/wf1/domain/context-block';
 import type { Wf1Response } from '../src/modules/wf1/domain/wf1-response';
 import { mapContextOrBackendError } from '../src/modules/wf1/application/use-cases/handle-incoming-message/error-mapper';
 import { PG_POOL } from '../src/modules/wf1/application/ports/tokens';
 import { ENTELEQUIA_CONTEXT_PORT } from '../src/modules/wf1/application/ports/tokens';
+import { PROMPT_TEMPLATES_PORT } from '../src/modules/wf1/application/ports/tokens';
 import { EnrichContextByIntentUseCase } from '../src/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { EntelequiaHttpAdapter } from '../src/modules/wf1/infrastructure/adapters/entelequia-http';
 import { OpenAiAdapter } from '../src/modules/wf1/infrastructure/adapters/openai';
+import { PromptTemplatesAdapter } from '../src/modules/wf1/infrastructure/adapters/prompt-templates';
 import {
   PgPoolProvider,
   pgPoolFactory,
@@ -165,6 +167,7 @@ async function main(): Promise<void> {
       EnrichContextByIntentUseCase,
       EntelequiaHttpAdapter,
       OpenAiAdapter,
+      PromptTemplatesAdapter,
       PgPoolProvider,
       pgPoolFactory,
       PgIdempotencyRepository,
@@ -173,6 +176,10 @@ async function main(): Promise<void> {
       {
         provide: ENTELEQUIA_CONTEXT_PORT,
         useExisting: EntelequiaHttpAdapter,
+      },
+      {
+        provide: PROMPT_TEMPLATES_PORT,
+        useExisting: PromptTemplatesAdapter,
       },
     ],
   }).compile();
@@ -184,6 +191,7 @@ async function main(): Promise<void> {
   const intentExtractor = moduleRef.get(IntentExtractorAdapter);
   const enrichContextByIntent = moduleRef.get(EnrichContextByIntentUseCase);
   const llmAdapter = moduleRef.get(OpenAiAdapter);
+  const promptTemplates = moduleRef.get(PromptTemplatesAdapter);
   const idempotencyRepository = moduleRef.get(PgIdempotencyRepository);
   const chatRepository = moduleRef.get(PgChatRepository);
   const auditRepository = moduleRef.get(PgAuditRepository);
@@ -325,6 +333,8 @@ async function main(): Promise<void> {
           intentResult: routedIntentResult,
           text: sanitizedText,
         });
+
+        contextBlocks = appendStaticContextBlock(contextBlocks, promptTemplates.getStaticContext());
       }
 
       if (stageAtLeast(traceStage, 'llm')) {
