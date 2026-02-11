@@ -250,10 +250,10 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 - **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `index.ts`
+- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `orders-unauthenticated-response.ts`, `index.ts`
 - `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index), `product-parsers.ts`, `index.ts`
 
-Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
+Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Cuando los mensajes de respuesta contienen formato complejo o contenido compartido, se extraen como módulos helper separados (p. ej. `orders-unauthenticated-response.ts` para respuestas de autenticación de órdenes con guía enriquecida). Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
 
 #### 9.2.2 User resolution and effective user ID
 

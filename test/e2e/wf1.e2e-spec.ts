@@ -315,6 +315,8 @@ describe('WF1 API (e2e)', () => {
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
         expect(body.requiresAuth).toBe(true);
+        expect(body.message).toContain('NECESITAS INICIAR SESION');
+        expect(body.message).toContain('Inicia sesion en entelequia.com.ar');
       });
   });
 

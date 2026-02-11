@@ -1,20 +1,14 @@
 import { ExternalServiceError, MissingAuthForOrdersError } from '../../../domain/errors';
 import type { Wf1Response } from '../../../domain/wf1-response';
+import {
+  buildOrdersRequiresAuthResponse,
+  buildOrdersSessionExpiredResponse,
+} from './orders-unauthenticated-response';
 
-const ORDERS_REQUIRES_AUTH_MESSAGE = 'Para consultar tus ordenes, inicia sesion.';
-const SESSION_EXPIRED_MESSAGE = 'Tu sesion expiro o es invalida. Inicia sesion nuevamente.';
 const FORBIDDEN_MESSAGE = 'No tenes permisos para acceder a esa informacion.';
 const ORDER_NOT_FOUND_MESSAGE = 'No encontramos ese pedido en tu cuenta.';
 const INFO_NOT_FOUND_MESSAGE = 'No encontramos la informacion solicitada.';
 export const BACKEND_ERROR_MESSAGE = 'No pudimos procesar tu mensaje.';
-
-export function buildOrdersRequiresAuthResponse(): Wf1Response {
-  return {
-    ok: false,
-    requiresAuth: true,
-    message: ORDERS_REQUIRES_AUTH_MESSAGE,
-  };
-}
 
 export function mapContextOrBackendError(error: unknown): Wf1Response {
   if (error instanceof MissingAuthForOrdersError) {
@@ -23,11 +17,7 @@ export function mapContextOrBackendError(error: unknown): Wf1Response {
 
   if (error instanceof ExternalServiceError) {
     if (error.statusCode === 401) {
-      return {
-        ok: false,
-        requiresAuth: true,
-        message: SESSION_EXPIRED_MESSAGE,
-      };
+      return buildOrdersSessionExpiredResponse();
     }
 
     if (error.statusCode === 403) {

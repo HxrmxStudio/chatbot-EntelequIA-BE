@@ -35,10 +35,10 @@ import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
 import {
   BACKEND_ERROR_MESSAGE,
-  buildOrdersRequiresAuthResponse,
   mapContextOrBackendError,
 } from './error-mapper';
 import { checkIfAuthenticated } from './check-if-authenticated';
+import { buildOrdersRequiresAuthResponse } from './orders-unauthenticated-response';
 
 @Injectable()
 export class HandleIncomingMessageUseCase {

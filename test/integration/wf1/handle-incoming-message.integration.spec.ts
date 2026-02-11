@@ -316,6 +316,9 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect('requiresAuth' in response && response.requiresAuth).toBe(true);
+    expect(response.message).toContain('NECESITAS INICIAR SESION');
+    expect(response.message).toContain('Inicia sesion en entelequia.com.ar');
+    expect(response.message).toContain('No compartas credenciales en el chat');
     expect(persistence.turns).toHaveLength(1);
     expect(audit.entries).toHaveLength(1);
   });
