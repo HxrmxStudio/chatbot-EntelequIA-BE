@@ -18,6 +18,12 @@ import { HandleIncomingMessageUseCase } from '@/modules/wf1/application/use-case
 
 class InMemoryPersistence {
   public turns: PersistTurnInput[] = [];
+  public authenticatedProfiles: Array<{
+    id: string;
+    email: string;
+    phone: string;
+    name: string;
+  }> = [];
   private botByEvent = new Map<string, string>();
 
   async upsertUser(userId: string): Promise<{
@@ -34,6 +40,31 @@ class InMemoryPersistence {
       email: userId,
       phone: '',
       name: 'Customer',
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  async upsertAuthenticatedUserProfile(input: {
+    id: string;
+    email: string;
+    phone: string;
+    name: string;
+  }): Promise<{
+    id: string;
+    email: string;
+    phone: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+  }> {
+    this.authenticatedProfiles.push(input);
+    const now = '2026-02-10T00:00:00.000Z';
+    return {
+      id: input.id,
+      email: input.email,
+      phone: input.phone,
+      name: input.name,
       createdAt: now,
       updatedAt: now,
     };
@@ -163,6 +194,18 @@ class StubEntelequia {
     return {
       contextType: 'payment_info',
       contextPayload: { payment_methods: [] },
+    };
+  }
+
+  async getAuthenticatedUserProfile(): Promise<{
+    email: string;
+    phone: string;
+    name: string;
+  }> {
+    return {
+      email: 'user-1@example.com',
+      phone: '',
+      name: 'Customer',
     };
   }
 
@@ -352,5 +395,37 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect(response.message).toContain('No encontramos ese pedido en tu cuenta');
+  });
+
+  it('persists real user profile when request is authenticated', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-5',
+      externalEventId: 'event-auth-profile',
+      payload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-1',
+        text: 'busco un manga',
+        accessToken: 'valid-token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-1',
+        text: 'busco un manga',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(persistence.authenticatedProfiles).toHaveLength(1);
+    expect(persistence.authenticatedProfiles[0]).toMatchObject({
+      id: '1962',
+      email: 'user-1@example.com',
+      name: 'Customer',
+    });
   });
 });

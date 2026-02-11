@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ensureObject } from '@/common/utils/object.utils';
 import {
+  assertNoBodyAccessToken,
   validateMessage,
   validateOptionalStringField,
   validateSource,
@@ -11,6 +12,7 @@ import type { InputValidationNodeOutput } from './types';
 export class InputValidationService {
   validate(input: unknown): InputValidationNodeOutput {
     const data = ensureObject(input);
+    assertNoBodyAccessToken(data);
     const source = validateSource(data.source);
     const text = validateMessage(data.text);
     const userId = validateOptionalStringField('userId', data.userId);

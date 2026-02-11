@@ -16,6 +16,7 @@ import type { Wf1Response } from '../domain/wf1-response';
 import { ExtractVariablesGuard } from '../infrastructure/security/extract-variables.guard';
 import { InputValidationGuard } from '../infrastructure/security/input-validation.guard';
 import { SignatureGuard } from '../infrastructure/security/signature.guard';
+import { resolveAccessToken } from './resolve-access-token';
 
 @Controller()
 export class ChatController {
@@ -25,10 +26,7 @@ export class ChatController {
   @HttpCode(200)
   @UseGuards(ThrottlerGuard, SignatureGuard, InputValidationGuard, ExtractVariablesGuard)
   async handleMessage(@Req() request: Request): Promise<Wf1Response> {
-    const payload = this.resolvePayload(
-      request.extractedVariables,
-      request.inputValidation,
-    );
+    const payload = this.resolvePayload(request, request.extractedVariables, request.inputValidation);
     const requestId = request.requestId ?? randomUUID();
     const externalEventId = this.resolveExternalEventId(request, payload);
 
@@ -41,6 +39,7 @@ export class ChatController {
   }
 
   private resolvePayload(
+    request: Request,
     extracted: Request['extractedVariables'],
     validated: Request['inputValidation'],
   ): ChatRequestDto {
@@ -56,7 +55,7 @@ export class ChatController {
     );
     const text = resolveRequiredStringField('text', extracted.text);
 
-    const accessToken = resolveOptionalString(validated?.accessToken);
+    const accessToken = resolveAccessToken({ request });
     const locale = resolveOptionalString(validated?.locale);
     const currency = resolveCurrency(validated?.currency);
 

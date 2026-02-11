@@ -120,4 +120,54 @@ describe('EntelequiaHttpAdapter', () => {
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('q=One+Piece');
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('currency=ARS');
   });
+
+  it('normalizes authenticated profile payload from /account/profile', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          profile: {
+            id: 1962,
+            name: 'EMILIANO',
+            surname: 'Rozas',
+            email: 'emilianorozas@gmail.com',
+            ship_address: {
+              phone: '627149803',
+            },
+          },
+        }),
+    }) as typeof fetch;
+
+    const adapter = buildAdapter();
+    const profile = await adapter.getAuthenticatedUserProfile({
+      accessToken: 'token',
+    });
+
+    expect(profile).toEqual({
+      id: '1962',
+      email: 'emilianorozas@gmail.com',
+      phone: '627149803',
+      name: 'EMILIANO Rozas',
+    });
+  });
+
+  it('throws when authenticated profile payload misses email', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          profile: {
+            name: 'No email',
+          },
+        }),
+    }) as typeof fetch;
+
+    const adapter = buildAdapter();
+
+    await expect(
+      adapter.getAuthenticatedUserProfile({
+        accessToken: 'token',
+      }),
+    ).rejects.toThrow('Invalid profile payload: missing email');
+  });
 });

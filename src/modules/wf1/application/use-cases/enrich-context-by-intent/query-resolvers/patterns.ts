@@ -5,8 +5,13 @@
 
 // --- Order ID and numeric bounds ---
 
-/** Minimum and maximum digit count for a valid order ID (avoids short numbers like 12345). */
-export const ORDER_ID_DIGIT_MIN = 6;
+/** Min digits for "pedido/orden/order #1234" style; allows 4+ so short refs like #1234 are accepted. */
+export const ORDER_ID_PREFIX_DIGIT_MIN = 4;
+
+/** Min digits for a bare numeric order ID (no prefix); 6+ avoids false positives from short numbers. */
+export const ORDER_ID_PURE_DIGIT_MIN = 6;
+
+/** Maximum digit count for a valid order ID. */
 export const ORDER_ID_DIGIT_MAX = 12;
 
 /** Max digits for "pure count" token (e.g. "3" in "3 mangas"); same ceiling as order ID for consistency. */
@@ -106,11 +111,16 @@ export const OFFER_HINT_PATTERN =
 
 /** Matches "pedido/orden/order #123456" and variants; capture group 1 = digits. */
 export const ORDER_ID_PREFIX_PATTERN = new RegExp(
-  `(?:pedido|orden|order)?\\s*#?\\s*(\\d{${ORDER_ID_DIGIT_MIN},${ORDER_ID_DIGIT_MAX}})`,
+  `(?:pedido|orden|order)\\s*#?\\s*(\\d{${ORDER_ID_PREFIX_DIGIT_MIN},${ORDER_ID_DIGIT_MAX}})`,
   'i',
+);
+
+/** Matches "#123456" and variants; capture group 1 = digits. */
+export const ORDER_ID_HASH_PATTERN = new RegExp(
+  `#\\s*(\\d{${ORDER_ID_PREFIX_DIGIT_MIN},${ORDER_ID_DIGIT_MAX}})`,
 );
 
 /** Pure numeric order ID (6–12 digits). */
 export const ORDER_ID_PURE_PATTERN = new RegExp(
-  `^\\d{${ORDER_ID_DIGIT_MIN},${ORDER_ID_DIGIT_MAX}}$`,
+  `^\\d{${ORDER_ID_PURE_DIGIT_MIN},${ORDER_ID_DIGIT_MAX}}$`,
 );

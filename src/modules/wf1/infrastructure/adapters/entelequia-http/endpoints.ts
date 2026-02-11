@@ -20,6 +20,10 @@ export function cartPaymentInfoEndpoint(): string {
   return '/cart/payment-info';
 }
 
+export function accountProfileEndpoint(): string {
+  return '/account/profile';
+}
+
 export function accountOrdersEndpoint(): string {
   return '/account/orders';
 }

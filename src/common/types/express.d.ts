@@ -13,7 +13,6 @@ declare module 'express-serve-static-core' {
       userId?: string;
       conversationId?: string;
       text?: string;
-      accessToken?: string;
       currency?: string;
       locale?: string;
     };
@@ -22,7 +21,6 @@ declare module 'express-serve-static-core' {
       text: string;
       userId?: string;
       conversationId?: string;
-      accessToken?: string;
       currency?: 'ARS' | 'USD';
       locale?: string;
     };

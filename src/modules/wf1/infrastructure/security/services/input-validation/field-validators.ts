@@ -1,6 +1,16 @@
 import { WF1_MAX_TEXT_CHARS } from '@/modules/wf1/domain/text-policy';
 import { ALLOWED_SOURCES, type AllowedSource } from './types';
-import { MAX_STRING_LENGTH, MIN_MESSAGE_LENGTH } from './constants';
+import {
+  ACCESS_TOKEN_HEADER_ONLY_ERROR,
+  MAX_STRING_LENGTH,
+  MIN_MESSAGE_LENGTH,
+} from './constants';
+
+export function assertNoBodyAccessToken(data: Record<string, unknown>): void {
+  if (Object.prototype.hasOwnProperty.call(data, 'accessToken')) {
+    throw new Error(ACCESS_TOKEN_HEADER_ONLY_ERROR);
+  }
+}
 
 export function validateSource(source: unknown): AllowedSource {
   if (!source || typeof source !== 'string') {

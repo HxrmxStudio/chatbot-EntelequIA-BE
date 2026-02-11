@@ -16,6 +16,11 @@ describe('EnrichContextByIntentUseCase', () => {
       getProductDetail: jest.fn(),
       getRecommendations: jest.fn().mockResolvedValue({ contextType: 'recommendations', contextPayload: {} }),
       getPaymentInfo: jest.fn().mockResolvedValue({ contextType: 'payment_info', contextPayload: {} }),
+      getAuthenticatedUserProfile: jest.fn().mockResolvedValue({
+        email: 'user@example.com',
+        phone: '',
+        name: 'Customer',
+      }),
       getOrders: jest.fn().mockResolvedValue({ contextType: 'orders', contextPayload: {} }),
       getOrderDetail: jest.fn().mockResolvedValue({ contextType: 'order_detail', contextPayload: {} }),
     };

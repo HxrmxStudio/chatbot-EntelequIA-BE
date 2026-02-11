@@ -250,10 +250,19 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 - **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `index.ts`
+- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `index.ts`
 - `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index), `product-parsers.ts`, `index.ts`
 
-Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos.
+Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
+
+#### 9.2.2 User resolution and effective user ID
+
+The effective user for each request is resolved by `resolveUserContext(payload)` in `handle-incoming-message.use-case.ts`:
+- If not authenticated (no valid Bearer token): guest user via `chatPersistence.upsertUser(payload.userId)`
+- If authenticated (valid Bearer token): `entelequiaContextPort.getAuthenticatedUserProfile({ accessToken })` followed by `chatPersistence.upsertAuthenticatedUserProfile(...)` with profile data (id, email, phone, name)
+- On 401 from profile endpoint: falls back to guest user (token present but invalid/expired)
+
+All persistence operations (conversation upsert, history retrieval, persistTurn, audit) use `effectiveUserId` (from resolved `UserContext.id`) instead of `payload.userId`, ensuring all data is keyed by the resolved user identity (guest or authenticated).
 
 #### 9.2.1 Query resolvers: category detection and categorySlug
 

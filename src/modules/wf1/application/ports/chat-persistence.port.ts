@@ -14,8 +14,16 @@ export interface PersistTurnInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface AuthenticatedUserProfileInput {
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+}
+
 export interface ChatPersistencePort {
   upsertUser(userId: string): Promise<UserContext>;
+  upsertAuthenticatedUserProfile(input: AuthenticatedUserProfileInput): Promise<UserContext>;
   upsertConversation(input: { conversationId: string; userId: string; channel: ChannelSource }): Promise<void>;
   getConversationHistory(input: { conversationId: string; limit: number }): Promise<MessageHistoryItem[]>;
   getConversationHistoryRows(input: { conversationId: string; limit: number }): Promise<ConversationHistoryRow[]>;

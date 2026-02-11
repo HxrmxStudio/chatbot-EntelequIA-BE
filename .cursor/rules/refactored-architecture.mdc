@@ -29,7 +29,7 @@ wf1/
   application/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
-      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, index.ts
+      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
       enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
@@ -55,7 +55,7 @@ wf1/
         # Each service in its own folder with index.ts as public API
       shared/       # string-helpers.ts, crypto-helpers.ts, body-helpers.ts (DRY helpers)
       # Guards remain in root: signature.guard.ts, input-validation.guard.ts, extract-variables.guard.ts
-  controllers/
+  controllers/  # chat.controller.ts, resolve-access-token.ts (Bearer token only, body accessToken rejected)
   dto/
 ```
 

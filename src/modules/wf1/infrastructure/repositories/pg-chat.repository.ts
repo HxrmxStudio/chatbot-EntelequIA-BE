@@ -3,6 +3,7 @@ import { Pool, type PoolClient } from 'pg';
 import { coerceTimestamp } from '@/common/utils/date.utils';
 import { toJsonb } from './shared';
 import type {
+  AuthenticatedUserProfileInput,
   ChatPersistencePort,
   PersistTurnInput,
 } from '../../application/ports/chat-persistence.port';
@@ -21,14 +22,7 @@ export class PgChatRepository implements ChatPersistencePort {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async upsertUser(userId: string): Promise<UserContext> {
-    const result = await this.pool.query<{
-      id: string;
-      email: string;
-      phone: string;
-      name: string;
-      created_at: unknown;
-      updated_at: unknown;
-    }>(
+    const result = await this.pool.query<UserUpsertRow>(
       `INSERT INTO users (id, email, phone, name, created_at, updated_at)
        VALUES ($1, $1, '', 'Customer', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (id) DO UPDATE
@@ -40,15 +34,23 @@ export class PgChatRepository implements ChatPersistencePort {
       [userId],
     );
 
-    const row = result.rows[0];
-    return {
-      id: row.id,
-      email: row.email,
-      phone: row.phone ?? '',
-      name: row.name ?? 'Customer',
-      createdAt: coerceTimestamp(row.created_at),
-      updatedAt: coerceTimestamp(row.updated_at),
-    };
+    return mapUserUpsertRow(result.rows[0]);
+  }
+
+  async upsertAuthenticatedUserProfile(input: AuthenticatedUserProfileInput): Promise<UserContext> {
+    const result = await this.pool.query<UserUpsertRow>(
+      `INSERT INTO users (id, email, phone, name, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE
+       SET email = EXCLUDED.email,
+           phone = EXCLUDED.phone,
+           name = EXCLUDED.name,
+           updated_at = CURRENT_TIMESTAMP
+       RETURNING id, email, phone, name, created_at, updated_at`,
+      [input.id, input.email, input.phone, input.name],
+    );
+
+    return mapUserUpsertRow(result.rows[0]);
   }
 
   async upsertConversation(input: {
@@ -201,9 +203,21 @@ export class PgChatRepository implements ChatPersistencePort {
       `INSERT INTO users (id, email, phone, name, created_at, updated_at)
        VALUES ($1, $1, '', 'Customer', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        ON CONFLICT (id) DO UPDATE
-       SET email = EXCLUDED.email,
-           phone = EXCLUDED.phone,
-           name = EXCLUDED.name,
+       SET email = CASE
+             WHEN users.email IS NULL OR users.email = '' OR users.email = users.id
+               THEN EXCLUDED.email
+             ELSE users.email
+           END,
+           phone = CASE
+             WHEN users.phone IS NULL OR users.phone = ''
+               THEN EXCLUDED.phone
+             ELSE users.phone
+           END,
+           name = CASE
+             WHEN users.name IS NULL OR users.name = '' OR users.name = 'Customer'
+               THEN EXCLUDED.name
+             ELSE users.name
+           END,
            updated_at = CURRENT_TIMESTAMP`,
       [userId],
     );
@@ -223,4 +237,24 @@ export class PgChatRepository implements ChatPersistencePort {
       [input.conversationId, input.userId, input.channel],
     );
   }
+}
+
+type UserUpsertRow = {
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+  created_at: unknown;
+  updated_at: unknown;
+};
+
+function mapUserUpsertRow(row: UserUpsertRow): UserContext {
+  return {
+    id: row.id,
+    email: row.email,
+    phone: row.phone ?? '',
+    name: row.name ?? 'Customer',
+    createdAt: coerceTimestamp(row.created_at),
+    updatedAt: coerceTimestamp(row.updated_at),
+  };
 }

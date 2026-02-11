@@ -115,6 +115,30 @@ describe('InputValidationService', () => {
       'Invalid conversationId: exceeds maximum length',
     );
   });
+
+  it('throws when accessToken is present in body payload', () => {
+    expectError(
+      () =>
+        service.validate({
+          source: 'web',
+          text: 'hola',
+          accessToken: 'any-token',
+        }),
+      'Invalid accessToken: use Authorization header only',
+    );
+  });
+
+  it('throws when accessToken key is present with undefined value', () => {
+    expectError(
+      () =>
+        service.validate({
+          source: 'web',
+          text: 'hola',
+          accessToken: undefined,
+        }),
+      'Invalid accessToken: use Authorization header only',
+    );
+  });
 });
 
 function expectError(fn: () => unknown, message: string): void {

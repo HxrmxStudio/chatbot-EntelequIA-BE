@@ -1,4 +1,4 @@
-import { ORDER_ID_PREFIX_PATTERN, ORDER_ID_PURE_PATTERN } from './patterns';
+import { ORDER_ID_HASH_PATTERN, ORDER_ID_PREFIX_PATTERN, ORDER_ID_PURE_PATTERN } from './patterns';
 
 /**
  * Extracts an order ID from entities and original text.
@@ -19,6 +19,9 @@ export function resolveOrderId(entities: string[], originalText: string): string
 
     const prefixMatch = trimmed.match(ORDER_ID_PREFIX_PATTERN);
     if (prefixMatch?.[1]) return prefixMatch[1];
+
+    const hashMatch = trimmed.match(ORDER_ID_HASH_PATTERN);
+    if (hashMatch?.[1]) return hashMatch[1];
 
     if (ORDER_ID_PURE_PATTERN.test(trimmed)) return trimmed;
   }

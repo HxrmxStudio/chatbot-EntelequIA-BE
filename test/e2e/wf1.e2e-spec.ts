@@ -34,6 +34,30 @@ class E2ERepository {
     return { id: userId, email: userId, phone: '', name: 'Customer', createdAt: now, updatedAt: now };
   }
 
+  async upsertAuthenticatedUserProfile(input: {
+    id: string;
+    email: string;
+    phone: string;
+    name: string;
+  }): Promise<{
+    id: string;
+    email: string;
+    phone: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+  }> {
+    const now = '2026-02-10T00:00:00.000Z';
+    return {
+      id: input.id,
+      email: input.email,
+      phone: input.phone,
+      name: input.name,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   async upsertConversation(): Promise<void> {}
 
   async getConversationHistory(): Promise<Array<{ sender: 'user'; content: string; createdAt: string }>> {
@@ -139,6 +163,18 @@ class E2EEntelequia {
     return {
       contextType: 'payment_info',
       contextPayload: {},
+    };
+  }
+
+  async getAuthenticatedUserProfile(): Promise<{
+    email: string;
+    phone: string;
+    name: string;
+  }> {
+    return {
+      email: 'user-1@example.com',
+      phone: '',
+      name: 'Customer',
     };
   }
 
@@ -279,6 +315,107 @@ describe('WF1 API (e2e)', () => {
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
         expect(body.requiresAuth).toBe(true);
+      });
+  });
+
+  it('returns success contract for authenticated order intent', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-order-auth-1')
+      .set('Authorization', 'Bearer fake-access-token')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+        expect(body.message).toBe('Respuesta e2e');
+      });
+  });
+
+  it('resolves access token from Authorization header', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-order-auth-header-1')
+      .set('Authorization', 'Bearer fake-access-token-from-header')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+        expect(body.message).toBe('Respuesta e2e');
+      });
+  });
+
+  it('rejects malformed Authorization header with 401', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('Authorization', 'Token malformed')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+      })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain('Firma o credenciales invalidas.');
+      });
+  });
+
+  it('rejects body accessToken for public intent with 400', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero ver productos',
+        accessToken: 'body-token',
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain(
+          'Invalid accessToken: use Authorization header only',
+        );
+      });
+  });
+
+  it('rejects body accessToken for protected intent even when header is present', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('Authorization', 'Bearer header-token')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+        accessToken: 'body-token',
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain(
+          'Invalid accessToken: use Authorization header only',
+        );
       });
   });
 

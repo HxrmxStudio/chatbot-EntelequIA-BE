@@ -101,8 +101,8 @@ describe('Query Resolvers', () => {
       expect(resolveOrderId([], 'un producto')).toBeUndefined();
     });
 
-    it('does not match short numbers (avoid false positives)', () => {
-      expect(resolveOrderId([], 'pedido 12345')).toBeUndefined();
+    it('does not match very short numbers (avoid false positives)', () => {
+      expect(resolveOrderId([], 'pedido 123')).toBeUndefined();
     });
   });
 });

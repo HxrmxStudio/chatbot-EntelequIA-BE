@@ -274,9 +274,9 @@ const response = await sendMessage(payload, { requestId });
 
 ### Authorization
 
-- Access tokens are sent in both the `Authorization: Bearer` header AND the request body.
-- Body inclusion is for backward compatibility with the current BE `ExtractVariablesGuard`.
-- TODO: Once BE migrates to header-based auth, remove token from body.
+- Access tokens must be sent only in the `Authorization: Bearer` header.
+- Do not send `accessToken` in webhook body payload.
+- Chatbot BE rejects requests containing `accessToken` in body with `400 Bad Request`.
 
 ---
 

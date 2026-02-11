@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { EntelequiaContextPort } from '@/modules/wf1/application/ports/entelequia-context.port';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 import {
+  accountProfileEndpoint,
   accountOrderDetailEndpoint,
   accountOrdersEndpoint,
   cartPaymentInfoEndpoint,
@@ -110,6 +111,25 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
     };
   }
 
+  async getAuthenticatedUserProfile(input: { accessToken: string }): Promise<{
+    id?: string;
+    email: string;
+    phone: string;
+    name: string;
+  }> {
+    const endpoint = accountProfileEndpoint();
+    const data = await fetchEntelequiaJson(
+      this.baseUrl,
+      endpoint,
+      this.timeoutMs,
+      {
+        Authorization: `Bearer ${input.accessToken}`,
+      },
+    );
+
+    return normalizeAuthenticatedUserProfile(data);
+  }
+
   async getOrders(input: { accessToken: string }): Promise<ContextBlock> {
     const endpoint = accountOrdersEndpoint();
     const data = await fetchEntelequiaJson(
@@ -143,4 +163,77 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
       contextPayload: data,
     };
   }
+}
+
+function normalizeAuthenticatedUserProfile(
+  payload: Record<string, unknown>,
+): {
+  id?: string;
+  email: string;
+  phone: string;
+  name: string;
+} {
+  const profile =
+    toObject(payload.profile) ??
+    payload;
+
+  const shipAddress = toObject(profile.ship_address);
+  const billAddress = toObject(profile.bill_address);
+
+  const email =
+    toOptionalNonEmptyString(profile.email) ??
+    toOptionalNonEmptyString(shipAddress?.email) ??
+    toOptionalNonEmptyString(billAddress?.email);
+
+  if (!email) {
+    throw new Error('Invalid profile payload: missing email');
+  }
+
+  const firstName =
+    toOptionalNonEmptyString(profile.name) ??
+    toOptionalNonEmptyString(profile.first_name) ??
+    toOptionalNonEmptyString(shipAddress?.name) ??
+    toOptionalNonEmptyString(billAddress?.name);
+
+  const surname =
+    toOptionalNonEmptyString(profile.surname) ??
+    toOptionalNonEmptyString(profile.last_name) ??
+    toOptionalNonEmptyString(shipAddress?.last_name) ??
+    toOptionalNonEmptyString(billAddress?.last_name);
+
+  const name = [firstName, surname]
+    .filter((value): value is string => Boolean(value))
+    .join(' ')
+    .trim();
+
+  const phone =
+    toOptionalNonEmptyString(profile.phone) ??
+    toOptionalNonEmptyString(shipAddress?.phone) ??
+    toOptionalNonEmptyString(billAddress?.phone) ??
+    '';
+
+  const id = toOptionalNonEmptyString(profile.id);
+
+  return {
+    ...(id ? { id } : {}),
+    email,
+    phone,
+    name: name.length > 0 ? name : 'Customer',
+  };
+}
+
+function toObject(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+}
+
+function toOptionalNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    if (typeof value === 'number') {
+      return String(value);
+    }
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
