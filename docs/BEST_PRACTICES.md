@@ -251,7 +251,7 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 
 Ejemplos:
 - `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `orders-unauthenticated-response.ts`, `index.ts`
-- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, category-slugs, index), `product-parsers.ts`, `order-parsers.ts`, `payment-info-parsers.ts`, `recommendation-parsers.ts`, `index.ts`
+- `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, category-slugs, index), `product-parsers.ts`, `order-parsers.ts`, `payment-info-parsers.ts`, `recommendation-parsers.ts`, `index.ts`
 
 Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Cuando los mensajes de respuesta contienen formato complejo o contenido compartido, se extraen como módulos helper separados (p. ej. `orders-unauthenticated-response.ts` para respuestas de autenticación de órdenes con guía enriquecida). Cuando se extrae información de payloads de API, se usan módulos parser dedicados (p. ej. `order-parsers.ts`, `payment-info-parsers.ts`) que proporcionan funciones puras para extracción y validación de datos. Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
 
@@ -282,7 +282,7 @@ Cada adapter vive en su **propia carpeta** siguiendo Clean Code principles y DRY
 - **Imports**: los consumidores importan `from '.../infrastructure/adapters/nombre-adapter'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `adapters/openai/` — `openai.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `retry-helpers.ts`, `index.ts`
+- `adapters/openai/` — `openai.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `constants.ts`, `errors.ts`, `retry-helpers.ts`, `types.ts`, `index.ts`
 - `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `constants.ts`, `index.ts`
 - `adapters/entelequia-http/` — `entelequia-http.adapter.ts`, `endpoints.ts`, `entelequia-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`, `index.ts`
 - `adapters/shared/` — `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts` (compartidos por múltiples adapters)

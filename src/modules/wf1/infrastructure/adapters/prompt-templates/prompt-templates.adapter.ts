@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { PromptTemplatesPort } from '../../../application/ports/prompt-templates.port';
 import { loadPromptFile } from '../shared';
 import {
+  DEFAULT_GENERAL_CONTEXT_INSTRUCTIONS,
   DEFAULT_ORDER_DETAIL_CONTEXT_INSTRUCTIONS,
   DEFAULT_ORDERS_CONTEXT_HEADER,
   DEFAULT_ORDERS_CONTEXT_INSTRUCTIONS,
@@ -16,11 +17,22 @@ import {
   DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
   DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
   DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
+  DEFAULT_STORE_INFO_CONTEXT_INSTRUCTIONS,
+  DEFAULT_STORE_INFO_GENERAL_CONTEXT,
+  DEFAULT_STORE_INFO_HOURS_CONTEXT,
+  DEFAULT_STORE_INFO_LOCATION_CONTEXT,
+  DEFAULT_STORE_INFO_PARKING_CONTEXT,
+  DEFAULT_STORE_INFO_TRANSPORT_CONTEXT,
+  DEFAULT_TICKETS_CONTACT_OPTIONS,
+  DEFAULT_TICKETS_CONTEXT_HEADER,
+  DEFAULT_TICKETS_CONTEXT_INSTRUCTIONS,
+  DEFAULT_TICKETS_HIGH_PRIORITY_NOTE,
   DEFAULT_GENERAL_CONTEXT_HINT,
   DEFAULT_PRODUCTS_CONTEXT_ADDITIONAL_INFO,
   DEFAULT_PRODUCTS_CONTEXT_HEADER,
   DEFAULT_PRODUCTS_CONTEXT_INSTRUCTIONS,
   DEFAULT_STATIC_CONTEXT,
+  GENERAL_CONTEXT_INSTRUCTIONS_PATH,
   GENERAL_CONTEXT_HINT_PATH,
   ORDER_DETAIL_CONTEXT_INSTRUCTIONS_PATH,
   ORDERS_CONTEXT_HEADER_PATH,
@@ -36,6 +48,16 @@ import {
   RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH,
   RECOMMENDATIONS_CONTEXT_WHY_THESE_PATH,
   RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH,
+  STORE_INFO_CONTEXT_INSTRUCTIONS_PATH,
+  STORE_INFO_GENERAL_CONTEXT_PATH,
+  STORE_INFO_HOURS_CONTEXT_PATH,
+  STORE_INFO_LOCATION_CONTEXT_PATH,
+  STORE_INFO_PARKING_CONTEXT_PATH,
+  STORE_INFO_TRANSPORT_CONTEXT_PATH,
+  TICKETS_CONTACT_OPTIONS_PATH,
+  TICKETS_CONTEXT_HEADER_PATH,
+  TICKETS_CONTEXT_INSTRUCTIONS_PATH,
+  TICKETS_HIGH_PRIORITY_NOTE_PATH,
   PRODUCTS_CONTEXT_ADDITIONAL_INFO_PATH,
   PRODUCTS_CONTEXT_HEADER_PATH,
   PRODUCTS_CONTEXT_INSTRUCTIONS_PATH,
@@ -68,7 +90,18 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
   private readonly recommendationsContextWhyThese: string;
   private readonly recommendationsContextInstructions: string;
   private readonly recommendationsEmptyContextMessage: string;
+  private readonly ticketsContextHeader: string;
+  private readonly ticketsContactOptions: string;
+  private readonly ticketsHighPriorityNote: string;
+  private readonly ticketsContextInstructions: string;
+  private readonly storeInfoLocationContext: string;
+  private readonly storeInfoHoursContext: string;
+  private readonly storeInfoParkingContext: string;
+  private readonly storeInfoTransportContext: string;
+  private readonly storeInfoGeneralContext: string;
+  private readonly storeInfoContextInstructions: string;
   private readonly generalHint: string;
+  private readonly generalInstructions: string;
   private readonly staticContext: string;
 
   constructor() {
@@ -135,7 +168,51 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
       RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH,
       DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
     );
+    this.ticketsContextHeader = loadPromptFile(
+      TICKETS_CONTEXT_HEADER_PATH,
+      DEFAULT_TICKETS_CONTEXT_HEADER,
+    );
+    this.ticketsContactOptions = loadPromptFile(
+      TICKETS_CONTACT_OPTIONS_PATH,
+      DEFAULT_TICKETS_CONTACT_OPTIONS,
+    );
+    this.ticketsHighPriorityNote = loadPromptFile(
+      TICKETS_HIGH_PRIORITY_NOTE_PATH,
+      DEFAULT_TICKETS_HIGH_PRIORITY_NOTE,
+    );
+    this.ticketsContextInstructions = loadPromptFile(
+      TICKETS_CONTEXT_INSTRUCTIONS_PATH,
+      DEFAULT_TICKETS_CONTEXT_INSTRUCTIONS,
+    );
+    this.storeInfoLocationContext = loadPromptFile(
+      STORE_INFO_LOCATION_CONTEXT_PATH,
+      DEFAULT_STORE_INFO_LOCATION_CONTEXT,
+    );
+    this.storeInfoHoursContext = loadPromptFile(
+      STORE_INFO_HOURS_CONTEXT_PATH,
+      DEFAULT_STORE_INFO_HOURS_CONTEXT,
+    );
+    this.storeInfoParkingContext = loadPromptFile(
+      STORE_INFO_PARKING_CONTEXT_PATH,
+      DEFAULT_STORE_INFO_PARKING_CONTEXT,
+    );
+    this.storeInfoTransportContext = loadPromptFile(
+      STORE_INFO_TRANSPORT_CONTEXT_PATH,
+      DEFAULT_STORE_INFO_TRANSPORT_CONTEXT,
+    );
+    this.storeInfoGeneralContext = loadPromptFile(
+      STORE_INFO_GENERAL_CONTEXT_PATH,
+      DEFAULT_STORE_INFO_GENERAL_CONTEXT,
+    );
+    this.storeInfoContextInstructions = loadPromptFile(
+      STORE_INFO_CONTEXT_INSTRUCTIONS_PATH,
+      DEFAULT_STORE_INFO_CONTEXT_INSTRUCTIONS,
+    );
     this.generalHint = loadPromptFile(GENERAL_CONTEXT_HINT_PATH, DEFAULT_GENERAL_CONTEXT_HINT);
+    this.generalInstructions = loadPromptFile(
+      GENERAL_CONTEXT_INSTRUCTIONS_PATH,
+      DEFAULT_GENERAL_CONTEXT_INSTRUCTIONS,
+    );
     this.staticContext = loadPromptFile(STATIC_CONTEXT_PATH, DEFAULT_STATIC_CONTEXT);
   }
 
@@ -207,8 +284,52 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
     return this.recommendationsEmptyContextMessage;
   }
 
+  getTicketsContextHeader(): string {
+    return this.ticketsContextHeader;
+  }
+
+  getTicketsContactOptions(): string {
+    return this.ticketsContactOptions;
+  }
+
+  getTicketsHighPriorityNote(): string {
+    return this.ticketsHighPriorityNote;
+  }
+
+  getTicketsContextInstructions(): string {
+    return this.ticketsContextInstructions;
+  }
+
+  getStoreInfoLocationContext(): string {
+    return this.storeInfoLocationContext;
+  }
+
+  getStoreInfoHoursContext(): string {
+    return this.storeInfoHoursContext;
+  }
+
+  getStoreInfoParkingContext(): string {
+    return this.storeInfoParkingContext;
+  }
+
+  getStoreInfoTransportContext(): string {
+    return this.storeInfoTransportContext;
+  }
+
+  getStoreInfoGeneralContext(): string {
+    return this.storeInfoGeneralContext;
+  }
+
+  getStoreInfoContextInstructions(): string {
+    return this.storeInfoContextInstructions;
+  }
+
   getGeneralContextHint(): string {
     return this.generalHint;
+  }
+
+  getGeneralContextInstructions(): string {
+    return this.generalInstructions;
   }
 
   getStaticContext(): string {

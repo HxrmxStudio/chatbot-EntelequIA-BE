@@ -219,6 +219,30 @@ describe('Context Block', () => {
       expect(result).toBe('Contexto de recomendaciones');
     });
 
+    it('renders tickets block with aiContext', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'tickets',
+          contextPayload: { aiContext: 'Contexto de soporte' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Contexto de soporte');
+    });
+
+    it('renders store_info block with aiContext', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'store_info',
+          contextPayload: { aiContext: 'Contexto de locales' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Contexto de locales');
+    });
+
     it('renders static_context block with context string', () => {
       const blocks: ContextBlock[] = [
         {
@@ -254,6 +278,21 @@ describe('Context Block', () => {
       const result = renderContextBlocksForPrompt(blocks);
 
       expect(result).toBe('Contexto general:\nGeneral hint text');
+    });
+
+    it('renders general block with aiContext before hint', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'general',
+          contextPayload: {
+            aiContext: 'General ai context',
+            hint: 'General hint text',
+          },
+        },
+      ];
+      const result = renderContextBlocksForPrompt(blocks);
+
+      expect(result).toBe('General ai context');
     });
 
     it('renders general block as JSON when hint is missing', () => {

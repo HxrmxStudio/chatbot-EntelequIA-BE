@@ -114,7 +114,14 @@ class E2ERepository {
 
 class E2EIntent {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders' | 'payment_shipping' | 'recommendations';
+    intent:
+      | 'products'
+      | 'orders'
+      | 'payment_shipping'
+      | 'recommendations'
+      | 'tickets'
+      | 'store_info'
+      | 'general';
     entities: string[];
     confidence: number;
   }> {
@@ -141,6 +148,39 @@ class E2EIntent {
         intent: 'recommendations',
         entities: [],
         confidence: 0.86,
+      };
+    }
+
+    if (
+      normalized.includes('reclamo') ||
+      normalized.includes('problema') ||
+      normalized.includes('soporte')
+    ) {
+      return {
+        intent: 'tickets',
+        entities: [],
+        confidence: 0.84,
+      };
+    }
+
+    if (
+      normalized.includes('local') ||
+      normalized.includes('sucursal') ||
+      normalized.includes('horario') ||
+      normalized.includes('direccion')
+    ) {
+      return {
+        intent: 'store_info',
+        entities: [],
+        confidence: 0.83,
+      };
+    }
+
+    if (normalized.includes('hola') || normalized.includes('gracias')) {
+      return {
+        intent: 'general',
+        entities: [],
+        confidence: 0.8,
       };
     }
 
@@ -548,6 +588,63 @@ describe('WF1 API (e2e)', () => {
         userId: 'user-1',
         conversationId: 'conv-1',
         text: 'recomendame mangas',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns success contract for tickets query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-tickets-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'tengo un reclamo porque llego roto',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns success contract for store_info query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-store-info-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde queda el local?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns success contract for general query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-general-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola, gracias',
       })
       .expect(200)
       .expect(({ body }) => {

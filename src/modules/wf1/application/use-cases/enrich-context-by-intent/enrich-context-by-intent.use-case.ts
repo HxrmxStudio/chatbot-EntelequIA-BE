@@ -18,6 +18,10 @@ import {
   filterRecommendationsByType,
   WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS,
 } from '@/modules/wf1/domain/recommendations-context';
+import { buildTicketsAiContext } from '@/modules/wf1/domain/tickets-context';
+import { buildStoreInfoAiContext } from '@/modules/wf1/domain/store-info-context';
+import { buildGeneralAiContext } from '@/modules/wf1/domain/general-context';
+import type { Sentiment } from '@/modules/wf1/domain/output-validation';
 import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
@@ -25,6 +29,8 @@ import {
   resolveOrderId,
   resolvePaymentShippingQueryType,
   resolveRecommendationsPreferences,
+  resolveStoreInfoQueryType,
+  resolveTicketSignals,
   resolveProductsQuery,
 } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
@@ -54,6 +60,7 @@ export class EnrichContextByIntentUseCase {
   async execute(input: {
     intentResult: IntentResult;
     text: string;
+    sentiment?: Sentiment;
     currency?: 'ARS' | 'USD';
     accessToken?: string;
   }): Promise<ContextBlock[]> {
@@ -262,16 +269,35 @@ export class EnrichContextByIntentUseCase {
         }
       }
 
-      case 'tickets':
+      case 'tickets': {
+        const ticketSignals = resolveTicketSignals({
+          text: input.text,
+          entities: intentResult.entities,
+          sentiment: input.sentiment ?? 'neutral',
+        });
+        const aiContext = buildTicketsAiContext({
+          signals: ticketSignals,
+          templates: {
+            header: this.promptTemplates.getTicketsContextHeader(),
+            contactOptions: this.promptTemplates.getTicketsContactOptions(),
+            highPriorityNote: this.promptTemplates.getTicketsHighPriorityNote(),
+            instructions: this.promptTemplates.getTicketsContextInstructions(),
+          },
+        });
+
         return [
           {
             contextType: 'tickets',
             contextPayload: {
-              escalationHint:
-                'Detectamos un caso de soporte/reclamo. Priorizar contencion, pedir datos clave y ofrecer derivacion humana.',
+              issueType: aiContext.issueType,
+              priority: aiContext.priority,
+              sentiment: aiContext.sentiment,
+              requiresHumanEscalation: aiContext.requiresHumanEscalation,
+              aiContext: aiContext.contextText,
             },
           },
         ];
+      }
 
       case 'recommendations': {
         const preferences = resolveRecommendationsPreferences({
@@ -388,12 +414,28 @@ export class EnrichContextByIntentUseCase {
       }
 
       case 'store_info': {
+        const infoRequested = resolveStoreInfoQueryType({
+          text: input.text,
+          entities: intentResult.entities,
+        });
+        const aiContext = buildStoreInfoAiContext({
+          infoRequested,
+          templates: {
+            locationContext: this.promptTemplates.getStoreInfoLocationContext(),
+            hoursContext: this.promptTemplates.getStoreInfoHoursContext(),
+            parkingContext: this.promptTemplates.getStoreInfoParkingContext(),
+            transportContext: this.promptTemplates.getStoreInfoTransportContext(),
+            generalContext: this.promptTemplates.getStoreInfoGeneralContext(),
+            instructions: this.promptTemplates.getStoreInfoContextInstructions(),
+          },
+        });
+
         return [
           {
             contextType: 'store_info',
             contextPayload: {
-              info:
-                'Atendemos consultas de catalogo, pedidos y medios de pago. Para casos complejos, derivamos a soporte humano.',
+              infoRequested: aiContext.infoRequested,
+              aiContext: aiContext.contextText,
             },
           },
         ];
@@ -402,11 +444,18 @@ export class EnrichContextByIntentUseCase {
       case 'general':
       default: {
         const hint = this.promptTemplates.getGeneralContextHint();
+        const aiContext = buildGeneralAiContext({
+          templates: {
+            hint,
+            instructions: this.promptTemplates.getGeneralContextInstructions(),
+          },
+        });
         return [
           {
             contextType: 'general',
             contextPayload: {
               hint,
+              aiContext: aiContext.contextText,
             },
           },
         ];

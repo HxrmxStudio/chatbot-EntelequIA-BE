@@ -34,7 +34,29 @@ export const RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH =
   'prompts/entelequia_recommendations_context_instructions_v1.txt';
 export const RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH =
   'prompts/entelequia_recommendations_empty_context_v1.txt';
+export const TICKETS_CONTEXT_HEADER_PATH =
+  'prompts/entelequia_tickets_context_header_v1.txt';
+export const TICKETS_CONTACT_OPTIONS_PATH =
+  'prompts/entelequia_tickets_contact_options_v1.txt';
+export const TICKETS_HIGH_PRIORITY_NOTE_PATH =
+  'prompts/entelequia_tickets_high_priority_note_v1.txt';
+export const TICKETS_CONTEXT_INSTRUCTIONS_PATH =
+  'prompts/entelequia_tickets_context_instructions_v1.txt';
+export const STORE_INFO_LOCATION_CONTEXT_PATH =
+  'prompts/entelequia_store_info_location_context_v1.txt';
+export const STORE_INFO_HOURS_CONTEXT_PATH =
+  'prompts/entelequia_store_info_hours_context_v1.txt';
+export const STORE_INFO_PARKING_CONTEXT_PATH =
+  'prompts/entelequia_store_info_parking_context_v1.txt';
+export const STORE_INFO_TRANSPORT_CONTEXT_PATH =
+  'prompts/entelequia_store_info_transport_context_v1.txt';
+export const STORE_INFO_GENERAL_CONTEXT_PATH =
+  'prompts/entelequia_store_info_general_context_v1.txt';
+export const STORE_INFO_CONTEXT_INSTRUCTIONS_PATH =
+  'prompts/entelequia_store_info_context_instructions_v1.txt';
 export const GENERAL_CONTEXT_HINT_PATH = 'prompts/entelequia_general_context_hint_v1.txt';
+export const GENERAL_CONTEXT_INSTRUCTIONS_PATH =
+  'prompts/entelequia_general_context_instructions_v1.txt';
 export const STATIC_CONTEXT_PATH = 'prompts/entelequia_static_context_v1.txt';
 
 /**
@@ -126,8 +148,63 @@ export const DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS = [
 ].join('\n');
 export const DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE =
   'En este momento no tengo recomendaciones especificas para ese filtro, pero si queres te puedo mostrar ultimos lanzamientos.';
+export const DEFAULT_TICKETS_CONTEXT_HEADER = 'SOPORTE TECNICO';
+export const DEFAULT_TICKETS_CONTACT_OPTIONS = [
+  'Que podes hacer ahora:',
+  '- Te ayudo a derivar el caso por canales oficiales.',
+  '- Si aplica, tenes que preparar numero de pedido y descripcion del problema.',
+  '- Si es urgente, conviene priorizar contacto humano directo.',
+].join('\n');
+export const DEFAULT_TICKETS_HIGH_PRIORITY_NOTE = [
+  'Prioridad alta detectada:',
+  '- Recomenda contacto humano inmediato y seguimiento cercano.',
+].join('\n');
+export const DEFAULT_TICKETS_CONTEXT_INSTRUCTIONS = [
+  'Instrucciones para tu respuesta:',
+  '- Mostrar empatia y contencion.',
+  '- Ofrecer opciones de contacto oficiales.',
+  '- No prometer resoluciones especificas desde el chat.',
+  '- No pedir credenciales ni datos sensibles.',
+].join('\n');
+export const DEFAULT_STORE_INFO_LOCATION_CONTEXT = [
+  'LOCALES ENTELEQUIA',
+  '- Tenemos atencion en CABA (Centro y Belgrano).',
+  '- Si quiere direccion exacta, sugeri web oficial o mapas.',
+].join('\n');
+export const DEFAULT_STORE_INFO_HOURS_CONTEXT = [
+  'HORARIOS DE ATENCION',
+  '- Hay horarios regulares en semana y sabados.',
+  '- Para feriados o fechas especiales, sugeri validar horarios actualizados.',
+].join('\n');
+export const DEFAULT_STORE_INFO_PARKING_CONTEXT = [
+  'ESTACIONAMIENTO',
+  '- El acceso en auto depende de zona y horario.',
+  '- Recomendar planificar cochera o margen extra para estacionar.',
+].join('\n');
+export const DEFAULT_STORE_INFO_TRANSPORT_CONTEXT = [
+  'COMO LLEGAR',
+  '- Se puede llegar por transporte publico y apps de movilidad.',
+  '- Si indica origen, sugeri opcion mas conveniente.',
+].join('\n');
+export const DEFAULT_STORE_INFO_GENERAL_CONTEXT = [
+  'INFORMACION DE LOCALES',
+  '- Te puedo ayudar con ubicacion, horarios y como llegar.',
+  '- Si me decis sucursal o zona, te respondo mas preciso.',
+].join('\n');
+export const DEFAULT_STORE_INFO_CONTEXT_INSTRUCTIONS = [
+  'Instrucciones para tu respuesta:',
+  '- Responder claro y practico.',
+  '- Si falta detalle, pedir una sola aclaracion corta.',
+  '- Ofrecer ayuda adicional.',
+].join('\n');
 export const DEFAULT_GENERAL_CONTEXT_HINT =
   'Responder con claridad y pedir precision cuando falten datos.';
+export const DEFAULT_GENERAL_CONTEXT_INSTRUCTIONS = [
+  'Instrucciones para tu respuesta:',
+  '- Responder breve, amigable y en espanol rioplatense.',
+  '- Si la consulta es ambigua, pedir una aclaracion concreta.',
+  '- Ofrecer siempre el siguiente paso de ayuda.',
+].join('\n');
 export const DEFAULT_STATIC_CONTEXT = [
   'LOCALES',
   '- Uruguay 341 (Centro)',

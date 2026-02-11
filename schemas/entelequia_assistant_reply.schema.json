@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "reply": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1200
+    },
+    "requires_clarification": {
+      "type": "boolean"
+    },
+    "clarifying_question": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 300
+    },
+    "confidence_label": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "_schema_version": {
+      "type": "string",
+      "const": "1.0"
+    }
+  },
+  "required": [
+    "reply",
+    "requires_clarification",
+    "clarifying_question",
+    "confidence_label",
+    "_schema_version"
+  ]
+}

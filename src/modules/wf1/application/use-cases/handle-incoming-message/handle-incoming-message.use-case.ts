@@ -204,6 +204,7 @@ export class HandleIncomingMessageUseCase {
           contextBlocks = await this.enrichContextByIntent.execute({
             intentResult: routedIntentResult,
             text: sanitizedText,
+            sentiment: validatedIntent.sentiment,
             currency: input.payload.currency,
             accessToken: input.payload.accessToken,
           });
@@ -214,6 +215,9 @@ export class HandleIncomingMessageUseCase {
           );
 
           const message = await this.llmPort.buildAssistantReply({
+            requestId: input.requestId,
+            conversationId: input.payload.conversationId,
+            externalEventId: input.externalEventId,
             userText: sanitizedText,
             intent: routedIntent,
             history,

@@ -1,0 +1,4 @@
+ESTACIONAMIENTO
+- El acceso en auto depende de zona y horario.
+- Recomenda planificar cochera o margen extra para estacionar.
+- Si prioriza auto, sugeri la sucursal mas comoda para ese caso.

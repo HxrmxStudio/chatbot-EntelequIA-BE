@@ -8,6 +8,8 @@ export interface AppEnv {
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
   OPENAI_TIMEOUT_MS: number;
+  WF1_FINAL_REPLY_STRUCTURED_OUTPUT: boolean;
+  WF1_FINAL_REPLY_ROLLOUT_PERCENT: number;
   WEBHOOK_SECRET?: string;
   TURNSTILE_SECRET_KEY?: string;
   WHATSAPP_SECRET?: string;
@@ -38,6 +40,26 @@ function parseOrigins(value: unknown): string[] {
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+}
+
+function parseBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return false;
+  }
+
+  return fallback;
 }
 
 function parseNodeEnv(value: unknown): AppEnv['NODE_ENV'] {
@@ -95,6 +117,14 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     OPENAI_API_KEY: String(config.OPENAI_API_KEY ?? '').trim() || undefined,
     OPENAI_MODEL: String(config.OPENAI_MODEL ?? 'gpt-4.1-mini').trim(),
     OPENAI_TIMEOUT_MS: parseNumber(config.OPENAI_TIMEOUT_MS, 12000),
+    WF1_FINAL_REPLY_STRUCTURED_OUTPUT: parseBoolean(
+      config.WF1_FINAL_REPLY_STRUCTURED_OUTPUT,
+      false,
+    ),
+    WF1_FINAL_REPLY_ROLLOUT_PERCENT: Math.min(
+      100,
+      Math.max(0, parseNumber(config.WF1_FINAL_REPLY_ROLLOUT_PERCENT, 0)),
+    ),
     WEBHOOK_SECRET,
     TURNSTILE_SECRET_KEY,
     WHATSAPP_SECRET: String(config.WHATSAPP_SECRET ?? '').trim() || undefined,

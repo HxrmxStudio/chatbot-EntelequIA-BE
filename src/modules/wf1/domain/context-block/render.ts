@@ -8,6 +8,8 @@ const BLOCK_TITLE_RECOMMENDATIONS = 'Recomendaciones';
 const BLOCK_TITLE_ORDERS = 'Ordenes';
 const BLOCK_TITLE_ORDER_DETAIL = 'Detalle de orden';
 const BLOCK_TITLE_PAYMENT_INFO = 'Informacion de pagos y envios';
+const BLOCK_TITLE_TICKETS = 'Soporte';
+const BLOCK_TITLE_STORE_INFO = 'Informacion de locales';
 const BLOCK_TITLE_STATIC_CONTEXT = 'Contexto estatico';
 const BLOCK_TITLE_GENERAL = 'Contexto general';
 const CONTEXT_SEPARATOR = '\n\n---\n\n';
@@ -63,6 +65,14 @@ function renderContextBlock(block: ContextBlock): string | null {
       return renderAiContextBlock(block, BLOCK_TITLE_PAYMENT_INFO);
     }
 
+    case 'tickets': {
+      return renderAiContextBlock(block, BLOCK_TITLE_TICKETS);
+    }
+
+    case 'store_info': {
+      return renderAiContextBlock(block, BLOCK_TITLE_STORE_INFO);
+    }
+
     case 'static_context': {
       const staticContext = readString(block.contextPayload, 'context');
       if (staticContext) return staticContext;
@@ -70,6 +80,8 @@ function renderContextBlock(block: ContextBlock): string | null {
     }
 
     case 'general': {
+      const aiContext = readString(block.contextPayload, 'aiContext');
+      if (aiContext) return aiContext;
       const hint = readString(block.contextPayload, 'hint');
       if (hint) return `${GENERAL_CONTEXT_PREFIX}${hint}`;
       return safeJsonBlock(BLOCK_TITLE_GENERAL, block.contextPayload);

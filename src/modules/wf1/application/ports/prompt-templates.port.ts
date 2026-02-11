@@ -16,6 +16,17 @@ export interface PromptTemplatesPort {
   getRecommendationsContextWhyThese(): string;
   getRecommendationsContextInstructions(): string;
   getRecommendationsEmptyContextMessage(): string;
+  getTicketsContextHeader(): string;
+  getTicketsContactOptions(): string;
+  getTicketsHighPriorityNote(): string;
+  getTicketsContextInstructions(): string;
+  getStoreInfoLocationContext(): string;
+  getStoreInfoHoursContext(): string;
+  getStoreInfoParkingContext(): string;
+  getStoreInfoTransportContext(): string;
+  getStoreInfoGeneralContext(): string;
+  getStoreInfoContextInstructions(): string;
   getGeneralContextHint(): string;
+  getGeneralContextInstructions(): string;
   getStaticContext(): string;
 }

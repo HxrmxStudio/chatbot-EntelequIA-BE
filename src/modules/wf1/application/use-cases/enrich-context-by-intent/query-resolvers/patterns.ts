@@ -121,6 +121,40 @@ export const PAYMENT_SHIPPING_PAYMENT_QUERY_PATTERN =
 export const PAYMENT_SHIPPING_SHIPPING_QUERY_PATTERN =
   /\b(?:envio(?:s)?|enviar|retiro|retirar|domicilio|correo|oca|tracking|seguimiento|despacho)\b/;
 
+// --- Tickets and store_info subtype patterns ---
+
+export const TICKET_ISSUE_PRODUCT_CONDITION_PATTERN =
+  /\b(?:roto|rota|danad[oa]|defectuos[oa]?|mal\s+estado|quebrad[oa]|fallad[oa])\b/;
+
+export const TICKET_ISSUE_RETURNS_PATTERN =
+  /\b(?:devolucion|devolver|cambio|arrepentimiento|reintegro|reembolso)\b/;
+
+export const TICKET_ISSUE_PAYMENT_PATTERN =
+  /\b(?:pago|cobro|tarjeta|mercado\s*pago|transferencia|cuota(?:s)?|factura)\b/;
+
+export const TICKET_ISSUE_DELIVERY_PATTERN =
+  /\b(?:envio|entrega|tracking|correo|demora|despacho|no\s+llega|llego\s+mal)\b/;
+
+export const TICKET_ISSUE_ORDER_PATTERN = /\b(?:pedido|orden|compra)\b/;
+
+export const TICKET_HIGH_PRIORITY_PATTERN =
+  /\b(?:urgente|ya|ahora|inmediatamente|reclamo\s+formal|defensa\s+al\s+consumidor|denuncia|estafa|cobro\s+duplicado|nunca\s+llego)\b/;
+
+export const TICKET_SEVERE_COMPLAINT_PATTERN =
+  /\b(?:malisimo|pesimo|horrible|indignad[oa]|enojad[oa]|reclamo)\b/;
+
+export const STORE_INFO_TRANSPORT_PATTERN =
+  /\b(?:como\s+lleg|colectivo(?:s)?|subte|tren|uber|taxi|transporte)\b/;
+
+export const STORE_INFO_PARKING_PATTERN =
+  /\b(?:estacionamiento|cochera(?:s)?|parking|auto|manejar)\b/;
+
+export const STORE_INFO_HOURS_PATTERN =
+  /\b(?:horario(?:s)?|abren|cierran|a\s+que\s+hora|atencion|abierto|cerrado)\b/;
+
+export const STORE_INFO_LOCATION_PATTERN =
+  /\b(?:donde\s+estan|ubicacion|direccion|sucursal|local|queda)\b/;
+
 // --- Order ID patterns ---
 
 /** Matches "pedido/orden/order #123456" and variants; capture group 1 = digits. */

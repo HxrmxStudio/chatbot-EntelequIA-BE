@@ -4,4 +4,6 @@ export { resolveProductsQuery } from './resolve-products';
 export { resolveOrderId } from './resolve-order';
 export { resolvePaymentShippingQueryType } from './resolve-payment-shipping-query-type';
 export { resolveRecommendationsPreferences } from './resolve-recommendations-preferences';
+export { resolveTicketSignals } from './resolve-ticket-signals';
+export { resolveStoreInfoQueryType } from './resolve-store-info-query-type';
 export { getDefaultCategorySlug } from './recommendation-type-slugs';

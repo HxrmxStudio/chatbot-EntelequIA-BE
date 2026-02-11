@@ -43,7 +43,18 @@ describe('EnrichContextByIntentUseCase', () => {
       getRecommendationsContextWhyThese: () => 'Por que estos productos',
       getRecommendationsContextInstructions: () => 'Instrucciones de recomendaciones',
       getRecommendationsEmptyContextMessage: () => 'No tengo recomendaciones especificas.',
+      getTicketsContextHeader: () => 'SOPORTE TÉCNICO ENTELEQUIA',
+      getTicketsContactOptions: () => 'Opciones de contacto',
+      getTicketsHighPriorityNote: () => 'Nota de prioridad alta',
+      getTicketsContextInstructions: () => 'Instrucciones de tickets',
+      getStoreInfoLocationContext: () => 'Info de ubicacion',
+      getStoreInfoHoursContext: () => 'Info de horarios',
+      getStoreInfoParkingContext: () => 'Info de estacionamiento',
+      getStoreInfoTransportContext: () => 'Info de transporte',
+      getStoreInfoGeneralContext: () => 'Info general de locales',
+      getStoreInfoContextInstructions: () => 'Instrucciones de store_info',
       getGeneralContextHint: () => 'Hint general',
+      getGeneralContextInstructions: () => 'Instrucciones de general',
       getStaticContext: () => 'Contexto estatico',
     };
 
@@ -172,7 +183,7 @@ describe('EnrichContextByIntentUseCase', () => {
     });
   });
 
-  it('returns store_info static context', async () => {
+  it('returns store_info ai context with resolved subtype', async () => {
     const result = await useCase.execute({
       intentResult: { intent: 'store_info', confidence: 0.95, entities: [] },
       text: 'donde estan',
@@ -180,7 +191,8 @@ describe('EnrichContextByIntentUseCase', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].contextType).toBe('store_info');
-    expect(result[0].contextPayload).toHaveProperty('info');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('infoRequested', 'location');
     expect(entelequiaPort.getProducts).not.toHaveBeenCalled();
   });
 
@@ -192,6 +204,22 @@ describe('EnrichContextByIntentUseCase', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].contextType).toBe('general');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('hint', 'Hint general');
+  });
+
+  it('returns tickets context with escalation metadata', async () => {
+    const result = await useCase.execute({
+      intentResult: { intent: 'tickets', confidence: 0.9, entities: ['reclamo urgente'] },
+      text: 'Estoy indignado, necesito ayuda urgente con mi pedido',
+      sentiment: 'negative',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('tickets');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('priority', 'high');
+    expect(result[0].contextPayload).toHaveProperty('requiresHumanEscalation', true);
   });
 
   it('calls getOrderDetail when orderId is extracted from entities', async () => {

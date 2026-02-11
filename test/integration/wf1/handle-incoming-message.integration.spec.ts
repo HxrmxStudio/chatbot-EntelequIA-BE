@@ -138,7 +138,14 @@ class InMemoryAudit {
 
 class StubIntentExtractor {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders' | 'payment_shipping' | 'recommendations';
+    intent:
+      | 'products'
+      | 'orders'
+      | 'payment_shipping'
+      | 'recommendations'
+      | 'tickets'
+      | 'store_info'
+      | 'general';
     entities: string[];
     confidence: number;
   }> {
@@ -165,6 +172,39 @@ class StubIntentExtractor {
         intent: 'recommendations',
         entities: [],
         confidence: 0.86,
+      };
+    }
+
+    if (
+      normalized.includes('reclamo') ||
+      normalized.includes('problema') ||
+      normalized.includes('soporte')
+    ) {
+      return {
+        intent: 'tickets',
+        entities: [],
+        confidence: 0.87,
+      };
+    }
+
+    if (
+      normalized.includes('local') ||
+      normalized.includes('sucursal') ||
+      normalized.includes('horario') ||
+      normalized.includes('direccion')
+    ) {
+      return {
+        intent: 'store_info',
+        entities: [],
+        confidence: 0.84,
+      };
+    }
+
+    if (normalized.includes('hola') || normalized.includes('gracias')) {
+      return {
+        intent: 'general',
+        entities: [],
+        confidence: 0.8,
       };
     }
 
@@ -326,8 +366,52 @@ class StubPromptTemplates {
     return 'No tengo recomendaciones especificas.';
   }
 
+  getTicketsContextHeader(): string {
+    return 'SOPORTE TÉCNICO ENTELEQUIA';
+  }
+
+  getTicketsContactOptions(): string {
+    return 'Opciones de contacto';
+  }
+
+  getTicketsHighPriorityNote(): string {
+    return 'Nota de prioridad alta';
+  }
+
+  getTicketsContextInstructions(): string {
+    return 'Instrucciones de tickets';
+  }
+
+  getStoreInfoLocationContext(): string {
+    return 'Info de ubicacion';
+  }
+
+  getStoreInfoHoursContext(): string {
+    return 'Info de horarios';
+  }
+
+  getStoreInfoParkingContext(): string {
+    return 'Info de estacionamiento';
+  }
+
+  getStoreInfoTransportContext(): string {
+    return 'Info de transporte';
+  }
+
+  getStoreInfoGeneralContext(): string {
+    return 'Info general de locales';
+  }
+
+  getStoreInfoContextInstructions(): string {
+    return 'Instrucciones de store_info';
+  }
+
   getGeneralContextHint(): string {
     return 'Hint general';
+  }
+
+  getGeneralContextInstructions(): string {
+    return 'Instrucciones de general';
   }
 
   getStaticContext(): string {
@@ -571,10 +655,185 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.ok).toBe(true);
     expect(response.message).toBe('Respuesta de prueba');
     expect(llm.lastInput).toBeDefined();
+    expect(llm.lastInput?.requestId).toBe('req-7');
+    expect(llm.lastInput?.conversationId).toBe('conv-1');
+    expect(llm.lastInput?.externalEventId).toBe('event-recommendations');
     const recommendationsBlock = llm.lastInput?.contextBlocks.find(
       (block) => block.contextType === 'recommendations',
     );
     expect(recommendationsBlock).toBeDefined();
     expect(recommendationsBlock?.contextPayload).toHaveProperty('aiContext');
+  });
+
+  it('handles tickets intent with aiContext and escalation metadata', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-8',
+      externalEventId: 'event-tickets',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Tengo un reclamo urgente, el producto llego roto',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Tengo un reclamo urgente, el producto llego roto',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    const ticketsBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'tickets',
+    );
+    expect(ticketsBlock?.contextPayload).toHaveProperty('aiContext');
+    expect(ticketsBlock?.contextPayload).toHaveProperty('priority', 'high');
+    expect(ticketsBlock?.contextPayload).toHaveProperty(
+      'requiresHumanEscalation',
+      true,
+    );
+  });
+
+  it('handles store_info intent with resolved subtype and aiContext', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-9',
+      externalEventId: 'event-store-info',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Cual es la direccion del local?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Cual es la direccion del local?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    const storeBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'store_info',
+    );
+    expect(storeBlock?.contextPayload).toHaveProperty('aiContext');
+    expect(storeBlock?.contextPayload).toHaveProperty('infoRequested', 'location');
+  });
+
+  it('handles general intent with minimal ai context', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-10',
+      externalEventId: 'event-general',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    const generalBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'general',
+    );
+    expect(generalBlock?.contextPayload).toHaveProperty('aiContext');
+  });
+
+  it('keeps append-order semantics for products flow (products -> product_detail -> static_context)', async () => {
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        items: [
+          {
+            id: 1,
+            slug: 'attack-on-titan-01_1',
+            title: 'ATTACK ON TITAN 01',
+            stock: 3,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+          },
+        ],
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-11',
+      externalEventId: 'event-products-merge-append',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'attack on titan tomo 1',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'attack on titan tomo 1',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const contextTypes =
+      llm.lastInput?.contextBlocks.map((block) => block.contextType) ?? [];
+    expect(contextTypes).toEqual([
+      'products',
+      'product_detail',
+      'static_context',
+    ]);
+  });
+
+  it('keeps append-order semantics for store_info flow (store_info -> static_context)', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-12',
+      externalEventId: 'event-store-merge-append',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'horario del local',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'horario del local',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const contextTypes =
+      llm.lastInput?.contextBlocks.map((block) => block.contextType) ?? [];
+    expect(contextTypes).toEqual(['store_info', 'static_context']);
   });
 });
