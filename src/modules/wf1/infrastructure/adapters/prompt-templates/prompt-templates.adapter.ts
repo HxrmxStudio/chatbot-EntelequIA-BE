@@ -12,6 +12,10 @@ import {
   DEFAULT_PAYMENT_SHIPPING_PAYMENT_CONTEXT,
   DEFAULT_PAYMENT_SHIPPING_SHIPPING_CONTEXT,
   DEFAULT_PAYMENT_SHIPPING_TIME_CONTEXT,
+  DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER,
+  DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
+  DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
+  DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
   DEFAULT_GENERAL_CONTEXT_HINT,
   DEFAULT_PRODUCTS_CONTEXT_ADDITIONAL_INFO,
   DEFAULT_PRODUCTS_CONTEXT_HEADER,
@@ -28,6 +32,10 @@ import {
   PAYMENT_SHIPPING_PAYMENT_CONTEXT_PATH,
   PAYMENT_SHIPPING_SHIPPING_CONTEXT_PATH,
   PAYMENT_SHIPPING_TIME_CONTEXT_PATH,
+  RECOMMENDATIONS_CONTEXT_HEADER_PATH,
+  RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH,
+  RECOMMENDATIONS_CONTEXT_WHY_THESE_PATH,
+  RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH,
   PRODUCTS_CONTEXT_ADDITIONAL_INFO_PATH,
   PRODUCTS_CONTEXT_HEADER_PATH,
   PRODUCTS_CONTEXT_INSTRUCTIONS_PATH,
@@ -56,6 +64,10 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
   private readonly paymentShippingTimeContext: string;
   private readonly paymentShippingGeneralContext: string;
   private readonly paymentShippingInstructions: string;
+  private readonly recommendationsContextHeader: string;
+  private readonly recommendationsContextWhyThese: string;
+  private readonly recommendationsContextInstructions: string;
+  private readonly recommendationsEmptyContextMessage: string;
   private readonly generalHint: string;
   private readonly staticContext: string;
 
@@ -106,6 +118,22 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
     this.paymentShippingInstructions = loadPromptFile(
       PAYMENT_SHIPPING_INSTRUCTIONS_PATH,
       DEFAULT_PAYMENT_SHIPPING_INSTRUCTIONS,
+    );
+    this.recommendationsContextHeader = loadPromptFile(
+      RECOMMENDATIONS_CONTEXT_HEADER_PATH,
+      DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER,
+    );
+    this.recommendationsContextWhyThese = loadPromptFile(
+      RECOMMENDATIONS_CONTEXT_WHY_THESE_PATH,
+      DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
+    );
+    this.recommendationsContextInstructions = loadPromptFile(
+      RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH,
+      DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
+    );
+    this.recommendationsEmptyContextMessage = loadPromptFile(
+      RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH,
+      DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
     );
     this.generalHint = loadPromptFile(GENERAL_CONTEXT_HINT_PATH, DEFAULT_GENERAL_CONTEXT_HINT);
     this.staticContext = loadPromptFile(STATIC_CONTEXT_PATH, DEFAULT_STATIC_CONTEXT);
@@ -161,6 +189,22 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
 
   getPaymentShippingInstructions(): string {
     return this.paymentShippingInstructions;
+  }
+
+  getRecommendationsContextHeader(): string {
+    return this.recommendationsContextHeader;
+  }
+
+  getRecommendationsContextWhyThese(): string {
+    return this.recommendationsContextWhyThese;
+  }
+
+  getRecommendationsContextInstructions(): string {
+    return this.recommendationsContextInstructions;
+  }
+
+  getRecommendationsEmptyContextMessage(): string {
+    return this.recommendationsEmptyContextMessage;
   }
 
   getGeneralContextHint(): string {

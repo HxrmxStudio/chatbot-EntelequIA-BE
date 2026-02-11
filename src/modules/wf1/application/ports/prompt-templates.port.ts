@@ -12,6 +12,10 @@ export interface PromptTemplatesPort {
   getPaymentShippingTimeContext(): string;
   getPaymentShippingGeneralContext(): string;
   getPaymentShippingInstructions(): string;
+  getRecommendationsContextHeader(): string;
+  getRecommendationsContextWhyThese(): string;
+  getRecommendationsContextInstructions(): string;
+  getRecommendationsEmptyContextMessage(): string;
   getGeneralContextHint(): string;
   getStaticContext(): string;
 }

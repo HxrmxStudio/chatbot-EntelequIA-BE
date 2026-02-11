@@ -39,6 +39,10 @@ describe('EnrichContextByIntentUseCase', () => {
       getPaymentShippingTimeContext: () => 'TIEMPOS',
       getPaymentShippingGeneralContext: () => 'PAGOS Y ENVIOS',
       getPaymentShippingInstructions: () => 'Instrucciones de pago y envio',
+      getRecommendationsContextHeader: () => 'RECOMENDACIONES PERSONALIZADAS',
+      getRecommendationsContextWhyThese: () => 'Por que estos productos',
+      getRecommendationsContextInstructions: () => 'Instrucciones de recomendaciones',
+      getRecommendationsEmptyContextMessage: () => 'No tengo recomendaciones especificas.',
       getGeneralContextHint: () => 'Hint general',
       getStaticContext: () => 'Contexto estatico',
     };
@@ -319,5 +323,176 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(result[0].contextPayload).toHaveProperty('apiFallback', true);
     expect(result[0].contextPayload).toHaveProperty('paymentMethods');
     expect(result[0].contextPayload).toHaveProperty('promotions');
+  });
+
+  it('enriches recommendations context with aiContext and filtered products', async () => {
+    entelequiaPort.getRecommendations.mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: {
+        data: [
+          {
+            id: 1,
+            slug: 'one-piece-1',
+            title: 'One Piece 1',
+            stock: '3',
+            categories: [{ name: 'Mangas', slug: 'mangas' }],
+            price: { currency: 'ARS', amount: 10000 },
+          },
+          {
+            id: 2,
+            slug: 'batman-1',
+            title: 'Batman 1',
+            stock: '2',
+            categories: [{ name: 'Comics', slug: 'comics' }],
+            price: { currency: 'ARS', amount: 12000 },
+          },
+          {
+            id: 3,
+            slug: 'naruto-2',
+            title: 'Naruto 2',
+            stock: '0',
+            categories: [{ name: 'Mangas', slug: 'mangas' }],
+            price: { currency: 'ARS', amount: 13000 },
+          },
+        ],
+        pagination: { total: 3 },
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: [] },
+      text: 'Recomendame mangas de accion',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', false);
+    expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 1);
+    expect(result[0].contextPayload).toHaveProperty('totalRecommendations', 3);
+    expect(result[0].contextPayload).toHaveProperty('afterStockFilter', 2);
+    expect(result[0].contextPayload).toHaveProperty('afterTypeFilter', 1);
+
+    const products = result[0].contextPayload.products as Array<{ slug: string }>;
+    expect(products).toHaveLength(1);
+    expect(products[0].slug).toBe('one-piece-1');
+  });
+
+  it.each([
+    {
+      text: 'Recomendame cartas de Magic',
+      expectedSlug: 'mtg-booster',
+      expectedAfterTypeFilter: 1,
+    },
+    {
+      text: 'Tenes remeras de One Piece?',
+      expectedSlug: 'remera-one-piece',
+      expectedAfterTypeFilter: 1,
+    },
+    {
+      text: 'Busco un funko de Naruto',
+      expectedSlug: 'funko-naruto',
+      expectedAfterTypeFilter: 1,
+    },
+  ])(
+    'applies granular recommendation filters ($text)',
+    async ({ text, expectedSlug, expectedAfterTypeFilter }) => {
+      entelequiaPort.getRecommendations.mockResolvedValueOnce({
+        contextType: 'recommendations',
+        contextPayload: {
+          data: [
+            {
+              id: 1,
+              slug: 'mtg-booster',
+              title: 'MTG Booster',
+              stock: '4',
+              categories: [
+                {
+                  name: 'Magic',
+                  slug: 'juegos-de-cartas-coleccionables-magic',
+                },
+              ],
+            },
+            {
+              id: 2,
+              slug: 'remera-one-piece',
+              title: 'Remera One Piece',
+              stock: '3',
+              categories: [{ name: 'Ropa Remeras', slug: 'ropa-remeras' }],
+            },
+            {
+              id: 3,
+              slug: 'funko-naruto',
+              title: 'Funko Naruto',
+              stock: '5',
+              categories: [{ name: 'Funko Pops', slug: 'funko-pops' }],
+            },
+          ],
+          pagination: { total: 3 },
+        },
+      });
+
+      const result = await useCase.execute({
+        intentResult: { intent: 'recommendations', confidence: 0.9, entities: [] },
+        text,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].contextType).toBe('recommendations');
+      expect(result[0].contextPayload).toHaveProperty(
+        'afterTypeFilter',
+        expectedAfterTypeFilter,
+      );
+      const products = result[0].contextPayload.products as Array<{ slug: string }>;
+      expect(products).toHaveLength(1);
+      expect(products[0].slug).toBe(expectedSlug);
+    },
+  );
+
+  it('returns no_matches fallback when recommendations are empty after filtering', async () => {
+    entelequiaPort.getRecommendations.mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: {
+        data: [
+          {
+            id: 10,
+            slug: 'batman-1',
+            title: 'Batman 1',
+            stock: '2',
+            categories: [{ name: 'Comics', slug: 'comics' }],
+          },
+        ],
+        pagination: { total: 1 },
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: [] },
+      text: 'Recomendame mangas',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', false);
+    expect(result[0].contextPayload).toHaveProperty('fallbackReason', 'no_matches');
+    expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 0);
+    expect(result[0].contextPayload).toHaveProperty('products');
+  });
+
+  it('returns api_error fallback when recommendations API fails', async () => {
+    entelequiaPort.getRecommendations.mockRejectedValueOnce(
+      new ExternalServiceError('timeout', 0, 'timeout'),
+    );
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: [] },
+      text: 'Recomendame algo de fantasia',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', true);
+    expect(result[0].contextPayload).toHaveProperty('fallbackReason', 'api_error');
+    expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 0);
   });
 });

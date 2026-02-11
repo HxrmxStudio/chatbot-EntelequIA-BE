@@ -22,6 +22,16 @@ export function buildFallbackResponse(intent: string, contextBlocks: ContextBloc
   }
 
   if (intent === 'recommendations') {
+    const recommendationsBlock = contextBlocks.find(
+      (block) => block.contextType === 'recommendations',
+    );
+    if (recommendationsBlock) {
+      const aiContext = recommendationsBlock.contextPayload['aiContext'];
+      if (typeof aiContext === 'string' && aiContext.trim().length > 0) {
+        return aiContext.trim();
+      }
+    }
+
     return 'Te recomiendo estos productos destacados en este momento.';
   }
 

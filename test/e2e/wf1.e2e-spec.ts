@@ -114,7 +114,7 @@ class E2ERepository {
 
 class E2EIntent {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders' | 'payment_shipping';
+    intent: 'products' | 'orders' | 'payment_shipping' | 'recommendations';
     entities: string[];
     confidence: number;
   }> {
@@ -133,6 +133,14 @@ class E2EIntent {
         intent: 'payment_shipping',
         entities: [],
         confidence: 0.88,
+      };
+    }
+
+    if (normalized.includes('recomend') || normalized.includes('suger')) {
+      return {
+        intent: 'recommendations',
+        entities: [],
+        confidence: 0.86,
       };
     }
 
@@ -521,6 +529,25 @@ describe('WF1 API (e2e)', () => {
         userId: 'user-1',
         conversationId: 'conv-1',
         text: '¿Cuanto tarda en llegar?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns success contract for recommendations query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-recommendations-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame mangas',
       })
       .expect(200)
       .expect(({ body }) => {

@@ -9,6 +9,7 @@ import {
   LLM_PORT,
   PROMPT_TEMPLATES_PORT,
 } from '@/modules/wf1/application/ports/tokens';
+import type { LlmPort } from '@/modules/wf1/application/ports/llm.port';
 import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import type { AuditEntryInput } from '@/modules/wf1/application/ports/audit.port';
 import type { PersistTurnInput } from '@/modules/wf1/application/ports/chat-persistence.port';
@@ -137,7 +138,7 @@ class InMemoryAudit {
 
 class StubIntentExtractor {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders' | 'payment_shipping';
+    intent: 'products' | 'orders' | 'payment_shipping' | 'recommendations';
     entities: string[];
     confidence: number;
   }> {
@@ -159,6 +160,14 @@ class StubIntentExtractor {
       };
     }
 
+    if (normalized.includes('recomend') || normalized.includes('suger')) {
+      return {
+        intent: 'recommendations',
+        entities: [],
+        confidence: 0.86,
+      };
+    }
+
     return {
       intent: 'products',
       entities: [input.text],
@@ -167,8 +176,13 @@ class StubIntentExtractor {
   }
 }
 
-class StubLlm {
-  async buildAssistantReply(): Promise<string> {
+class StubLlm implements LlmPort {
+  public lastInput?: Parameters<LlmPort['buildAssistantReply']>[0];
+
+  async buildAssistantReply(
+    input: Parameters<LlmPort['buildAssistantReply']>[0],
+  ): Promise<string> {
+    this.lastInput = input;
     return 'Respuesta de prueba';
   }
 }
@@ -296,6 +310,22 @@ class StubPromptTemplates {
     return 'Instrucciones para payment_shipping';
   }
 
+  getRecommendationsContextHeader(): string {
+    return 'RECOMENDACIONES PERSONALIZADAS';
+  }
+
+  getRecommendationsContextWhyThese(): string {
+    return 'Por que estos productos';
+  }
+
+  getRecommendationsContextInstructions(): string {
+    return 'Instrucciones de recomendaciones';
+  }
+
+  getRecommendationsEmptyContextMessage(): string {
+    return 'No tengo recomendaciones especificas.';
+  }
+
   getGeneralContextHint(): string {
     return 'Hint general';
   }
@@ -311,12 +341,14 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   let idempotency: InMemoryIdempotency;
   let audit: InMemoryAudit;
   let entelequia: StubEntelequia;
+  let llm: StubLlm;
 
   beforeEach(async () => {
     persistence = new InMemoryPersistence();
     idempotency = new InMemoryIdempotency();
     audit = new InMemoryAudit();
     entelequia = new StubEntelequia();
+    llm = new StubLlm();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -335,7 +367,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
           },
         },
         { provide: INTENT_EXTRACTOR_PORT, useClass: StubIntentExtractor },
-        { provide: LLM_PORT, useClass: StubLlm },
+        { provide: LLM_PORT, useValue: llm },
         { provide: CHAT_PERSISTENCE_PORT, useValue: persistence },
         { provide: IDEMPOTENCY_PORT, useValue: idempotency },
         { provide: AUDIT_PORT, useValue: audit },
@@ -512,5 +544,37 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.ok).toBe(true);
     expect(response.message).toBe('Respuesta de prueba');
     expect(entelequia.paymentInfoCalls).toBe(1);
+  });
+
+  it('enriches recommendations context with aiContext (without raw JSON fallback)', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-7',
+      externalEventId: 'event-recommendations',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame mangas de accion',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame mangas de accion',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    expect(llm.lastInput).toBeDefined();
+    const recommendationsBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'recommendations',
+    );
+    expect(recommendationsBlock).toBeDefined();
+    expect(recommendationsBlock?.contextPayload).toHaveProperty('aiContext');
   });
 });

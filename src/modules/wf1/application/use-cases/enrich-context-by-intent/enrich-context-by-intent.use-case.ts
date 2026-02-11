@@ -12,12 +12,19 @@ import {
   buildOrdersListAiContext,
 } from '@/modules/wf1/domain/orders-context';
 import { buildPaymentShippingAiContext } from '@/modules/wf1/domain/payment-shipping-context';
+import {
+  buildEmptyRecommendationsAiContext,
+  buildRecommendationsAiContext,
+  filterRecommendationsByType,
+  WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS,
+} from '@/modules/wf1/domain/recommendations-context';
 import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
 import {
   resolveOrderId,
   resolvePaymentShippingQueryType,
+  resolveRecommendationsPreferences,
   resolveProductsQuery,
 } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
@@ -28,6 +35,12 @@ import {
   throwIfUnauthenticatedOrdersPayload,
 } from './order-parsers';
 import { extractPaymentMethods, extractPromotions } from './payment-info-parsers';
+import {
+  extractRecommendedItems,
+  extractRecommendationsTotal,
+} from './recommendation-parsers';
+
+const ENTELEQUIA_DEFAULT_WEB_BASE_URL = 'https://entelequia.com.ar';
 
 @Injectable()
 export class EnrichContextByIntentUseCase {
@@ -261,11 +274,117 @@ export class EnrichContextByIntentUseCase {
         ];
 
       case 'recommendations': {
-        const recommendations = await this.entelequiaContextPort.getRecommendations({
-          currency: input.currency,
+        const preferences = resolveRecommendationsPreferences({
+          text: input.text,
+          entities: intentResult.entities,
         });
+        const recommendationsTemplates = {
+          header: this.promptTemplates.getRecommendationsContextHeader(),
+          whyThese: this.promptTemplates.getRecommendationsContextWhyThese(),
+          instructions: this.promptTemplates.getRecommendationsContextInstructions(),
+          emptyMessage: this.promptTemplates.getRecommendationsEmptyContextMessage(),
+        };
 
-        return [recommendations];
+        try {
+          const recommendations = await this.entelequiaContextPort.getRecommendations({
+            currency: input.currency,
+          });
+
+          const recommendedItems = extractRecommendedItems(
+            recommendations.contextPayload,
+            ENTELEQUIA_DEFAULT_WEB_BASE_URL,
+          );
+          const totalRecommendations = extractRecommendationsTotal(
+            recommendations.contextPayload,
+            recommendedItems.length,
+          );
+          const stockFiltered = recommendedItems.filter((item) => item.stock > 0);
+          const typeFiltered = filterRecommendationsByType(
+            stockFiltered,
+            preferences.type,
+          );
+
+          if (typeFiltered.length === 0) {
+            const emptyAiContext = buildEmptyRecommendationsAiContext({
+              preferences,
+              templates: recommendationsTemplates,
+              apiFallback: false,
+            });
+
+            return [
+              {
+                ...recommendations,
+                contextPayload: {
+                  ...recommendations.contextPayload,
+                  aiContext: emptyAiContext.contextText,
+                  products: [],
+                  preferences: emptyAiContext.preferences,
+                  recommendationsCount: emptyAiContext.recommendationsCount,
+                  totalRecommendations,
+                  apiFallback: emptyAiContext.apiFallback,
+                  fallbackReason: 'no_matches',
+                  afterStockFilter: stockFiltered.length,
+                  afterTypeFilter: typeFiltered.length,
+                },
+              },
+            ];
+          }
+
+          const aiContext = buildRecommendationsAiContext({
+            items: typeFiltered,
+            total: totalRecommendations,
+            preferences,
+            templates: recommendationsTemplates,
+          });
+          const shownProducts = typeFiltered.slice(
+            0,
+            WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS,
+          );
+
+          return [
+            {
+              ...recommendations,
+              contextPayload: {
+                ...recommendations.contextPayload,
+                aiContext: aiContext.contextText,
+                products: shownProducts,
+                preferences: aiContext.preferences,
+                recommendationsCount: aiContext.recommendationsCount,
+                totalRecommendations: aiContext.totalRecommendations,
+                apiFallback: aiContext.apiFallback,
+                afterStockFilter: stockFiltered.length,
+                afterTypeFilter: typeFiltered.length,
+              },
+            },
+          ];
+        } catch (error: unknown) {
+          if (error instanceof ExternalServiceError) {
+            const emptyAiContext = buildEmptyRecommendationsAiContext({
+              preferences,
+              templates: recommendationsTemplates,
+              apiFallback: true,
+            });
+
+            return [
+              {
+                contextType: 'recommendations',
+                contextPayload: {
+                  aiContext: emptyAiContext.contextText,
+                  products: [],
+                  preferences: emptyAiContext.preferences,
+                  recommendationsCount: emptyAiContext.recommendationsCount,
+                  totalRecommendations: emptyAiContext.totalRecommendations,
+                  apiFallback: emptyAiContext.apiFallback,
+                  fallbackReason: 'api_error',
+                  afterStockFilter: 0,
+                  afterTypeFilter: 0,
+                },
+              },
+            ];
+          }
+
+          throw error;
+        }
       }
 
       case 'store_info': {

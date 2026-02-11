@@ -4,6 +4,7 @@ import type { ContextBlock } from './types';
  * Block title constants for rendering context blocks.
  */
 const BLOCK_TITLE_PRODUCTS = 'Productos';
+const BLOCK_TITLE_RECOMMENDATIONS = 'Recomendaciones';
 const BLOCK_TITLE_ORDERS = 'Ordenes';
 const BLOCK_TITLE_ORDER_DETAIL = 'Detalle de orden';
 const BLOCK_TITLE_PAYMENT_INFO = 'Informacion de pagos y envios';
@@ -48,6 +49,10 @@ function renderContextBlock(block: ContextBlock): string | null {
 
     case 'orders': {
       return renderAiContextBlock(block, BLOCK_TITLE_ORDERS);
+    }
+
+    case 'recommendations': {
+      return renderAiContextBlock(block, BLOCK_TITLE_RECOMMENDATIONS);
     }
 
     case 'order_detail': {

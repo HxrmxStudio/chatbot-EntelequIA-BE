@@ -26,6 +26,14 @@ export const PAYMENT_SHIPPING_GENERAL_CONTEXT_PATH =
   'prompts/entelequia_payment_shipping_general_context_v1.txt';
 export const PAYMENT_SHIPPING_INSTRUCTIONS_PATH =
   'prompts/entelequia_payment_shipping_instructions_v1.txt';
+export const RECOMMENDATIONS_CONTEXT_HEADER_PATH =
+  'prompts/entelequia_recommendations_context_header_v1.txt';
+export const RECOMMENDATIONS_CONTEXT_WHY_THESE_PATH =
+  'prompts/entelequia_recommendations_context_why_these_v1.txt';
+export const RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH =
+  'prompts/entelequia_recommendations_context_instructions_v1.txt';
+export const RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH =
+  'prompts/entelequia_recommendations_empty_context_v1.txt';
 export const GENERAL_CONTEXT_HINT_PATH = 'prompts/entelequia_general_context_hint_v1.txt';
 export const STATIC_CONTEXT_PATH = 'prompts/entelequia_static_context_v1.txt';
 
@@ -102,6 +110,22 @@ export const DEFAULT_PAYMENT_SHIPPING_INSTRUCTIONS = [
   '- Destaca la opcion de retiro sin cargo cuando aplique.',
   '- Ofrece ayuda adicional al final.',
 ].join('\n');
+export const DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER = 'RECOMENDACIONES PERSONALIZADAS';
+export const DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE = [
+  'Por que estos productos:',
+  '- Seleccionados segun tus preferencias.',
+  '- Priorizan disponibilidad inmediata.',
+  '- Son sugerencias destacadas del catalogo.',
+].join('\n');
+export const DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS = [
+  'Instrucciones para tu respuesta:',
+  '- Presenta recomendaciones en tono cercano y entusiasta.',
+  '- Si el usuario menciono preferencias, conectalas explicitamente.',
+  '- Pregunta si quiere mas opciones o detalle de algun producto.',
+  '- Ofrece ayuda para decidir entre alternativas.',
+].join('\n');
+export const DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE =
+  'En este momento no tengo recomendaciones especificas para ese filtro, pero si queres te puedo mostrar ultimos lanzamientos.';
 export const DEFAULT_GENERAL_CONTEXT_HINT =
   'Responder con claridad y pedir precision cuando falten datos.';
 export const DEFAULT_STATIC_CONTEXT = [

@@ -207,6 +207,18 @@ describe('Context Block', () => {
       expect(result).toBe('Contexto de pagos y envios');
     });
 
+    it('renders recommendations block with aiContext', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'recommendations',
+          contextPayload: { aiContext: 'Contexto de recomendaciones' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Contexto de recomendaciones');
+    });
+
     it('renders static_context block with context string', () => {
       const blocks: ContextBlock[] = [
         {
