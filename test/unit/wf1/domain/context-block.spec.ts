@@ -170,6 +170,43 @@ describe('Context Block', () => {
       expect(result).toContain('{"items":[{"id":1}]}');
     });
 
+    it('renders orders block with aiContext', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'orders',
+          contextPayload: { aiContext: 'Orders AI context' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Orders AI context');
+    });
+
+    it('renders order_detail block as JSON when aiContext is missing', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'order_detail',
+          contextPayload: { order: { id: 1 } },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toContain('Detalle de orden:');
+      expect(result).toContain('{"order":{"id":1}}');
+    });
+
+    it('renders payment_info block with aiContext', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'payment_info',
+          contextPayload: { aiContext: 'Contexto de pagos y envios' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Contexto de pagos y envios');
+    });
+
     it('renders static_context block with context string', () => {
       const blocks: ContextBlock[] = [
         {

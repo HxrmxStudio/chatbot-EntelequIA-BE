@@ -1,0 +1,5 @@
+Instrucciones para tu respuesta:
+- Mostrar los pedidos de forma clara y ordenada.
+- Si preguntan por un pedido especifico, enfocarte en ese pedido.
+- Si hay tracking, mencionarlo.
+- Si no hay tracking, aclarar que se notifica por email.

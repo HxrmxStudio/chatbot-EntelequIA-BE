@@ -107,6 +107,20 @@ export const LANGUAGE_HINT_PATTERN = /\b(?:en\s*)?(?:ingles|english|japones|japa
 export const OFFER_HINT_PATTERN =
   /\b(?:preventa|pre[-\s]*venta|pre[-\s]*(?:orden|order)|preorden|agotad[oa]|oferta|ofertas|descuento|rebaja|promocion|en\s+stock|stock)\b/;
 
+// --- Payment/Shipping query type patterns (rioplatense first) ---
+
+export const PAYMENT_SHIPPING_COST_QUERY_PATTERN =
+  /\b(?:cuanto\s+sale|cuanto\s+cuesta|costo(?:s)?|precio(?:s)?|sale\s+el\s+envio|costo\s+de\s+envio|envio\s+gratis|gratis)\b/;
+
+export const PAYMENT_SHIPPING_TIME_QUERY_PATTERN =
+  /\b(?:cuanto\s+tarda|cuando\s+llega|demora|demoran|tiempo(?:s)?\s+de\s+entrega|plazo(?:s)?|dias?\s+habiles|24\s*hs|48\s*hs)\b/;
+
+export const PAYMENT_SHIPPING_PAYMENT_QUERY_PATTERN =
+  /\b(?:medio(?:s)?\s+de\s+pago|formas?\s+de\s+pago|pago|pagar|cuotas?|tarjeta(?:s)?|credito|debito|mercado\s+pago|transferencia|qr)\b/;
+
+export const PAYMENT_SHIPPING_SHIPPING_QUERY_PATTERN =
+  /\b(?:envio(?:s)?|enviar|retiro|retirar|domicilio|correo|oca|tracking|seguimiento|despacho)\b/;
+
 // --- Order ID patterns ---
 
 /** Matches "pedido/orden/order #123456" and variants; capture group 1 = digits. */

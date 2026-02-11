@@ -137,15 +137,25 @@ class InMemoryAudit {
 
 class StubIntentExtractor {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders';
+    intent: 'products' | 'orders' | 'payment_shipping';
     entities: string[];
     confidence: number;
   }> {
-    if (input.text.toLowerCase().includes('pedido')) {
+    const normalized = input.text.toLowerCase();
+
+    if (normalized.includes('pedido')) {
       return {
         intent: 'orders',
         entities: [],
         confidence: 0.9,
+      };
+    }
+
+    if (normalized.includes('pago') || normalized.includes('envio') || normalized.includes('envío')) {
+      return {
+        intent: 'payment_shipping',
+        entities: [],
+        confidence: 0.88,
       };
     }
 
@@ -165,6 +175,7 @@ class StubLlm {
 
 class StubEntelequia {
   public mode: 'ok' | 'order-not-owned' = 'ok';
+  public paymentInfoCalls = 0;
 
   async getProducts(): Promise<{ contextType: 'products'; contextPayload: Record<string, unknown> }> {
     return {
@@ -191,9 +202,13 @@ class StubEntelequia {
   }
 
   async getPaymentInfo(): Promise<{ contextType: 'payment_info'; contextPayload: Record<string, unknown> }> {
+    this.paymentInfoCalls += 1;
     return {
       contextType: 'payment_info',
-      contextPayload: { payment_methods: [] },
+      contextPayload: {
+        payment_methods: ['Mercado Pago', 'Tarjetas de credito'],
+        promotions: ['Hasta 6 cuotas sin interes'],
+      },
     };
   }
 
@@ -239,6 +254,46 @@ class StubPromptTemplates {
 
   getProductsContextInstructions(): string {
     return 'Instrucciones';
+  }
+
+  getOrdersListContextHeader(): string {
+    return 'TUS ULTIMOS PEDIDOS';
+  }
+
+  getOrdersListContextInstructions(): string {
+    return 'Instrucciones de ordenes';
+  }
+
+  getOrderDetailContextInstructions(): string {
+    return 'Instrucciones detalle orden';
+  }
+
+  getOrdersEmptyContextMessage(): string {
+    return 'No encontramos pedidos.';
+  }
+
+  getPaymentShippingPaymentContext(): string {
+    return 'MEDIOS DE PAGO';
+  }
+
+  getPaymentShippingShippingContext(): string {
+    return 'ENVIOS';
+  }
+
+  getPaymentShippingCostContext(): string {
+    return 'COSTOS DE ENVIO';
+  }
+
+  getPaymentShippingTimeContext(): string {
+    return 'TIEMPOS DE ENTREGA';
+  }
+
+  getPaymentShippingGeneralContext(): string {
+    return 'PAGOS Y ENVIOS';
+  }
+
+  getPaymentShippingInstructions(): string {
+    return 'Instrucciones para payment_shipping';
   }
 
   getGeneralContextHint(): string {
@@ -430,5 +485,32 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
       email: 'user-1@example.com',
       name: 'Customer',
     });
+  });
+
+  it('enriches payment_shipping context and keeps success response', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-6',
+      externalEventId: 'event-payment-shipping',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '¿Cuanto sale el envio?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '¿Cuanto sale el envio?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    expect(entelequia.paymentInfoCalls).toBe(1);
   });
 });

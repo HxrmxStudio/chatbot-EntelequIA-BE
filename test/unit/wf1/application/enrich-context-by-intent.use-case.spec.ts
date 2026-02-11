@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
+import { ExternalServiceError, MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
 import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '@/modules/wf1/application/ports/tokens';
 import type { EntelequiaContextPort } from '@/modules/wf1/application/ports/entelequia-context.port';
@@ -29,6 +29,16 @@ describe('EnrichContextByIntentUseCase', () => {
       getProductsContextHeader: () => 'PRODUCTOS ENTELEQUIA',
       getProductsContextAdditionalInfo: () => 'Info adicional',
       getProductsContextInstructions: () => 'Instrucciones',
+      getOrdersListContextHeader: () => 'TUS ULTIMOS PEDIDOS',
+      getOrdersListContextInstructions: () => 'Instrucciones de ordenes',
+      getOrderDetailContextInstructions: () => 'Instrucciones detalle orden',
+      getOrdersEmptyContextMessage: () => 'No encontramos pedidos.',
+      getPaymentShippingPaymentContext: () => 'MEDIOS DE PAGO',
+      getPaymentShippingShippingContext: () => 'ENVIOS',
+      getPaymentShippingCostContext: () => 'COSTOS',
+      getPaymentShippingTimeContext: () => 'TIEMPOS',
+      getPaymentShippingGeneralContext: () => 'PAGOS Y ENVIOS',
+      getPaymentShippingInstructions: () => 'Instrucciones de pago y envio',
       getGeneralContextHint: () => 'Hint general',
       getStaticContext: () => 'Contexto estatico',
     };
@@ -181,6 +191,22 @@ describe('EnrichContextByIntentUseCase', () => {
   });
 
   it('calls getOrderDetail when orderId is extracted from entities', async () => {
+    entelequiaPort.getOrderDetail.mockResolvedValueOnce({
+      contextType: 'order_detail',
+      contextPayload: {
+        order: {
+          id: 123456,
+          state: 'processing',
+          created_at: '2026-02-10T10:00:00Z',
+          total: { currency: 'ARS', amount: 1000 },
+          shipMethod: 'Correo',
+          shipTrackingCode: 'ABC123',
+          payment: { payment_method: 'Mercado Pago', status: 'approved' },
+          orderItems: [{ quantity: 1, productTitle: 'Item', productPrice: { currency: 'ARS', amount: 1000 } }],
+        },
+      },
+    });
+
     const result = await useCase.execute({
       intentResult: { intent: 'orders', confidence: 0.9, entities: ['pedido 123456'] },
       text: 'estado del pedido 123456',
@@ -194,5 +220,104 @@ describe('EnrichContextByIntentUseCase', () => {
       orderId: '123456',
     });
     expect(entelequiaPort.getOrders).not.toHaveBeenCalled();
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('orderId', 123456);
+  });
+
+  it('adds aiContext and counters for orders list', async () => {
+    entelequiaPort.getOrders.mockResolvedValueOnce({
+      contextType: 'orders',
+      contextPayload: {
+        data: [
+          {
+            id: 501,
+            state: 'pending',
+            created_at: '2026-02-10T10:00:00Z',
+            total: { currency: 'ARS', amount: 1000 },
+          },
+          {
+            id: 502,
+            state: 'processing',
+            created_at: '2026-02-09T10:00:00Z',
+            total: { currency: 'ARS', amount: 2000 },
+          },
+        ],
+        pagination: { total: 2 },
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'orders', confidence: 0.9, entities: [] },
+      text: 'mostrar mis pedidos',
+      accessToken: 'token',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('orders');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('ordersShown', 2);
+    expect(result[0].contextPayload).toHaveProperty('totalOrders', 2);
+  });
+
+  it('maps legacy unauthenticated payload in orders list to ExternalServiceError 401', async () => {
+    entelequiaPort.getOrders.mockResolvedValueOnce({
+      contextType: 'orders',
+      contextPayload: {
+        message: 'Unauthenticated.',
+      },
+    });
+
+    await expect(
+      useCase.execute({
+        intentResult: { intent: 'orders', confidence: 0.9, entities: [] },
+        text: 'mostrar mis pedidos',
+        accessToken: 'token',
+      }),
+    ).rejects.toThrow('Entelequia unauthorized response');
+  });
+
+  it('enriches payment_shipping context with queryType and aiContext from API payload', async () => {
+    entelequiaPort.getPaymentInfo.mockResolvedValueOnce({
+      contextType: 'payment_info',
+      contextPayload: {
+        payment_methods: [
+          'Mercado Pago',
+          { name: 'Tarjetas de credito' },
+        ],
+        promotions: [{ label: 'Hasta 6 cuotas sin interes' }],
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'payment_shipping', confidence: 0.9, entities: [] },
+      text: '¿Que medios de pago tienen?',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('payment_info');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('queryType', 'payment');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', false);
+    expect(result[0].contextPayload).toHaveProperty('paymentMethods');
+    expect(result[0].contextPayload).toHaveProperty('promotions');
+  });
+
+  it('falls back to local payment_shipping context when payment-info API fails', async () => {
+    entelequiaPort.getPaymentInfo.mockRejectedValueOnce(
+      new ExternalServiceError('timeout', 0, 'timeout'),
+    );
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'payment_shipping', confidence: 0.9, entities: [] },
+      text: '¿Cuanto tarda en llegar?',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('payment_info');
+    expect(result[0].contextPayload).toHaveProperty('aiContext');
+    expect(result[0].contextPayload).toHaveProperty('queryType', 'time');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', true);
+    expect(result[0].contextPayload).toHaveProperty('paymentMethods');
+    expect(result[0].contextPayload).toHaveProperty('promotions');
   });
 });

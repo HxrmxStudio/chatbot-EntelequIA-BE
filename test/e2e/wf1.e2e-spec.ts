@@ -114,15 +114,25 @@ class E2ERepository {
 
 class E2EIntent {
   async extractIntent(input: { text: string }): Promise<{
-    intent: 'products' | 'orders';
+    intent: 'products' | 'orders' | 'payment_shipping';
     entities: string[];
     confidence: number;
   }> {
-    if (input.text.toLowerCase().includes('pedido')) {
+    const normalized = input.text.toLowerCase();
+
+    if (normalized.includes('pedido')) {
       return {
         intent: 'orders',
         entities: [],
         confidence: 0.9,
+      };
+    }
+
+    if (normalized.includes('pago') || normalized.includes('envio') || normalized.includes('envío')) {
+      return {
+        intent: 'payment_shipping',
+        entities: [],
+        confidence: 0.88,
       };
     }
 
@@ -492,6 +502,25 @@ describe('WF1 API (e2e)', () => {
         userId: 'user-1',
         conversationId: 'conv-1',
         text: 'busco libros de ciencia',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns success contract for payment/shipping query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-webhook-secret', 'test-secret')
+      .set('x-external-event-id', 'e2e-payment-shipping-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '¿Cuanto tarda en llegar?',
       })
       .expect(200)
       .expect(({ body }) => {

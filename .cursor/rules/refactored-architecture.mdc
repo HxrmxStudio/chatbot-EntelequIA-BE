@@ -13,6 +13,8 @@ wf1/
   domain/           # Pure logic, no framework deps
     errors/         # MissingAuthForOrdersError, ExternalServiceError
     products-context/  # types.ts, constants.ts, summary.ts, match.ts, index.ts
+    orders-context/    # types.ts, constants.ts, format.ts, index.ts
+    payment-shipping-context/  # types.ts, constants.ts, format.ts, index.ts
     money/          # types.ts, parse.ts, format.ts, index.ts (shared domain concept)
     intent/         # types.ts, constants.ts, index.ts
     intent-routing/ # types.ts, resolve.ts, index.ts
@@ -30,7 +32,7 @@ wf1/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
       handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
-      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, index.ts
+      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
     adapters/       # OpenAI, Entelequia, IntentExtractor, PromptTemplates

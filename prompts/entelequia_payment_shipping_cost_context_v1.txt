@@ -1,0 +1,5 @@
+COSTOS DE ENVIO
+- El costo exacto se calcula en checkout segun destino y carrito.
+- Puede variar por codigo postal, peso y volumen del pedido.
+- Si hay promociones activas, se aplican segun condiciones vigentes.
+- Retiro en tienda sin cargo.

@@ -1,0 +1,5 @@
+Instrucciones para tu respuesta:
+- Informar el estado del pedido de forma clara.
+- Si hay tracking, compartirlo.
+- Si no hay tracking, aclarar que se notificara por email.
+- Ofrecer ayuda adicional si necesita soporte.

@@ -7,14 +7,27 @@ import {
   buildProductAvailabilityHint,
   selectBestProductMatch,
 } from '@/modules/wf1/domain/products-context';
+import {
+  buildOrderDetailAiContext,
+  buildOrdersListAiContext,
+} from '@/modules/wf1/domain/orders-context';
+import { buildPaymentShippingAiContext } from '@/modules/wf1/domain/payment-shipping-context';
 import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import { ENTELEQUIA_CONTEXT_PORT, PROMPT_TEMPLATES_PORT } from '../../ports/tokens';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
 import {
   resolveOrderId,
+  resolvePaymentShippingQueryType,
   resolveProductsQuery,
 } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
+import {
+  extractOrderDetail,
+  extractOrdersList,
+  extractOrdersTotal,
+  throwIfUnauthenticatedOrdersPayload,
+} from './order-parsers';
+import { extractPaymentMethods, extractPromotions } from './payment-info-parsers';
 
 @Injectable()
 export class EnrichContextByIntentUseCase {
@@ -110,6 +123,13 @@ export class EnrichContextByIntentUseCase {
           throw new MissingAuthForOrdersError();
         }
 
+        const ordersTemplates = {
+          header: this.promptTemplates.getOrdersListContextHeader(),
+          listInstructions: this.promptTemplates.getOrdersListContextInstructions(),
+          detailInstructions: this.promptTemplates.getOrderDetailContextInstructions(),
+          emptyMessage: this.promptTemplates.getOrdersEmptyContextMessage(),
+        };
+
         const orderId = resolveOrderId(intentResult.entities, input.text);
         if (orderId) {
           const orderDetail = await this.entelequiaContextPort.getOrderDetail({
@@ -117,19 +137,116 @@ export class EnrichContextByIntentUseCase {
             orderId,
           });
 
-          return [orderDetail];
+          throwIfUnauthenticatedOrdersPayload(orderDetail.contextPayload);
+
+          const parsedOrder = extractOrderDetail(orderDetail.contextPayload);
+          const aiContext = buildOrderDetailAiContext({
+            order: parsedOrder,
+            templates: ordersTemplates,
+          });
+
+          const detailWithAiContext: ContextBlock = {
+            ...orderDetail,
+            contextPayload: {
+              ...orderDetail.contextPayload,
+              ...(parsedOrder ? { orderId: parsedOrder.id } : { orderId }),
+              aiContext: aiContext.contextText,
+            },
+          };
+
+          return [detailWithAiContext];
         }
 
         const orders = await this.entelequiaContextPort.getOrders({
           accessToken: input.accessToken,
         });
 
-        return [orders];
+        throwIfUnauthenticatedOrdersPayload(orders.contextPayload);
+
+        const parsedOrders = extractOrdersList(orders.contextPayload);
+        const totalOrders = extractOrdersTotal(orders.contextPayload, parsedOrders.length);
+        const aiContext = buildOrdersListAiContext({
+          orders: parsedOrders,
+          total: totalOrders,
+          templates: ordersTemplates,
+        });
+
+        const ordersWithAiContext: ContextBlock = {
+          ...orders,
+          contextPayload: {
+            ...orders.contextPayload,
+            aiContext: aiContext.contextText,
+            ordersShown: aiContext.ordersShown,
+            totalOrders: aiContext.totalOrders,
+          },
+        };
+
+        return [ordersWithAiContext];
       }
 
       case 'payment_shipping': {
-        const paymentInfo = await this.entelequiaContextPort.getPaymentInfo();
-        return [paymentInfo];
+        const queryType = resolvePaymentShippingQueryType(input.text);
+        const paymentTemplates = {
+          paymentContext: this.promptTemplates.getPaymentShippingPaymentContext(),
+          shippingContext: this.promptTemplates.getPaymentShippingShippingContext(),
+          costContext: this.promptTemplates.getPaymentShippingCostContext(),
+          timeContext: this.promptTemplates.getPaymentShippingTimeContext(),
+          generalContext: this.promptTemplates.getPaymentShippingGeneralContext(),
+          instructions: this.promptTemplates.getPaymentShippingInstructions(),
+        };
+
+        try {
+          const paymentInfo = await this.entelequiaContextPort.getPaymentInfo();
+          const paymentMethods = extractPaymentMethods(paymentInfo.contextPayload);
+          const promotions = extractPromotions(paymentInfo.contextPayload);
+
+          const aiContext = buildPaymentShippingAiContext({
+            queryType,
+            paymentMethods,
+            promotions,
+            apiFallback: false,
+            templates: paymentTemplates,
+          });
+
+          const paymentInfoWithAiContext: ContextBlock = {
+            ...paymentInfo,
+            contextPayload: {
+              ...paymentInfo.contextPayload,
+              aiContext: aiContext.contextText,
+              queryType: aiContext.queryType,
+              paymentMethods: aiContext.paymentMethods,
+              promotions: aiContext.promotions,
+              apiFallback: aiContext.apiFallback,
+            },
+          };
+
+          return [paymentInfoWithAiContext];
+        } catch (error: unknown) {
+          if (error instanceof ExternalServiceError) {
+            const aiContext = buildPaymentShippingAiContext({
+              queryType,
+              paymentMethods: [],
+              promotions: [],
+              apiFallback: true,
+              templates: paymentTemplates,
+            });
+
+            return [
+              {
+                contextType: 'payment_info',
+                contextPayload: {
+                  aiContext: aiContext.contextText,
+                  queryType: aiContext.queryType,
+                  paymentMethods: aiContext.paymentMethods,
+                  promotions: aiContext.promotions,
+                  apiFallback: aiContext.apiFallback,
+                },
+              },
+            ];
+          }
+
+          throw error;
+        }
       }
 
       case 'tickets':

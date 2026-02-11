@@ -4,6 +4,9 @@ import type { ContextBlock } from './types';
  * Block title constants for rendering context blocks.
  */
 const BLOCK_TITLE_PRODUCTS = 'Productos';
+const BLOCK_TITLE_ORDERS = 'Ordenes';
+const BLOCK_TITLE_ORDER_DETAIL = 'Detalle de orden';
+const BLOCK_TITLE_PAYMENT_INFO = 'Informacion de pagos y envios';
 const BLOCK_TITLE_STATIC_CONTEXT = 'Contexto estatico';
 const BLOCK_TITLE_GENERAL = 'Contexto general';
 const CONTEXT_SEPARATOR = '\n\n---\n\n';
@@ -40,13 +43,19 @@ export function renderContextBlocksForPrompt(contextBlocks: ContextBlock[]): str
 function renderContextBlock(block: ContextBlock): string | null {
   switch (block.contextType) {
     case 'products': {
-      const aiContext = readString(block.contextPayload, 'aiContext');
-      if (aiContext) return aiContext;
+      return renderAiContextBlock(block, BLOCK_TITLE_PRODUCTS);
+    }
 
-      const summary = readString(block.contextPayload, 'summary');
-      if (summary) return summary;
+    case 'orders': {
+      return renderAiContextBlock(block, BLOCK_TITLE_ORDERS);
+    }
 
-      return safeJsonBlock(BLOCK_TITLE_PRODUCTS, block.contextPayload);
+    case 'order_detail': {
+      return renderAiContextBlock(block, BLOCK_TITLE_ORDER_DETAIL);
+    }
+
+    case 'payment_info': {
+      return renderAiContextBlock(block, BLOCK_TITLE_PAYMENT_INFO);
     }
 
     case 'static_context': {
@@ -65,6 +74,16 @@ function renderContextBlock(block: ContextBlock): string | null {
       return safeJsonBlock(block.contextType, block.contextPayload);
     }
   }
+}
+
+function renderAiContextBlock(block: ContextBlock, fallbackTitle: string): string {
+  const aiContext = readString(block.contextPayload, 'aiContext');
+  if (aiContext) return aiContext;
+
+  const summary = readString(block.contextPayload, 'summary');
+  if (summary) return summary;
+
+  return safeJsonBlock(fallbackTitle, block.contextPayload);
 }
 
 /**
@@ -95,4 +114,3 @@ function safeJsonBlock(title: string, payload: Record<string, unknown>): string 
     return `${title}: ${FALLBACK_NON_SERIALIZABLE}`;
   }
 }
-

@@ -6,7 +6,15 @@ export function buildFallbackResponse(intent: string, contextBlocks: ContextBloc
   }
 
   if (intent === 'payment_shipping') {
-    return 'Te comparto los medios de pago y promociones vigentes segun la informacion disponible.';
+    const paymentBlock = contextBlocks.find((block) => block.contextType === 'payment_info');
+    if (paymentBlock) {
+      const aiContext = paymentBlock.contextPayload['aiContext'];
+      if (typeof aiContext === 'string' && aiContext.trim().length > 0) {
+        return aiContext.trim();
+      }
+    }
+
+    return 'Te comparto la guia de pagos y envios para que sigas con tu compra.';
   }
 
   if (intent === 'tickets') {
