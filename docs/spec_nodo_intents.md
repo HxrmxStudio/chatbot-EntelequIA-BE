@@ -97,7 +97,7 @@ _(Esto refleja el ejemplo del prompt: “Necesito ayuda” → general con ~0.55
 
 - Debe ser **idéntico** al del nodo (texto completo).
 - Guardarlo versionado en repo:
-  - `prompts/entelequia_intent_system_prompt_v1.txt`
+  - `prompts/system/entelequia_intent_system_prompt_v1.txt`
 
 - Exponer versión en logs/metadata:
   - `prompt_version = "v1"`
@@ -286,7 +286,7 @@ Casos del prompt:
 
 ## 10) Entregables (archivos en tu repo)
 
-- `prompts/entelequia_intent_system_prompt_v1.txt`
+- `prompts/system/entelequia_intent_system_prompt_v1.txt`
 - `schemas/entelequia_intent_classification.schema.json`
 - `src/modules/intent/intent.controller.ts|rb`
 - `src/modules/intent/intent.service.ts|rb`

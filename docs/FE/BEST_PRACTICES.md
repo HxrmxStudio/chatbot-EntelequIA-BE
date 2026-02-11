@@ -565,7 +565,7 @@ return null;
 
 - **Types must match field-for-field.** When the BE adds a field, the FE type and zod schema must be updated.
 - **Zod schemas are the runtime safety net.** If types drift, `safeParse` catches it and logs a warning.
-- **Auth contract**: The widget sends `x-webhook-secret` header. The BE validates it via `SignatureGuard`.
+- **Auth contract**: The widget sends `Authorization: Bearer <token>` when authenticated. For anti-bot, if enabled, it sends `x-turnstile-token`.
 - **Error contract**: The BE returns `{ ok: false, message, requiresAuth? }`. The FE maps this to UI states in `useChat`.
 
 ### Versioning

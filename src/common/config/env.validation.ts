@@ -10,7 +10,12 @@ export interface AppEnv {
   OPENAI_TIMEOUT_MS: number;
   WF1_FINAL_REPLY_STRUCTURED_OUTPUT: boolean;
   WF1_FINAL_REPLY_ROLLOUT_PERCENT: number;
-  WEBHOOK_SECRET?: string;
+  WF1_EVAL_ENABLED: boolean;
+  WF1_EVAL_MODEL: string;
+  WF1_EVAL_DAILY_CAP: number;
+  WF1_EVAL_TIMEOUT_MS: number;
+  WF1_EVAL_SAMPLE_RANDOM_PERCENT: number;
+  WF1_EVAL_LOW_SCORE_THRESHOLD: number;
   TURNSTILE_SECRET_KEY?: string;
   WHATSAPP_SECRET?: string;
   ALLOWED_ORIGINS: string[];
@@ -87,7 +92,6 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
   const ENTELEQUIA_API_BASE_URL = String(config.ENTELEQUIA_API_BASE_URL ?? '').trim();
   const ENTELEQUIA_WEB_BASE_URL =
     String(config.ENTELEQUIA_WEB_BASE_URL ?? '').trim() || 'https://entelequia.com.ar';
-  const WEBHOOK_SECRET = String(config.WEBHOOK_SECRET ?? '').trim() || undefined;
   const TURNSTILE_SECRET_KEY =
     String(config.TURNSTILE_SECRET_KEY ?? '').trim() || undefined;
 
@@ -99,12 +103,9 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     throw new Error('ENTELEQUIA_API_BASE_URL is required');
   }
 
-  // Production hardening: require at least one web anti-abuse mechanism.
-  // Turnstile is recommended; WEBHOOK_SECRET is supported for backward compatibility.
-  if (NODE_ENV === 'production' && !TURNSTILE_SECRET_KEY && !WEBHOOK_SECRET) {
-    throw new Error(
-      'TURNSTILE_SECRET_KEY (recommended) or WEBHOOK_SECRET is required in production',
-    );
+  // Production hardening for web channel: require Turnstile anti-bot verification.
+  if (NODE_ENV === 'production' && !TURNSTILE_SECRET_KEY) {
+    throw new Error('TURNSTILE_SECRET_KEY is required in production');
   }
 
   return {
@@ -125,7 +126,18 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
       100,
       Math.max(0, parseNumber(config.WF1_FINAL_REPLY_ROLLOUT_PERCENT, 0)),
     ),
-    WEBHOOK_SECRET,
+    WF1_EVAL_ENABLED: parseBoolean(config.WF1_EVAL_ENABLED, false),
+    WF1_EVAL_MODEL: String(config.WF1_EVAL_MODEL ?? 'gpt-4o-mini').trim(),
+    WF1_EVAL_DAILY_CAP: Math.max(0, parseNumber(config.WF1_EVAL_DAILY_CAP, 200)),
+    WF1_EVAL_TIMEOUT_MS: Math.max(1000, parseNumber(config.WF1_EVAL_TIMEOUT_MS, 10_000)),
+    WF1_EVAL_SAMPLE_RANDOM_PERCENT: Math.min(
+      100,
+      Math.max(0, parseNumber(config.WF1_EVAL_SAMPLE_RANDOM_PERCENT, 5)),
+    ),
+    WF1_EVAL_LOW_SCORE_THRESHOLD: Math.min(
+      1,
+      Math.max(0, parseNumber(config.WF1_EVAL_LOW_SCORE_THRESHOLD, 0.6)),
+    ),
     TURNSTILE_SECRET_KEY,
     WHATSAPP_SECRET: String(config.WHATSAPP_SECRET ?? '').trim() || undefined,
     ALLOWED_ORIGINS: parseOrigins(config.ALLOWED_ORIGINS),

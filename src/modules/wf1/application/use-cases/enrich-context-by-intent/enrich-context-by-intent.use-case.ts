@@ -32,6 +32,7 @@ import {
   resolveStoreInfoQueryType,
   resolveTicketSignals,
   resolveProductsQuery,
+  resolveStockDisclosure,
 } from './query-resolvers';
 import { extractProductItems } from './product-parsers';
 import {
@@ -47,6 +48,7 @@ import {
 } from './recommendation-parsers';
 
 const ENTELEQUIA_DEFAULT_WEB_BASE_URL = 'https://entelequia.com.ar';
+const WF1_LOW_STOCK_THRESHOLD = 3;
 
 @Injectable()
 export class EnrichContextByIntentUseCase {
@@ -68,6 +70,10 @@ export class EnrichContextByIntentUseCase {
 
     switch (intentResult.intent) {
       case 'products': {
+        const discloseExactStock = resolveStockDisclosure({
+          text: input.text,
+          entities: intentResult.entities,
+        });
         const resolvedQuery = resolveProductsQuery(intentResult.entities, input.text);
         const query = resolvedQuery.productName;
         const products = await this.entelequiaContextPort.getProducts({
@@ -85,6 +91,8 @@ export class EnrichContextByIntentUseCase {
           items,
           total,
           query,
+          discloseExactStock,
+          lowStockThreshold: WF1_LOW_STOCK_THRESHOLD,
           templates: {
             header: this.promptTemplates.getProductsContextHeader(),
             additionalInfo: this.promptTemplates.getProductsContextAdditionalInfo(),
@@ -99,6 +107,9 @@ export class EnrichContextByIntentUseCase {
             productCount: aiContext.productCount,
             totalCount: aiContext.totalCount,
             inStockCount: aiContext.inStockCount,
+            stockDisclosurePolicy: discloseExactStock ? 'exact' : 'banded',
+            lowStockThreshold: WF1_LOW_STOCK_THRESHOLD,
+            discloseExactStock,
             resolvedQuery,
           },
         };
@@ -117,7 +128,10 @@ export class EnrichContextByIntentUseCase {
           contextPayload: {
             ...productsWithAi.contextPayload,
             bestMatch,
-            availabilityHint: buildProductAvailabilityHint(bestMatch),
+            availabilityHint: buildProductAvailabilityHint(bestMatch, {
+              discloseExactStock,
+              lowStockThreshold: WF1_LOW_STOCK_THRESHOLD,
+            }),
           },
         };
 

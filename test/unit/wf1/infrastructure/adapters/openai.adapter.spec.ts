@@ -3,10 +3,20 @@ import { OpenAiAdapter } from '@/modules/wf1/infrastructure/adapters/openai';
 
 describe('OpenAiAdapter', () => {
   const originalFetch = global.fetch;
+  const metricsStub = {
+    incrementMessage: jest.fn(),
+    observeResponseLatency: jest.fn(),
+    incrementFallback: jest.fn(),
+    incrementStockExactDisclosure: jest.fn(),
+  };
 
   afterEach(() => {
     jest.restoreAllMocks();
     global.fetch = originalFetch;
+    metricsStub.incrementMessage.mockReset();
+    metricsStub.observeResponseLatency.mockReset();
+    metricsStub.incrementFallback.mockReset();
+    metricsStub.incrementStockExactDisclosure.mockReset();
   });
 
   it('returns fallback when OPENAI_API_KEY is missing', async () => {
@@ -19,21 +29,21 @@ describe('OpenAiAdapter', () => {
             : key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT'
               ? 100
               : 'gpt-4.1-mini',
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
-    expect(result).toContain('Perfecto');
+    expect(resolveMessage(result)).toContain('Perfecto');
   });
 
   it('returns orders fallback for orders intent when key missing', async () => {
     const adapter = new OpenAiAdapter({
       get: (key: string) => (key === 'OPENAI_API_KEY' ? undefined : 'gpt-4.1-mini'),
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('orders'));
 
-    expect(result).toContain('pedido');
+    expect(resolveMessage(result)).toContain('pedido');
   });
 
   it('returns fallback after retries exhausted on 429', async () => {
@@ -52,11 +62,11 @@ describe('OpenAiAdapter', () => {
         if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 100;
         return 'gpt-4.1-mini';
       },
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
-    expect(result).toContain('Perfecto');
+    expect(resolveMessage(result)).toContain('Perfecto');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -81,11 +91,11 @@ describe('OpenAiAdapter', () => {
         if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 0;
         return 'gpt-4.1-mini';
       },
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
-    expect(result).toBe('Respuesta legacy');
+    expect(resolveMessage(result)).toBe('Respuesta legacy');
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as Record<string, unknown>;
     expect(body['text']).toBeUndefined();
@@ -121,11 +131,11 @@ describe('OpenAiAdapter', () => {
         if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 100;
         return 'gpt-4.1-mini';
       },
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
-    expect(result).toBe('Respuesta estructurada');
+    expect(resolveMessage(result)).toBe('Respuesta estructurada');
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as Record<string, unknown>;
     expect(body['text']).toEqual(
@@ -155,11 +165,11 @@ describe('OpenAiAdapter', () => {
         if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 100;
         return 'gpt-4.1-mini';
       },
-    } as ConfigService);
+    } as ConfigService, metricsStub);
 
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
-    expect(result).toContain('Perfecto');
+    expect(resolveMessage(result)).toContain('Perfecto');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
@@ -176,4 +186,8 @@ function buildInput(
     history: [],
     contextBlocks: [],
   };
+}
+
+function resolveMessage(result: Awaited<ReturnType<OpenAiAdapter['buildAssistantReply']>>): string {
+  return typeof result === 'string' ? result : result.message;
 }

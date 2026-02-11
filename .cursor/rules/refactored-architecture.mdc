@@ -12,7 +12,7 @@ alwaysApply: false
 wf1/
   domain/           # Pure logic, no framework deps
     errors/         # MissingAuthForOrdersError, ExternalServiceError
-    products-context/  # types.ts, constants.ts, summary.ts, match.ts, index.ts
+    products-context/  # types.ts, constants.ts, summary.ts, match.ts, stock-visibility.ts, index.ts
     orders-context/    # types.ts, constants.ts, format.ts, index.ts
     payment-shipping-context/  # types.ts, constants.ts, format.ts, index.ts
     recommendations-context/  # types.ts, constants.ts, format.ts, filter.ts, index.ts
@@ -36,7 +36,7 @@ wf1/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
       handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
-      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, recommendation-parsers.ts, index.ts
+      enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, recommendation-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
     adapters/       # OpenAI, Entelequia, IntentExtractor, PromptTemplates
@@ -47,6 +47,7 @@ wf1/
       intent-extractor/  # intent-extractor.adapter.ts, endpoints.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, constants.ts, index.ts
       entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
       prompt-templates/  # prompt-templates.adapter.ts, constants.ts, index.ts (centralizes all prompt loading)
+      metrics/           # prometheus-metrics.adapter.ts (Prometheus metrics; optional index.ts as public API)
       # Each adapter in its own folder with index.ts as public API
       # endpoints.ts centralizes all endpoint definitions (API endpoints and web frontend URLs like productWebUrl, storageImageUrl) for better maintainability
     repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
@@ -61,7 +62,7 @@ wf1/
         # Each service in its own folder with index.ts as public API
       shared/       # string-helpers.ts, crypto-helpers.ts, body-helpers.ts (DRY helpers)
       # Guards remain in root: signature.guard.ts, input-validation.guard.ts, extract-variables.guard.ts
-  controllers/  # chat.controller.ts, resolve-access-token.ts (Bearer token only, body accessToken rejected)
+  controllers/  # chat.controller.ts, metrics.controller.ts, resolve-access-token.ts (Bearer token only, body accessToken rejected)
   dto/
 ```
 
@@ -77,6 +78,7 @@ wf1/
 Defined in `application/ports/tokens.ts`:
 - INTENT_EXTRACTOR_PORT, ENTELEQUIA_CONTEXT_PORT, LLM_PORT
 - PROMPT_TEMPLATES_PORT (for centralized prompt access)
+- METRICS_PORT (for Prometheus metrics)
 - CHAT_PERSISTENCE_PORT, IDEMPOTENCY_PORT, AUDIT_PORT
 - PG_POOL (for repository implementations)
 
@@ -95,6 +97,7 @@ Defined in `application/ports/tokens.ts`:
 - `infrastructure/adapters/openai-retry.client.ts`: withRetry
 - `infrastructure/repositories/shared/json-helpers.ts`: toJsonb (for PostgreSQL jsonb columns)
 - `domain/money/`: parseMoney, formatMoney (shared domain concept for products and orders)
+- `src/common/metrics/`: metric names and categories (shared across WF1 metrics adapter and use cases)
 
 ## Domain Errors
 
@@ -109,15 +112,7 @@ Defined in `application/ports/tokens.ts`:
 
 ## Externalized Prompts
 
-All prompts and instructions are externalized to `prompts/` for versioning and maintainability:
-
-- `prompts/entelequia_intent_system_prompt_v1.txt` - Intent classification system prompt
-- `prompts/entelequia_assistant_system_prompt_v1.txt` - Assistant system prompt
-- `prompts/entelequia_products_context_header_v1.txt` - Products context header
-- `prompts/entelequia_products_context_additional_info_v1.txt` - Additional store information
-- `prompts/entelequia_products_context_instructions_v1.txt` - Instructions for product responses
-- `prompts/entelequia_general_context_hint_v1.txt` - General context hint
-- `prompts/entelequia_static_context_v1.txt` - Static business context (stores, contact, etc.)
+All prompts and instructions are externalized to `prompts/` for versioning and maintainability. Prompts are organized in subfolders by domain: `prompts/system/` (intent, assistant), `prompts/products/`, `prompts/orders/`, `prompts/payment-shipping/`, `prompts/recommendations/`, `prompts/tickets/`, `prompts/store-info/`, `prompts/general/`, `prompts/static/`, `prompts/eval/`. Full paths are centralized in `adapters/prompt-templates/constants.ts`.
 
 **Prompt Loading Pattern**:
 - Use `PromptTemplatesPort` (via `PROMPT_TEMPLATES_PORT` token) in use cases to access prompts

@@ -1,0 +1,36 @@
+groups:
+  - name: wf1_quality
+    interval: 1m
+    rules:
+      - alert: Wf1HighFallbackRate
+        expr: rate(wf1_messages_total[5m]) > 5 and rate(wf1_fallback_total[5m]) / rate(wf1_messages_total[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: critical
+          service: wf1
+        annotations:
+          summary: "WF1 fallback rate > 15% (5m)"
+          description: "Revisar OpenAI API, prompts y disponibilidad de adapters de contexto."
+          runbook: "docs/runbooks/wf1_high_fallback_rate.md"
+
+      - alert: Wf1IntentHighLatency
+        expr: histogram_quantile(0.95, sum(rate(wf1_response_latency_seconds_bucket{intent!=\"general\"}[5m])) by (le, intent)) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: wf1
+        annotations:
+          summary: "WF1 p95 latencia alta por intent"
+          description: "Intent={{ $labels.intent }} supera 5s p95. Revisar DB, adapters HTTP y prompt size."
+          runbook: "docs/runbooks/wf1_intent_high_latency.md"
+
+      - alert: Wf1HighExactStockRequests
+        expr: increase(wf1_stock_exact_disclosure_total[1h]) > 10
+        for: 10m
+        labels:
+          severity: info
+          service: wf1
+        annotations:
+          summary: "Aumento sostenido de respuestas con stock exacto"
+          description: "Evaluar si la politica banded stock requiere ajustes de UX."
+          runbook: "docs/runbooks/wf1_high_exact_stock_requests.md"

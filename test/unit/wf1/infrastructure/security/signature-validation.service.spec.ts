@@ -20,9 +20,7 @@ describe('SignatureValidationService', () => {
 
   it('validates web signature and returns node-like merged payload', async () => {
     const service = new SignatureValidationService(
-      buildConfigService({
-        WEBHOOK_SECRET: 'web-secret',
-      }),
+      buildConfigService({}),
       buildTurnstileService(),
     );
 
@@ -32,9 +30,7 @@ describe('SignatureValidationService', () => {
         userId: 'u-1',
         message: 'body-pisa-message',
       },
-      headers: {
-        'x-webhook-secret': 'web-secret',
-      },
+      headers: {},
     });
 
     const result = await service.validateRequest(request);
@@ -48,9 +44,7 @@ describe('SignatureValidationService', () => {
 
   it('throws SECURITY error when source is unknown', async () => {
     const service = new SignatureValidationService(
-      buildConfigService({
-        WEBHOOK_SECRET: 'web-secret',
-      }),
+      buildConfigService({}),
       buildTurnstileService(),
     );
 
@@ -64,27 +58,6 @@ describe('SignatureValidationService', () => {
     await expectUnauthorized(
       () => service.validateRequest(request),
       'SECURITY: Unknown source: "mobile". Must be \'web\' or \'whatsapp\'',
-    );
-  });
-
-  it('throws SECURITY error when web header is missing', async () => {
-    const service = new SignatureValidationService(
-      buildConfigService({
-        WEBHOOK_SECRET: 'web-secret',
-      }),
-      buildTurnstileService(),
-    );
-
-    const request = buildRequest({
-      body: {
-        source: 'web',
-      },
-      headers: {},
-    });
-
-    await expectUnauthorized(
-      () => service.validateRequest(request),
-      'SECURITY: Missing web webhook secret header (x-webhook-secret)',
     );
   });
 
@@ -231,7 +204,7 @@ describe('SignatureValidationService', () => {
 });
 
 function buildConfigService(
-  values: Partial<Record<'WEBHOOK_SECRET' | 'WHATSAPP_SECRET' | 'TURNSTILE_SECRET_KEY', string>>,
+  values: Partial<Record<'WHATSAPP_SECRET' | 'TURNSTILE_SECRET_KEY', string>>,
 ): ConfigService {
   return {
     get: (key: string) =>

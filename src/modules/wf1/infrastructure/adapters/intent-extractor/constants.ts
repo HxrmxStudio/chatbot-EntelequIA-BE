@@ -9,7 +9,7 @@ export const MAX_INPUT_CHARS = 4000;
 export const INTENT_MAX_OUTPUT_TOKENS = 150;
 export const INTENT_TEMPERATURE = 0.2;
 export const INTENT_VERBOSITY = 'medium';
-export const INTENT_PROMPT_PATH = 'prompts/entelequia_intent_system_prompt_v1.txt';
+export const INTENT_PROMPT_PATH = 'prompts/system/entelequia_intent_system_prompt_v1.txt';
 export const INTENT_SCHEMA_PATH = 'schemas/entelequia_intent_classification.schema.json';
 
 export const DEFAULT_SYSTEM_PROMPT = [

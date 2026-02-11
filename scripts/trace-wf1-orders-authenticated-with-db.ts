@@ -132,9 +132,8 @@ async function bootstrapApp(): Promise<INestApplication> {
 }
 
 async function main(): Promise<void> {
-  // For local traces we disable Turnstile + WEBHOOK_SECRET so the FE-like request passes signature validation.
+  // For local traces we disable Turnstile so the FE-like request passes signature validation.
   process.env.TURNSTILE_SECRET_KEY = '';
-  process.env.WEBHOOK_SECRET = '';
 
   // Defaults for running the script without a fully-populated .env.
   process.env.CHATBOT_DB_URL = process.env.CHATBOT_DB_URL ?? 'postgres://test:test@localhost:5432/chatbot';

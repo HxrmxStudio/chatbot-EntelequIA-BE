@@ -20,6 +20,7 @@ import { mapContextOrBackendError } from '../src/modules/wf1/application/use-cas
 import { PG_POOL } from '../src/modules/wf1/application/ports/tokens';
 import { ENTELEQUIA_CONTEXT_PORT } from '../src/modules/wf1/application/ports/tokens';
 import { PROMPT_TEMPLATES_PORT } from '../src/modules/wf1/application/ports/tokens';
+import { METRICS_PORT } from '../src/modules/wf1/application/ports/tokens';
 import { EnrichContextByIntentUseCase } from '../src/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { EntelequiaHttpAdapter } from '../src/modules/wf1/infrastructure/adapters/entelequia-http';
 import { OpenAiAdapter } from '../src/modules/wf1/infrastructure/adapters/openai';
@@ -164,14 +165,6 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   const traceSource = resolveTraceSource(process.env.TRACE_SOURCE);
 
-  // Provide a safe default for local trace runs.
-  // Real deployments should set WEBHOOK_SECRET explicitly.
-  if (
-    traceSource === 'web' &&
-    (!process.env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET.trim().length === 0)
-  ) {
-    process.env.WEBHOOK_SECRET = 'trace-secret';
-  }
   if (
     traceSource === 'whatsapp' &&
     (!process.env.WHATSAPP_SECRET || process.env.WHATSAPP_SECRET.trim().length === 0)
@@ -209,6 +202,15 @@ async function main(): Promise<void> {
       {
         provide: PROMPT_TEMPLATES_PORT,
         useExisting: PromptTemplatesAdapter,
+      },
+      {
+        provide: METRICS_PORT,
+        useValue: {
+          incrementMessage: () => undefined,
+          observeResponseLatency: () => undefined,
+          incrementFallback: () => undefined,
+          incrementStockExactDisclosure: () => undefined,
+        },
       },
     ],
   }).compile();
@@ -249,9 +251,7 @@ async function main(): Promise<void> {
 
   const rawBody = JSON.stringify(inboundBody);
   const requestHeaders: Record<string, string> = {};
-  if (traceSource === 'web') {
-    requestHeaders['x-webhook-secret'] = String(process.env.WEBHOOK_SECRET ?? '');
-  } else {
+  if (traceSource === 'whatsapp') {
     requestHeaders['x-hub-signature-256'] = buildWhatsappSignature({
       rawBody,
       secret: String(process.env.WHATSAPP_SECRET ?? ''),
@@ -375,7 +375,7 @@ async function main(): Promise<void> {
       }
 
       if (stageAtLeast(traceStage, 'llm')) {
-        assistantReply = await llmAdapter.buildAssistantReply({
+        const llmReply = await llmAdapter.buildAssistantReply({
           requestId,
           conversationId: canonicalPayload.conversationId,
           externalEventId,
@@ -384,6 +384,7 @@ async function main(): Promise<void> {
           history,
           contextBlocks: contextBlocks ?? [],
         });
+        assistantReply = typeof llmReply === 'string' ? llmReply : llmReply.message;
       }
 
       response = {
@@ -464,7 +465,6 @@ async function main(): Promise<void> {
     traceStage,
     inbound: {
       headers: Object.entries({
-        'x-webhook-secret': request.header('x-webhook-secret'),
         'x-hub-signature-256': request.header('x-hub-signature-256'),
         'x-external-event-id': request.header('x-external-event-id'),
       }).reduce<Record<string, unknown>>((acc, [name, value]) => {

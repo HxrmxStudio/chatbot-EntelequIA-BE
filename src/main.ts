@@ -67,7 +67,6 @@ function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>, env:
       'Content-Type',
       'Authorization',
       'x-request-id',
-      'x-webhook-secret',
       'x-turnstile-token',
       'x-shadow-mode',
       'x-external-event-id',

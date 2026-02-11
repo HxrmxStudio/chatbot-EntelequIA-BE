@@ -7,6 +7,7 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  METRICS_PORT,
   PROMPT_TEMPLATES_PORT,
 } from '../../ports/tokens';
 import type { AuditPort } from '../../ports/audit.port';
@@ -14,7 +15,8 @@ import type { ChatPersistencePort } from '../../ports/chat-persistence.port';
 import type { EntelequiaContextPort } from '../../ports/entelequia-context.port';
 import type { IdempotencyPort } from '../../ports/idempotency.port';
 import type { IntentExtractorPort } from '../../ports/intent-extractor.port';
-import type { LlmPort } from '../../ports/llm.port';
+import type { LlmPort, LlmReplyMetadata } from '../../ports/llm.port';
+import type { MetricsPort } from '../../ports/metrics.port';
 import type { PromptTemplatesPort } from '../../ports/prompt-templates.port';
 import type { ChatRequestDto } from '../../../dto/chat-request.dto';
 import { ExternalServiceError } from '../../../domain/errors';
@@ -61,6 +63,8 @@ export class HandleIncomingMessageUseCase {
     private readonly enrichContextByIntent: EnrichContextByIntentUseCase,
     @Inject(PROMPT_TEMPLATES_PORT)
     private readonly promptTemplates: PromptTemplatesPort,
+    @Inject(METRICS_PORT)
+    private readonly metricsPort: MetricsPort,
     private readonly configService: ConfigService,
   ) {
     const configuredLimit =
@@ -204,6 +208,8 @@ export class HandleIncomingMessageUseCase {
 
       let contextBlocks;
       let response: Wf1Response;
+      let llmMetadata: LlmReplyMetadata | undefined;
+      let exactStockDisclosed = false;
 
       if (routedIntent === 'orders' && !checkIfAuthenticated(input.payload.accessToken)) {
         response = buildOrdersRequiresAuthResponse();
@@ -222,7 +228,7 @@ export class HandleIncomingMessageUseCase {
             this.promptTemplates.getStaticContext(),
           );
 
-          const message = await this.llmPort.buildAssistantReply({
+          const llmReply = await this.llmPort.buildAssistantReply({
             requestId: input.requestId,
             conversationId: input.payload.conversationId,
             externalEventId: input.externalEventId,
@@ -231,6 +237,10 @@ export class HandleIncomingMessageUseCase {
             history,
             contextBlocks,
           });
+
+          const { message, metadata } = normalizeLlmReply(llmReply);
+          llmMetadata = metadata;
+          exactStockDisclosed = resolveExactStockDisclosure(contextBlocks);
 
           response = {
             ok: true,
@@ -259,6 +269,21 @@ export class HandleIncomingMessageUseCase {
           predictedConfidence: validatedIntent.confidence,
           predictedEntitiesCount: validatedIntent.entities.length,
           sentiment: validatedIntent.sentiment,
+          responsePolicyVersion: 'v2-banded-stock',
+          llmPath: llmMetadata?.llmPath ?? 'fallback_default',
+          fallbackReason: llmMetadata?.fallbackReason ?? null,
+          promptVersion: llmMetadata?.promptVersion ?? null,
+          inputTokenCount: llmMetadata?.inputTokenCount ?? null,
+          outputTokenCount: llmMetadata?.outputTokenCount ?? null,
+          cachedTokenCount: llmMetadata?.cachedTokenCount ?? null,
+          contextTypes: Array.isArray(contextBlocks)
+            ? contextBlocks.map((block) => block.contextType)
+            : [],
+          sessionId: input.payload.conversationId,
+          traceId: input.requestId,
+          spanId: input.externalEventId.slice(0, 16),
+          discloseExactStock: exactStockDisclosed,
+          lowStockThreshold: 3,
         },
       });
 
@@ -294,8 +319,37 @@ export class HandleIncomingMessageUseCase {
           predictedEntitiesCount: validatedIntent.entities.length,
           sentiment: validatedIntent.sentiment,
           responseType: auditStatus.responseType,
+          responsePolicyVersion: 'v2-banded-stock',
+          llmPath: llmMetadata?.llmPath ?? 'fallback_default',
+          fallbackReason: llmMetadata?.fallbackReason ?? null,
+          promptVersion: llmMetadata?.promptVersion ?? null,
+          inputTokenCount: llmMetadata?.inputTokenCount ?? null,
+          outputTokenCount: llmMetadata?.outputTokenCount ?? null,
+          cachedTokenCount: llmMetadata?.cachedTokenCount ?? null,
+          contextTypes: Array.isArray(contextBlocks)
+            ? contextBlocks.map((block) => block.contextType)
+            : [],
+          sessionId: input.payload.conversationId,
+          traceId: input.requestId,
+          spanId: input.externalEventId.slice(0, 16),
+          discloseExactStock: exactStockDisclosed,
+          lowStockThreshold: 3,
         },
       });
+
+      const llmPath = llmMetadata?.llmPath ?? 'fallback_default';
+      this.metricsPort.incrementMessage({
+        source: input.payload.source,
+        intent: response.ok ? (response.intent ?? routedIntent) : 'error',
+        llmPath,
+      });
+      this.metricsPort.observeResponseLatency({
+        intent: response.ok ? (response.intent ?? routedIntent) : 'error',
+        seconds: (Date.now() - startedAt) / 1000,
+      });
+      if (exactStockDisclosed) {
+        this.metricsPort.incrementStockExactDisclosure();
+      }
 
       this.logger.info('final_stage_audited', {
         event: 'final_stage_audited',
@@ -352,6 +406,17 @@ export class HandleIncomingMessageUseCase {
         latency_ms: Date.now() - startedAt,
       });
 
+      this.metricsPort.incrementMessage({
+        source: input.payload.source,
+        intent: 'error',
+        llmPath: 'fallback_default',
+      });
+      this.metricsPort.observeResponseLatency({
+        intent: 'error',
+        seconds: (Date.now() - startedAt) / 1000,
+      });
+      this.metricsPort.incrementFallback('unknown');
+
       return fallbackResponse;
     }
   }
@@ -398,4 +463,28 @@ export class HandleIncomingMessageUseCase {
       name,
     });
   }
+}
+
+function normalizeLlmReply(
+  input: string | { message: string; metadata?: LlmReplyMetadata },
+): { message: string; metadata?: LlmReplyMetadata } {
+  if (typeof input === 'string') {
+    return { message: input };
+  }
+
+  return {
+    message: input.message,
+    ...(input.metadata ? { metadata: input.metadata } : {}),
+  };
+}
+
+function resolveExactStockDisclosure(
+  contextBlocks: Array<{ contextType: string; contextPayload: Record<string, unknown> }>,
+): boolean {
+  const products = contextBlocks.find((block) => block.contextType === 'products');
+  if (!products) {
+    return false;
+  }
+
+  return products.contextPayload['discloseExactStock'] === true;
 }

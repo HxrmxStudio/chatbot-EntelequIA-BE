@@ -1,6 +1,6 @@
 export const MAX_ATTEMPTS = 3;
 export const BASE_BACKOFF_MS = 250;
-export const ASSISTANT_PROMPT_PATH = 'prompts/entelequia_assistant_system_prompt_v1.txt';
+export const ASSISTANT_PROMPT_PATH = 'prompts/system/entelequia_assistant_system_prompt_v1.txt';
 export const ASSISTANT_SCHEMA_PATH = 'schemas/entelequia_assistant_reply.schema.json';
 export const ASSISTANT_SCHEMA_NAME = 'entelequia_assistant_reply';
 export const ASSISTANT_SCHEMA_VERSION = '1.0';

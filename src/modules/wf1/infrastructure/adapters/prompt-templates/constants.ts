@@ -2,62 +2,62 @@
  * Prompt file paths.
  * Centralized paths for all prompt templates used by PromptTemplatesAdapter.
  */
-export const PRODUCTS_CONTEXT_HEADER_PATH = 'prompts/entelequia_products_context_header_v1.txt';
+export const PRODUCTS_CONTEXT_HEADER_PATH = 'prompts/products/entelequia_products_context_header_v1.txt';
 export const PRODUCTS_CONTEXT_ADDITIONAL_INFO_PATH =
-  'prompts/entelequia_products_context_additional_info_v1.txt';
+  'prompts/products/entelequia_products_context_additional_info_v1.txt';
 export const PRODUCTS_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_products_context_instructions_v1.txt';
-export const ORDERS_CONTEXT_HEADER_PATH = 'prompts/entelequia_orders_context_header_v1.txt';
+  'prompts/products/entelequia_products_context_instructions_v1.txt';
+export const ORDERS_CONTEXT_HEADER_PATH = 'prompts/orders/entelequia_orders_context_header_v1.txt';
 export const ORDERS_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_orders_context_instructions_v1.txt';
+  'prompts/orders/entelequia_orders_context_instructions_v1.txt';
 export const ORDER_DETAIL_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_order_detail_context_instructions_v1.txt';
+  'prompts/orders/entelequia_order_detail_context_instructions_v1.txt';
 export const ORDERS_EMPTY_CONTEXT_MESSAGE_PATH =
-  'prompts/entelequia_orders_empty_context_v1.txt';
+  'prompts/orders/entelequia_orders_empty_context_v1.txt';
 export const PAYMENT_SHIPPING_PAYMENT_CONTEXT_PATH =
-  'prompts/entelequia_payment_shipping_payment_context_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_payment_context_v1.txt';
 export const PAYMENT_SHIPPING_SHIPPING_CONTEXT_PATH =
-  'prompts/entelequia_payment_shipping_shipping_context_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_shipping_context_v1.txt';
 export const PAYMENT_SHIPPING_COST_CONTEXT_PATH =
-  'prompts/entelequia_payment_shipping_cost_context_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_cost_context_v1.txt';
 export const PAYMENT_SHIPPING_TIME_CONTEXT_PATH =
-  'prompts/entelequia_payment_shipping_time_context_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_time_context_v1.txt';
 export const PAYMENT_SHIPPING_GENERAL_CONTEXT_PATH =
-  'prompts/entelequia_payment_shipping_general_context_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_general_context_v1.txt';
 export const PAYMENT_SHIPPING_INSTRUCTIONS_PATH =
-  'prompts/entelequia_payment_shipping_instructions_v1.txt';
+  'prompts/payment-shipping/entelequia_payment_shipping_instructions_v1.txt';
 export const RECOMMENDATIONS_CONTEXT_HEADER_PATH =
-  'prompts/entelequia_recommendations_context_header_v1.txt';
+  'prompts/recommendations/entelequia_recommendations_context_header_v1.txt';
 export const RECOMMENDATIONS_CONTEXT_WHY_THESE_PATH =
-  'prompts/entelequia_recommendations_context_why_these_v1.txt';
+  'prompts/recommendations/entelequia_recommendations_context_why_these_v1.txt';
 export const RECOMMENDATIONS_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_recommendations_context_instructions_v1.txt';
+  'prompts/recommendations/entelequia_recommendations_context_instructions_v1.txt';
 export const RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE_PATH =
-  'prompts/entelequia_recommendations_empty_context_v1.txt';
+  'prompts/recommendations/entelequia_recommendations_empty_context_v1.txt';
 export const TICKETS_CONTEXT_HEADER_PATH =
-  'prompts/entelequia_tickets_context_header_v1.txt';
+  'prompts/tickets/entelequia_tickets_context_header_v1.txt';
 export const TICKETS_CONTACT_OPTIONS_PATH =
-  'prompts/entelequia_tickets_contact_options_v1.txt';
+  'prompts/tickets/entelequia_tickets_contact_options_v1.txt';
 export const TICKETS_HIGH_PRIORITY_NOTE_PATH =
-  'prompts/entelequia_tickets_high_priority_note_v1.txt';
+  'prompts/tickets/entelequia_tickets_high_priority_note_v1.txt';
 export const TICKETS_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_tickets_context_instructions_v1.txt';
+  'prompts/tickets/entelequia_tickets_context_instructions_v1.txt';
 export const STORE_INFO_LOCATION_CONTEXT_PATH =
-  'prompts/entelequia_store_info_location_context_v1.txt';
+  'prompts/store-info/entelequia_store_info_location_context_v1.txt';
 export const STORE_INFO_HOURS_CONTEXT_PATH =
-  'prompts/entelequia_store_info_hours_context_v1.txt';
+  'prompts/store-info/entelequia_store_info_hours_context_v1.txt';
 export const STORE_INFO_PARKING_CONTEXT_PATH =
-  'prompts/entelequia_store_info_parking_context_v1.txt';
+  'prompts/store-info/entelequia_store_info_parking_context_v1.txt';
 export const STORE_INFO_TRANSPORT_CONTEXT_PATH =
-  'prompts/entelequia_store_info_transport_context_v1.txt';
+  'prompts/store-info/entelequia_store_info_transport_context_v1.txt';
 export const STORE_INFO_GENERAL_CONTEXT_PATH =
-  'prompts/entelequia_store_info_general_context_v1.txt';
+  'prompts/store-info/entelequia_store_info_general_context_v1.txt';
 export const STORE_INFO_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_store_info_context_instructions_v1.txt';
-export const GENERAL_CONTEXT_HINT_PATH = 'prompts/entelequia_general_context_hint_v1.txt';
+  'prompts/store-info/entelequia_store_info_context_instructions_v1.txt';
+export const GENERAL_CONTEXT_HINT_PATH = 'prompts/general/entelequia_general_context_hint_v1.txt';
 export const GENERAL_CONTEXT_INSTRUCTIONS_PATH =
-  'prompts/entelequia_general_context_instructions_v1.txt';
-export const STATIC_CONTEXT_PATH = 'prompts/entelequia_static_context_v1.txt';
+  'prompts/general/entelequia_general_context_instructions_v1.txt';
+export const STATIC_CONTEXT_PATH = 'prompts/static/entelequia_static_context_v1.txt';
 
 /**
  * Default prompt content fallbacks.
@@ -73,7 +73,8 @@ export const DEFAULT_PRODUCTS_CONTEXT_ADDITIONAL_INFO = [
 export const DEFAULT_PRODUCTS_CONTEXT_INSTRUCTIONS = [
   'Instrucciones para tu respuesta:',
   '- Responder breve y claro, en espanol rioplatense.',
-  '- Mencionar stock, precio y link cuando esten disponibles.',
+  '- Mencionar disponibilidad (hay stock / quedan pocas unidades / sin stock), precio y link cuando esten disponibles.',
+  '- Solo compartir cantidad exacta de unidades si el usuario lo pide explicitamente.',
   '- Si el usuario pide un tomo/numero que no aparece exacto, sugerir la edicion deluxe si existe.',
   '- Si falta informacion, pedir una sola aclaracion corta.',
 ].join('\n');

@@ -1,6 +1,6 @@
 import type { Request } from 'express';
-import { resolveOptionalString, secureEquals } from '../../shared';
-import { HEADER_TURNSTILE_TOKEN, HEADER_WEBHOOK_SECRET } from './constants';
+import { resolveOptionalString } from '../../shared';
+import { HEADER_TURNSTILE_TOKEN } from './constants';
 import type { TurnstileVerificationService } from '../turnstile-verification';
 
 export async function validateWebSignature(
@@ -28,24 +28,5 @@ export async function validateWebSignature(
       token,
       requestId,
     });
-  }
-
-  // Validate webhook secret if configured
-  const expectedSecret = resolveOptionalString(
-    configService.get<string>('WEBHOOK_SECRET'),
-  );
-  if (!expectedSecret) {
-    return;
-  }
-
-  const providedSecret = request.header(HEADER_WEBHOOK_SECRET);
-  if (!providedSecret || providedSecret.trim().length === 0) {
-    throw new Error(
-      `Missing web webhook secret header (${HEADER_WEBHOOK_SECRET})`,
-    );
-  }
-
-  if (!secureEquals(providedSecret, expectedSecret)) {
-    throw new Error('Invalid web webhook secret - authentication failed');
   }
 }

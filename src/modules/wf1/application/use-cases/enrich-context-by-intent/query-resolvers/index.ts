@@ -7,3 +7,4 @@ export { resolveRecommendationsPreferences } from './resolve-recommendations-pre
 export { resolveTicketSignals } from './resolve-ticket-signals';
 export { resolveStoreInfoQueryType } from './resolve-store-info-query-type';
 export { getDefaultCategorySlug } from './recommendation-type-slugs';
+export { resolveStockDisclosure } from './resolve-stock-disclosure';

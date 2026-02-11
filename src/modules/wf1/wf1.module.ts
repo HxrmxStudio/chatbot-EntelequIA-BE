@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ChatController } from './controllers/chat.controller';
 import { IntentController } from './controllers/intent.controller';
+import { MetricsController } from './controllers/metrics.controller';
 import {
   AUDIT_PORT,
   CHAT_PERSISTENCE_PORT,
@@ -8,12 +9,14 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  METRICS_PORT,
   PROMPT_TEMPLATES_PORT,
 } from './application/ports/tokens';
 import { EnrichContextByIntentUseCase } from './application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from './application/use-cases/handle-incoming-message';
 import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http';
 import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor';
+import { PrometheusMetricsAdapter } from './infrastructure/adapters/metrics/prometheus-metrics.adapter';
 import { OpenAiAdapter } from './infrastructure/adapters/openai';
 import { PromptTemplatesAdapter } from './infrastructure/adapters/prompt-templates';
 import {
@@ -32,7 +35,7 @@ import { SignatureValidationService } from './infrastructure/security/services/s
 import { TurnstileVerificationService } from './infrastructure/security/services/turnstile-verification';
 
 @Module({
-  controllers: [ChatController, IntentController],
+  controllers: [ChatController, IntentController, MetricsController],
   providers: [
     SignatureGuard,
     InputValidationGuard,
@@ -45,6 +48,7 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     HandleIncomingMessageUseCase,
     IntentExtractorAdapter,
     EntelequiaHttpAdapter,
+    PrometheusMetricsAdapter,
     OpenAiAdapter,
     PromptTemplatesAdapter,
     PgPoolProvider,
@@ -67,6 +71,10 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     {
       provide: PROMPT_TEMPLATES_PORT,
       useExisting: PromptTemplatesAdapter,
+    },
+    {
+      provide: METRICS_PORT,
+      useExisting: PrometheusMetricsAdapter,
     },
     {
       provide: CHAT_PERSISTENCE_PORT,

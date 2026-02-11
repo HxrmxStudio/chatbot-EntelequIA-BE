@@ -9,3 +9,4 @@ export { buildProductsSummary, buildProductAvailabilityHint } from './summary';
 export type { ProductsAiContext } from './format';
 export { buildProductsAiContext } from './format';
 export { selectBestProductMatch } from './match';
+export { resolveStockLabel } from './stock-visibility';

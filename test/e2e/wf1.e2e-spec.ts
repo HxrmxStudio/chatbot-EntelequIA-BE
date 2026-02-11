@@ -7,7 +7,7 @@ import type { Request, Response } from 'express';
 
 process.env.CHATBOT_DB_URL = 'postgres://test:test@localhost:5432/chatbot';
 process.env.ENTELEQUIA_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
-process.env.WEBHOOK_SECRET = 'test-secret';
+process.env.TURNSTILE_SECRET_KEY = '';
 process.env.WHATSAPP_SECRET = 'test-whatsapp-secret';
 
 import { AppModule } from '@/app.module';
@@ -326,7 +326,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects missing text with semantic validation message', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send({
         source: 'web',
         userId: 'user-1',
@@ -348,28 +347,35 @@ describe('WF1 API (e2e)', () => {
       });
   });
 
-  it('returns 401 with SECURITY prefix when web secret is missing', async () => {
+  it('exposes Prometheus metrics', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .get('/internal/metrics')
+      .expect(200)
+      .expect(({ text }) => {
+        expect(text).toContain('wf1_messages_total');
+        expect(text).toContain('wf1_response_latency_seconds');
+      });
+  });
+
+  it('accepts web requests without webhook secret header', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
       .send({
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'hola',
+        text: 'hola, como va?',
       })
-      .expect(401)
+      .expect(200)
       .expect(({ body }) => {
-        expect(body.ok).toBe(false);
-        expect(body.message).toContain(
-          'SECURITY: Missing web webhook secret header (x-webhook-secret)',
-        );
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
       });
   });
 
   it('returns 401 with SECURITY prefix for unknown source', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send({
         source: 'mobile',
         userId: 'user-1',
@@ -388,7 +394,6 @@ describe('WF1 API (e2e)', () => {
   it('returns requiresAuth for guest order intent', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-order-1')
       .send({
         source: 'web',
@@ -408,7 +413,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for authenticated order intent', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-order-auth-1')
       .set('Authorization', 'Bearer fake-access-token')
       .send({
@@ -429,7 +433,6 @@ describe('WF1 API (e2e)', () => {
   it('resolves access token from Authorization header', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-order-auth-header-1')
       .set('Authorization', 'Bearer fake-access-token-from-header')
       .send({
@@ -450,7 +453,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects malformed Authorization header with 401', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('Authorization', 'Token malformed')
       .send({
         source: 'web',
@@ -468,7 +470,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects body accessToken for public intent with 400', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send({
         source: 'web',
         userId: 'user-1',
@@ -488,7 +489,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects body accessToken for protected intent even when header is present', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('Authorization', 'Bearer header-token')
       .send({
         source: 'web',
@@ -509,7 +509,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects text longer than 4096 characters with semantic validation message', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send({
         source: 'web',
         userId: 'user-1',
@@ -528,7 +527,6 @@ describe('WF1 API (e2e)', () => {
   it('rejects non-string text with semantic validation message', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send({
         source: 'web',
         userId: 'user-1',
@@ -570,7 +568,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for product query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-product-1')
       .send({
         source: 'web',
@@ -624,7 +621,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for payment/shipping query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-payment-shipping-1')
       .send({
         source: 'web',
@@ -643,7 +639,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for recommendations query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-recommendations-1')
       .send({
         source: 'web',
@@ -662,7 +657,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for tickets query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-tickets-1')
       .send({
         source: 'web',
@@ -681,7 +675,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for store_info query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-store-info-1')
       .send({
         source: 'web',
@@ -700,7 +693,6 @@ describe('WF1 API (e2e)', () => {
   it('returns success contract for general query', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .set('x-external-event-id', 'e2e-general-1')
       .send({
         source: 'web',
@@ -726,7 +718,6 @@ describe('WF1 API (e2e)', () => {
 
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send(payload)
       .expect(200)
       .expect(({ body }) => {
@@ -735,7 +726,6 @@ describe('WF1 API (e2e)', () => {
 
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
-      .set('x-webhook-secret', 'test-secret')
       .send(payload)
       .expect(200)
       .expect(({ body }) => {

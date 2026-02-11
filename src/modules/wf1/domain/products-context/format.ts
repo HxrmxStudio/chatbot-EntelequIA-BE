@@ -1,5 +1,6 @@
 import { formatMoney } from '../money';
 import { WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS } from './constants';
+import { resolveStockLabel } from './stock-visibility';
 import type { ProductSearchItem } from './types';
 
 export interface ProductsAiContext {
@@ -26,14 +27,22 @@ export function buildProductsAiContext(input: {
   items: ProductSearchItem[];
   total?: number;
   query?: string;
+  discloseExactStock?: boolean;
+  lowStockThreshold?: number;
   templates?: Partial<ProductsContextTemplates>;
 }): ProductsAiContext {
+  const discloseExactStock = input.discloseExactStock ?? false;
+  const lowStockThreshold = input.lowStockThreshold ?? 3;
   const displayedItems = input.items.slice(0, WF1_PRODUCTS_CONTEXT_AI_MAX_ITEMS);
   const productCount = displayedItems.length;
   const totalCount = typeof input.total === 'number' ? input.total : input.items.length;
   const inStockCount = displayedItems.filter((item) => item.stock > 0).length;
 
-  const formattedList = displayedItems.map((item, index) => formatProductItem(item, index)).join('\n\n');
+  const formattedList = displayedItems
+    .map((item, index) =>
+      formatProductItem(item, index, { discloseExactStock, lowStockThreshold }),
+    )
+    .join('\n\n');
 
   const queryLine =
     typeof input.query === 'string' && input.query.trim().length > 0
@@ -79,13 +88,21 @@ export function buildProductsAiContext(input: {
  * @param index - Zero-based index for numbering
  * @returns Formatted product string
  */
-function formatProductItem(item: ProductSearchItem, index: number): string {
+function formatProductItem(
+  item: ProductSearchItem,
+  index: number,
+  policy: { discloseExactStock: boolean; lowStockThreshold: number },
+): string {
   const category = item.categoryName ?? 'Producto';
   const priceMoney = item.priceWithDiscount ?? item.price;
   const priceText = priceMoney ? formatMoney(priceMoney) : 'Consultar';
   const discount =
     typeof item.discountPercent === 'number' ? ` (-${item.discountPercent}%)` : '';
-  const stockText = item.stock > 0 ? `En stock (${item.stock})` : 'Sin stock';
+  const stockText = resolveStockLabel({
+    stock: item.stock,
+    discloseExact: policy.discloseExactStock,
+    lowStockThreshold: policy.lowStockThreshold,
+  });
   const url = item.url ?? '';
 
   return [

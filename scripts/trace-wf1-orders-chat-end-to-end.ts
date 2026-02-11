@@ -116,7 +116,6 @@ function resolveRequiredEnvString(name: string): string {
 async function main(): Promise<void> {
   // Ensure the security guard does not require Turnstile for this local trace.
   process.env.TURNSTILE_SECRET_KEY = '';
-  process.env.WEBHOOK_SECRET = process.env.WEBHOOK_SECRET ?? 'trace-secret';
   process.env.CHATBOT_DB_URL = process.env.CHATBOT_DB_URL ?? 'postgres://test:test@localhost:5432/chatbot';
   process.env.ENTELEQUIA_API_BASE_URL = process.env.ENTELEQUIA_API_BASE_URL ?? 'https://entelequia.com.ar/api/v1';
   process.env.ENTELEQUIA_WEB_BASE_URL = process.env.ENTELEQUIA_WEB_BASE_URL ?? 'https://entelequia.com.ar';
@@ -160,7 +159,6 @@ async function main(): Promise<void> {
 
   const response = await request(httpApp as Parameters<typeof request>[0])
     .post('/wf1/chat/message')
-    .set('x-webhook-secret', process.env.WEBHOOK_SECRET)
     .set('x-external-event-id', externalEventId)
     .set('Authorization', `Bearer ${login.accessToken}`)
     .send({

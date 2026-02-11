@@ -9,7 +9,7 @@ Date: 2026-02-09
    - `ok=false, requiresAuth=true`
    - `ok=false` generic failure
 3. Signature checks implemented:
-   - Web: `x-webhook-secret` (optional by env)
+   - Web: `x-turnstile-token` verification (when `TURNSTILE_SECRET_KEY` is configured)
    - WhatsApp: `x-hub-signature-256` HMAC (optional by env)
 4. Idempotency via `external_events` unique key (`source`, `external_event_id`).
 5. Persistence minimum covered:
@@ -63,6 +63,7 @@ Final-stage execution order is intentionally explicit in BE orchestration:
 3. Intent extraction is deterministic rule-based in-service (N8N had tool node chain).
 4. LLM adapter falls back to safe templated response if OpenAI is unavailable or key is missing.
 5. n8n `Merge (Append)` is represented by `ContextBlock[]` composition + `appendStaticContextBlock(...)`, no dedicated merge node.
+6. Stock exposure is policy-driven in BE (`v2-banded-stock`): exact inventory is not shown by default and is disclosed only on explicit user request.
 
 ## Widget/host migration parity
 1. Widget payload remains backward compatible and now also forwards optional `currency` + `locale`.
@@ -76,3 +77,11 @@ Final-stage execution order is intentionally explicit in BE orchestration:
 
 ## Trace integrity note (P3)
 `scripts/trace-wf1-up-to-output-validation.ts` computes fallback idempotency hash from `request.rawBody` (not `request.body`) to match controller behavior and avoid trace/prod drift.
+
+## Quality loop extensions (BE-native)
+1. Internal metrics endpoint: `GET /internal/metrics` with Prometheus exposition.
+2. New analytics tables:
+   - `response_evaluations`
+   - `hitl_review_queue`
+   - `hitl_golden_examples`
+3. Outbox idempotency guarantees are documented in `docs/IDEMPOTENCY_GUARANTEES.md`.

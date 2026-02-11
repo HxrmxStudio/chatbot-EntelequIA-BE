@@ -24,7 +24,7 @@ describe('Products Context', () => {
 
       expect(summary).toContain('Productos disponibles:');
       expect(summary).toContain('Attack on Titan Tomo 1');
-      expect(summary).toContain('Stock: 3');
+      expect(summary).toContain('Stock: Quedan pocas unidades');
     });
   });
 
@@ -40,8 +40,27 @@ describe('Products Context', () => {
       });
 
       expect(hint).toContain('tenemos stock');
-      expect(hint).toContain('Stock: 2');
+      expect(hint).toContain('Stock: Quedan pocas unidades');
       expect(hint).toContain('Link: https://entelequia.com.ar/producto/attack-on-titan-tomo-1');
+    });
+
+    it('shows exact stock when policy requires explicit disclosure', () => {
+      const hint = buildProductAvailabilityHint(
+        {
+          id: 1,
+          slug: 'attack-on-titan-tomo-1',
+          title: 'Attack on Titan Tomo 1',
+          stock: 2,
+          price: { currency: 'ARS', amount: 1500 },
+          url: 'https://entelequia.com.ar/producto/attack-on-titan-tomo-1',
+        },
+        {
+          discloseExactStock: true,
+          lowStockThreshold: 3,
+        },
+      );
+
+      expect(hint).toContain('Stock: En stock (2).');
     });
   });
 
@@ -69,6 +88,7 @@ describe('Products Context', () => {
       expect(result.contextText).toContain('PRODUCTOS ENTELEQUIA');
       expect(result.contextText).toContain('ATTACK ON TITAN EDICIÓN DELUXE 01');
       expect(result.contextText).toContain('Mostrando 1 de 2');
+      expect(result.contextText).toContain('Stock: Hay stock');
     });
   });
 

@@ -7,6 +7,7 @@ import {
   IDEMPOTENCY_PORT,
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
+  METRICS_PORT,
   PROMPT_TEMPLATES_PORT,
 } from '@/modules/wf1/application/ports/tokens';
 import type { LlmPort } from '@/modules/wf1/application/ports/llm.port';
@@ -144,6 +145,13 @@ class InMemoryAudit {
     this.onEvent?.('write_audit');
     this.entries.push(input);
   }
+}
+
+class InMemoryMetrics {
+  incrementMessage(): void {}
+  observeResponseLatency(): void {}
+  incrementFallback(): void {}
+  incrementStockExactDisclosure(): void {}
 }
 
 class StubIntentExtractor {
@@ -436,6 +444,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   let audit: InMemoryAudit;
   let entelequia: StubEntelequia;
   let llm: StubLlm;
+  let metrics: InMemoryMetrics;
   let finalStageEvents: string[];
 
   beforeEach(async () => {
@@ -448,6 +457,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     audit = new InMemoryAudit(onEvent);
     entelequia = new StubEntelequia();
     llm = new StubLlm();
+    metrics = new InMemoryMetrics();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -472,6 +482,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         { provide: AUDIT_PORT, useValue: audit },
         { provide: ENTELEQUIA_CONTEXT_PORT, useValue: entelequia },
         { provide: PROMPT_TEMPLATES_PORT, useClass: StubPromptTemplates },
+        { provide: METRICS_PORT, useValue: metrics },
       ],
     }).compile();
 

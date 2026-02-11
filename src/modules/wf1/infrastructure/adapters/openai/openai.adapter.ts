@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createLogger } from '../../../../../common/utils/logger';
-import type { LlmPort } from '../../../application/ports/llm.port';
+import type { LlmPort, LlmReplyResult } from '../../../application/ports/llm.port';
+import type { MetricsPort } from '../../../application/ports/metrics.port';
 import type { ContextBlock } from '../../../domain/context-block';
 import { withRetry } from '../openai-retry';
 import { loadJsonFile, loadPromptFile } from '../shared';
@@ -19,6 +20,7 @@ import { buildFallbackResponseWithPath } from './fallback-builder';
 import { requestOpenAiLegacy, requestOpenAiStructured } from './openai-client';
 import { isRetryableHttpStatus, isTimeoutOrNetwork } from './retry-helpers';
 import type { OpenAiLegacyResult, OpenAiStructuredResult } from './types';
+import { METRICS_PORT } from '../../../application/ports/tokens';
 
 type FallbackReason =
   | 'missing_api_key'
@@ -40,7 +42,10 @@ export class OpenAiAdapter implements LlmPort {
   private readonly structuredOutputEnabled: boolean;
   private readonly structuredOutputRolloutPercent: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(METRICS_PORT) private readonly metrics: MetricsPort,
+  ) {
     this.timeoutMs = this.configService.get<number>('OPENAI_TIMEOUT_MS') ?? 8000;
     this.systemPrompt = loadPromptFile(ASSISTANT_PROMPT_PATH, DEFAULT_SYSTEM_PROMPT);
     this.schema = loadJsonFile(ASSISTANT_SCHEMA_PATH, DEFAULT_ASSISTANT_SCHEMA);
@@ -61,7 +66,7 @@ export class OpenAiAdapter implements LlmPort {
     intent: Parameters<LlmPort['buildAssistantReply']>[0]['intent'];
     history: Array<{ sender: string; content: string; createdAt: string }>;
     contextBlocks: ContextBlock[];
-  }): Promise<string> {
+  }): Promise<LlmReplyResult> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     const model = this.configService.get<string>('OPENAI_MODEL') ?? 'gpt-4.1-mini';
     const useStructuredPath = this.shouldUseStructuredPath(input.requestId);
@@ -156,7 +161,16 @@ export class OpenAiAdapter implements LlmPort {
         mode: useStructuredPath ? 'structured' : 'legacy',
       });
 
-      return message;
+      return {
+        message,
+        metadata: {
+          llmPath: useStructuredPath ? 'structured_success' : 'legacy_success',
+          inputTokenCount: result.usage.inputTokens,
+          outputTokenCount: result.usage.outputTokens,
+          cachedTokenCount: result.usage.cachedTokens,
+          promptVersion: 'assistant_v1',
+        },
+      };
     } catch (error: unknown) {
       return this.buildAndLogFallback({
         reason: this.resolveFallbackReason(error),
@@ -178,8 +192,9 @@ export class OpenAiAdapter implements LlmPort {
     model: string;
     attempts: number;
     errorMessage?: string;
-  }): string {
+  }): LlmReplyResult {
     const fallback = buildFallbackResponseWithPath(input.intent, input.contextBlocks);
+    this.metrics.incrementFallback(input.reason);
 
     this.logger.warn('openai_assistant_reply_fallback', {
       event: 'openai_assistant_reply_fallback',
@@ -193,7 +208,14 @@ export class OpenAiAdapter implements LlmPort {
       schema_error: input.reason === 'schema_invalid' ? input.errorMessage ?? null : null,
     });
 
-    return fallback.message;
+    return {
+      message: fallback.message,
+      metadata: {
+        llmPath: fallback.path,
+        fallbackReason: input.reason,
+        promptVersion: 'assistant_v1',
+      },
+    };
   }
 
   private logPromptDiagnostics(

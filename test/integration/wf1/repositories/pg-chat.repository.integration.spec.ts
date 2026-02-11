@@ -92,6 +92,15 @@ describe('PgChatRepository (PostgreSQL integration)', () => {
       expect(result.rowCount).toBe(2);
       expect(result.rows.map((row) => row.sender).sort()).toEqual(['bot', 'user']);
 
+      const outboxForWeb = await pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total
+         FROM outbox_messages
+         WHERE to_ref = $1
+           AND channel = 'whatsapp'`,
+        [userId],
+      );
+      expect(outboxForWeb.rows[0]?.total).toBe(0);
+
       const lastBotMessage = await repository.getLastBotMessageByExternalEvent({
         channel: 'web',
         externalEventId,

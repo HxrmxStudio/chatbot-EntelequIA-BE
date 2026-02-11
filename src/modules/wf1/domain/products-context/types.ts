@@ -25,4 +25,7 @@ export interface ProductsContextPayload {
   productCount?: number;
   totalCount?: number;
   inStockCount?: number;
+  stockDisclosurePolicy?: 'banded' | 'exact';
+  lowStockThreshold?: number;
+  discloseExactStock?: boolean;
 }

@@ -60,7 +60,7 @@ Behavior:
 - Uses `max_output_tokens=150`, `temperature=0.2` and `verbosity=medium`.
 - Enforces JSON schema output and retries on transient/validation failures.
 - Falls back to `{ intent: "general", confidence: 0.55, entities: [] }` when classification cannot be produced.
-- Prompt source: `prompts/entelequia_intent_system_prompt_v1.txt`
+- Prompt source: `prompts/system/entelequia_intent_system_prompt_v1.txt`
 - Schema source: `schemas/entelequia_intent_classification.schema.json`
 
 ## Entelequia backend mapping (strict)
@@ -76,7 +76,7 @@ Forbidden endpoints are not used (`/api/v1/products`, `/chatbot/context`).
 
 ## Security
 - DTO validation + sanitization
-- Optional web signature (`x-webhook-secret`)
+- Optional web anti-bot verification (`x-turnstile-token`)
 - Optional WhatsApp signature (`x-hub-signature-256`)
 - Request ID propagation (`x-request-id`)
 - Access tokens are never logged in full

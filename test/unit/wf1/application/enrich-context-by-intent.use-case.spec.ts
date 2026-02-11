@@ -93,6 +93,9 @@ describe('EnrichContextByIntentUseCase', () => {
       query: 'One Piece',
       currency: 'ARS',
     });
+    expect(result[0].contextPayload).toHaveProperty('stockDisclosurePolicy', 'banded');
+    expect(result[0].contextPayload).toHaveProperty('lowStockThreshold', 3);
+    expect(result[0].contextPayload).toHaveProperty('discloseExactStock', false);
   });
 
   it('strips volume hints and generic tokens from products query entities', async () => {
@@ -107,6 +110,18 @@ describe('EnrichContextByIntentUseCase', () => {
       categorySlug: 'mangas',
       currency: 'ARS',
     });
+  });
+
+  it('enables exact stock disclosure when user asks for exact quantity', async () => {
+    const result = await useCase.execute({
+      intentResult: { intent: 'products', confidence: 0.9, entities: ['Attack on Titan'] },
+      text: 'Cuantas unidades tienen de Attack on Titan?',
+      currency: 'ARS',
+    });
+
+    expect(result[0].contextType).toBe('products');
+    expect(result[0].contextPayload).toHaveProperty('discloseExactStock', true);
+    expect(result[0].contextPayload).toHaveProperty('stockDisclosurePolicy', 'exact');
   });
 
   it('adds bestMatch, availabilityHint and aiContext when matching products are available', async () => {
@@ -172,10 +187,13 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(payload).toHaveProperty('availabilityHint');
     expect(payload).toHaveProperty('productCount');
     expect(payload).toHaveProperty('inStockCount');
+    expect(payload).toHaveProperty('stockDisclosurePolicy', 'banded');
+    expect(payload).toHaveProperty('discloseExactStock', false);
 
     expect((payload.bestMatch as { slug?: string }).slug).toBe('attack-on-titan-edicion-deluxe-01_54297');
     expect(typeof payload.availabilityHint).toBe('string');
     expect(String(payload.availabilityHint)).toContain('DELUXE 01');
+    expect(String(payload.availabilityHint)).toContain('Stock: Hay stock');
 
     expect(entelequiaPort.getProductDetail).toHaveBeenCalledWith({
       idOrSlug: 'attack-on-titan-edicion-deluxe-01_54297',

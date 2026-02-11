@@ -12,7 +12,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4.1-mini}
       - OPENAI_TIMEOUT_MS=12000
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
       - WHATSAPP_SECRET=${WHATSAPP_SECRET}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://entelequia.com.ar,http://localhost:5173}
       - LOG_LEVEL=log
