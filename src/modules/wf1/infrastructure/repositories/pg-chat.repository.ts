@@ -160,9 +160,10 @@ export class PgChatRepository implements ChatPersistencePort {
         ],
       );
 
-      await client.query(
+      const botMessageInsert = await client.query<{ id: string }>(
         `INSERT INTO messages (conversation_id, user_id, content, sender, type, channel, external_event_id, metadata)
-         VALUES ($1, $2, $3, 'bot', 'text', $4, $5, $6::jsonb)`,
+         VALUES ($1, $2, $3, 'bot', 'text', $4, $5, $6::jsonb)
+         RETURNING id`,
         [
           input.conversationId,
           input.userId,
@@ -174,11 +175,19 @@ export class PgChatRepository implements ChatPersistencePort {
       );
 
       if (input.source === 'whatsapp') {
+        const botMessageId = botMessageInsert.rows[0]?.id ?? null;
+        const outboxConversationId = asNullableUuid(input.conversationId);
+
         await client.query(
-          `INSERT INTO outbox_messages (channel, to_ref, payload, status)
-           VALUES ('whatsapp', $1, $2::jsonb, 'pending')`,
+          `INSERT INTO outbox_messages (channel, to_ref, conversation_id, message_id, payload, status)
+           VALUES ('whatsapp', $1, $2::uuid, $3::uuid, $4::jsonb, 'pending')
+           ON CONFLICT (message_id, channel, to_ref)
+             WHERE message_id IS NOT NULL
+           DO NOTHING`,
           [
             input.userId,
+            outboxConversationId,
+            botMessageId,
             toJsonb({
               conversationId: input.conversationId,
               message: input.botMessage,
@@ -238,6 +247,18 @@ export class PgChatRepository implements ChatPersistencePort {
     );
   }
 }
+
+function asNullableUuid(value: string): string | null {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  return UUID_V4_PATTERN.test(normalized) ? normalized : null;
+}
+
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type UserUpsertRow = {
   id: string;

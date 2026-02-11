@@ -9,3 +9,5 @@
 ## 2026-02-11
 
 1. **n8n Merge (Append) equivalence**: WF1 does not need an explicit merge step. The equivalent behavior is the `ContextBlock[]` composition in `enrich-context-by-intent` followed by `appendStaticContextBlock(...)` before LLM call. This preserves append semantics and deterministic order (`intent blocks` first, `static_context` last).
+2. **Final output-stage mapping is functional, not node-literal**: `Extract Response`, `Save Messages`, `Audit Log`, `Check WhatsApp Channel`, `Queue WhatsApp`, and `HTTP Response` are mapped to existing BE orchestrators/repositories (use-case + adapters/repositories), preserving behavior without creating artificial n8n-style nodes.
+3. **Trace idempotency integrity**: the fallback `externalEventId` candidate in trace scripts uses `request.rawBody` (not `request.body`) to stay aligned with controller/runtime behavior and avoid idempotency drift during diagnostics.

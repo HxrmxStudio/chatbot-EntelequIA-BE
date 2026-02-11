@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import type { Request } from 'express';
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { validateEnv } from '../src/common/config/env.validation';
 import { SignatureValidationService } from '../src/modules/wf1/infrastructure/security/services/signature-validation';
@@ -33,6 +33,7 @@ import { PgChatRepository } from '../src/modules/wf1/infrastructure/repositories
 import { PgAuditRepository } from '../src/modules/wf1/infrastructure/repositories/pg-audit.repository';
 
 type PlainObject = Record<string, unknown>;
+type TraceSource = 'web' | 'whatsapp';
 
 type TraceStage = 'output' | 'context' | 'llm' | 'persist';
 
@@ -54,14 +55,28 @@ function resolveTraceStage(value: unknown): TraceStage {
   return 'output';
 }
 
-function buildWebRequest(input: {
-  webhookSecret: string;
+function resolveTraceSource(value: unknown): TraceSource {
+  if (typeof value !== 'string') {
+    return 'web';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'whatsapp' ? 'whatsapp' : 'web';
+}
+
+function buildTraceRequest(input: {
+  headers: Record<string, string>;
   externalEventId?: string;
   body: PlainObject;
   rawBody: string;
 }): Request {
   const headers = new Map<string, string>();
-  headers.set('x-webhook-secret', input.webhookSecret);
+  for (const [name, value] of Object.entries(input.headers)) {
+    if (value.trim().length > 0) {
+      headers.set(name.toLowerCase(), value);
+    }
+  }
+
   if (input.externalEventId) {
     headers.set('x-external-event-id', input.externalEventId);
   }
@@ -73,6 +88,10 @@ function buildWebRequest(input: {
   };
 
   return request as unknown as Request;
+}
+
+function buildWhatsappSignature(input: { rawBody: string; secret: string }): string {
+  return `sha256=${createHmac('sha256', input.secret).update(input.rawBody).digest('hex')}`;
 }
 
 function getRequestRawBody(request: Request): string {
@@ -143,11 +162,21 @@ function stageAtLeast(current: TraceStage, minimum: TraceStage): boolean {
 
 async function main(): Promise<void> {
   const startedAt = Date.now();
+  const traceSource = resolveTraceSource(process.env.TRACE_SOURCE);
 
   // Provide a safe default for local trace runs.
   // Real deployments should set WEBHOOK_SECRET explicitly.
-  if (!process.env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET.trim().length === 0) {
+  if (
+    traceSource === 'web' &&
+    (!process.env.WEBHOOK_SECRET || process.env.WEBHOOK_SECRET.trim().length === 0)
+  ) {
     process.env.WEBHOOK_SECRET = 'trace-secret';
+  }
+  if (
+    traceSource === 'whatsapp' &&
+    (!process.env.WHATSAPP_SECRET || process.env.WHATSAPP_SECRET.trim().length === 0)
+  ) {
+    process.env.WHATSAPP_SECRET = 'trace-whatsapp-secret';
   }
 
   const moduleRef = await Test.createTestingModule({
@@ -206,7 +235,7 @@ async function main(): Promise<void> {
   const traceText = process.env.TRACE_TEXT?.trim();
 
   const inboundBody = {
-    source: 'web',
+    source: traceSource,
     userId: traceUserId && traceUserId.length > 0 ? traceUserId : `trace-web-user-${randomUUID()}`,
     conversationId:
       traceConversationId && traceConversationId.length > 0
@@ -218,11 +247,19 @@ async function main(): Promise<void> {
         : 'Hola, tienen manga Nro 1 de Attack on Titan?',
   } satisfies PlainObject;
 
-  const webSecret = String(process.env.WEBHOOK_SECRET ?? '');
   const rawBody = JSON.stringify(inboundBody);
+  const requestHeaders: Record<string, string> = {};
+  if (traceSource === 'web') {
+    requestHeaders['x-webhook-secret'] = String(process.env.WEBHOOK_SECRET ?? '');
+  } else {
+    requestHeaders['x-hub-signature-256'] = buildWhatsappSignature({
+      rawBody,
+      secret: String(process.env.WHATSAPP_SECRET ?? ''),
+    });
+  }
   const traceExternalEventId = process.env.TRACE_EXTERNAL_EVENT_ID?.trim();
-  const request = buildWebRequest({
-    webhookSecret: webSecret,
+  const request = buildTraceRequest({
+    headers: requestHeaders,
     externalEventId:
       traceExternalEventId && traceExternalEventId.length > 0 ? traceExternalEventId : undefined,
     body: inboundBody,
@@ -339,6 +376,9 @@ async function main(): Promise<void> {
 
       if (stageAtLeast(traceStage, 'llm')) {
         assistantReply = await llmAdapter.buildAssistantReply({
+          requestId,
+          conversationId: canonicalPayload.conversationId,
+          externalEventId,
           userText: sanitizedText,
           intent: routedIntent,
           history,
@@ -423,12 +463,16 @@ async function main(): Promise<void> {
     traceFull,
     traceStage,
     inbound: {
-      headers: {
-        'x-webhook-secret': redact(webSecret),
-        ...(request.header('x-external-event-id')
-          ? { 'x-external-event-id': request.header('x-external-event-id') }
-          : {}),
-      },
+      headers: Object.entries({
+        'x-webhook-secret': request.header('x-webhook-secret'),
+        'x-hub-signature-256': request.header('x-hub-signature-256'),
+        'x-external-event-id': request.header('x-external-event-id'),
+      }).reduce<Record<string, unknown>>((acc, [name, value]) => {
+        if (typeof value === 'string' && value.length > 0) {
+          acc[name] = name === 'x-external-event-id' ? value : redact(value);
+        }
+        return acc;
+      }, {}),
       rawBody,
       body: inboundBody,
     },

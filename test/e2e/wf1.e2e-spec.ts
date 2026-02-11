@@ -1,10 +1,14 @@
 import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createHmac } from 'node:crypto';
+import { json } from 'express';
+import type { Request, Response } from 'express';
 
 process.env.CHATBOT_DB_URL = 'postgres://test:test@localhost:5432/chatbot';
 process.env.ENTELEQUIA_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 process.env.WEBHOOK_SECRET = 'test-secret';
+process.env.WHATSAPP_SECRET = 'test-whatsapp-secret';
 
 import { AppModule } from '@/app.module';
 import { EntelequiaHttpAdapter } from '@/modules/wf1/infrastructure/adapters/entelequia-http';
@@ -17,6 +21,11 @@ import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
 
 class E2ERepository {
   private readonly seen = new Set<string>();
+  public turns: Array<{
+    source: 'web' | 'whatsapp';
+    conversationId: string;
+    externalEventId: string;
+  }> = [];
 
   async onModuleInit(): Promise<void> {}
 
@@ -90,7 +99,17 @@ class E2ERepository {
     return null;
   }
 
-  async persistTurn(): Promise<void> {}
+  async persistTurn(input: {
+    source: 'web' | 'whatsapp';
+    conversationId: string;
+    externalEventId: string;
+  }): Promise<void> {
+    this.turns.push({
+      source: input.source,
+      conversationId: input.conversationId,
+      externalEventId: input.externalEventId,
+    });
+  }
 
   async startProcessing(input: {
     source: 'web' | 'whatsapp';
@@ -260,13 +279,14 @@ class E2ELlm {
 describe('WF1 API (e2e)', () => {
   let app: INestApplication;
   let httpApp: unknown;
+  let e2eRepo: E2ERepository;
 
   beforeAll(async () => {
     const moduleBuilder = Test.createTestingModule({
       imports: [AppModule],
     });
 
-    const e2eRepo = new E2ERepository();
+    e2eRepo = new E2ERepository();
     moduleBuilder.overrideProvider(PgChatRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(PgIdempotencyRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(PgAuditRepository).useValue(e2eRepo);
@@ -276,7 +296,14 @@ describe('WF1 API (e2e)', () => {
 
     const moduleRef = await moduleBuilder.compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication({ bodyParser: false });
+    app.use(
+      json({
+        verify: (req: Request, _res: Response, buf: Buffer) => {
+          (req as Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+        },
+      }),
+    );
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -557,6 +584,41 @@ describe('WF1 API (e2e)', () => {
         expect(body.conversationId).toBe('conv-1');
         expect(typeof body.message).toBe('string');
       });
+  });
+
+  it('returns success for whatsapp source and persists turn with whatsapp channel', async () => {
+    const payload = {
+      source: 'whatsapp',
+      userId: 'wa-user-1',
+      conversationId: 'conv-wa-1',
+      text: 'hola desde whatsapp',
+    };
+    const rawBody = JSON.stringify(payload);
+    const whatsappSignature = `sha256=${createHmac(
+      'sha256',
+      process.env.WHATSAPP_SECRET ?? '',
+    )
+      .update(rawBody)
+      .digest('hex')}`;
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-whatsapp-1')
+      .set('x-hub-signature-256', whatsappSignature)
+      .set('Content-Type', 'application/json')
+      .send(rawBody)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-wa-1');
+        expect(typeof body.message).toBe('string');
+      });
+
+    expect(e2eRepo.turns).toContainEqual({
+      source: 'whatsapp',
+      conversationId: 'conv-wa-1',
+      externalEventId: 'e2e-whatsapp-1',
+    });
   });
 
   it('returns success contract for payment/shipping query', async () => {

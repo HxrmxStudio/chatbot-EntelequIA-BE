@@ -194,6 +194,14 @@ export class HandleIncomingMessageUseCase {
         enriched_data_keys: Object.keys(enrichedData),
       });
 
+      this.logger.info('final_stage_started', {
+        event: 'final_stage_started',
+        request_id: input.requestId,
+        conversation_id: input.payload.conversationId,
+        intent: routedIntent,
+        source: input.payload.source,
+      });
+
       let contextBlocks;
       let response: Wf1Response;
 
@@ -254,6 +262,16 @@ export class HandleIncomingMessageUseCase {
         },
       });
 
+      this.logger.info('final_stage_persisted', {
+        event: 'final_stage_persisted',
+        request_id: input.requestId,
+        conversation_id: input.payload.conversationId,
+        intent: response.ok ? (response.intent ?? 'general') : 'error',
+        source: input.payload.source,
+        outbox_expected: input.payload.source === 'whatsapp',
+        latency_ms: Date.now() - startedAt,
+      });
+
       await this.idempotencyPort.markProcessed({
         source: input.payload.source,
         externalEventId: input.externalEventId,
@@ -277,6 +295,16 @@ export class HandleIncomingMessageUseCase {
           sentiment: validatedIntent.sentiment,
           responseType: auditStatus.responseType,
         },
+      });
+
+      this.logger.info('final_stage_audited', {
+        event: 'final_stage_audited',
+        request_id: input.requestId,
+        conversation_id: input.payload.conversationId,
+        intent: response.ok ? (response.intent ?? 'general') : 'error',
+        source: input.payload.source,
+        status: auditStatus.status,
+        latency_ms: Date.now() - startedAt,
       });
 
       return response;
@@ -312,6 +340,16 @@ export class HandleIncomingMessageUseCase {
         metadata: {
           externalEventId: input.externalEventId,
         },
+      });
+
+      this.logger.info('final_stage_audited', {
+        event: 'final_stage_audited',
+        request_id: input.requestId,
+        conversation_id: input.payload.conversationId,
+        intent: 'error',
+        source: input.payload.source,
+        status: 'failure',
+        latency_ms: Date.now() - startedAt,
       });
 
       return fallbackResponse;

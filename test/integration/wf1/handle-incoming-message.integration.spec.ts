@@ -18,6 +18,8 @@ import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-case
 import { HandleIncomingMessageUseCase } from '@/modules/wf1/application/use-cases/handle-incoming-message';
 
 class InMemoryPersistence {
+  constructor(private readonly onEvent?: (event: string) => void) {}
+
   public turns: PersistTurnInput[] = [];
   public authenticatedProfiles: Array<{
     id: string;
@@ -101,6 +103,7 @@ class InMemoryPersistence {
   }
 
   async persistTurn(input: PersistTurnInput): Promise<void> {
+    this.onEvent?.('persist_turn');
     this.turns.push(input);
     const key = `${input.source}:${input.externalEventId}`;
     this.botByEvent.set(key, input.botMessage);
@@ -108,6 +111,8 @@ class InMemoryPersistence {
 }
 
 class InMemoryIdempotency {
+  constructor(private readonly onEvent?: (event: string) => void) {}
+
   private readonly seen = new Set<string>();
 
   async startProcessing(input: {
@@ -123,15 +128,20 @@ class InMemoryIdempotency {
     return { isDuplicate: false };
   }
 
-  async markProcessed(): Promise<void> {}
+  async markProcessed(): Promise<void> {
+    this.onEvent?.('mark_processed');
+  }
 
   async markFailed(): Promise<void> {}
 }
 
 class InMemoryAudit {
+  constructor(private readonly onEvent?: (event: string) => void) {}
+
   public entries: AuditEntryInput[] = [];
 
   async writeAudit(input: AuditEntryInput): Promise<void> {
+    this.onEvent?.('write_audit');
     this.entries.push(input);
   }
 }
@@ -426,11 +436,16 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   let audit: InMemoryAudit;
   let entelequia: StubEntelequia;
   let llm: StubLlm;
+  let finalStageEvents: string[];
 
   beforeEach(async () => {
-    persistence = new InMemoryPersistence();
-    idempotency = new InMemoryIdempotency();
-    audit = new InMemoryAudit();
+    finalStageEvents = [];
+    const onEvent = (event: string): void => {
+      finalStageEvents.push(event);
+    };
+    persistence = new InMemoryPersistence(onEvent);
+    idempotency = new InMemoryIdempotency(onEvent);
+    audit = new InMemoryAudit(onEvent);
     entelequia = new StubEntelequia();
     llm = new StubLlm();
 
@@ -835,5 +850,39 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     const contextTypes =
       llm.lastInput?.contextBlocks.map((block) => block.contextType) ?? [];
     expect(contextTypes).toEqual(['store_info', 'static_context']);
+  });
+
+  it('executes final stage in order (persist -> mark_processed -> audit)', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-13',
+      externalEventId: 'event-final-stage-order',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const persistIndex = finalStageEvents.indexOf('persist_turn');
+    const markProcessedIndex = finalStageEvents.indexOf('mark_processed');
+    const auditIndex = finalStageEvents.indexOf('write_audit');
+
+    expect(persistIndex).toBeGreaterThan(-1);
+    expect(markProcessedIndex).toBeGreaterThan(-1);
+    expect(auditIndex).toBeGreaterThan(-1);
+    expect(persistIndex).toBeLessThan(markProcessedIndex);
+    expect(markProcessedIndex).toBeLessThan(auditIndex);
   });
 });

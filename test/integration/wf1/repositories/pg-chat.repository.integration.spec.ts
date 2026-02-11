@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { PgChatRepository } from '@/modules/wf1/infrastructure/repositories/pg-chat.repository';
 import { PG_POOL } from '@/modules/wf1/application/ports/tokens';
 
-const REQUIRED_TABLES = ['users', 'conversations', 'messages', 'external_events'];
+const REQUIRED_TABLES = ['users', 'conversations', 'messages', 'external_events', 'outbox_messages'];
 
 jest.setTimeout(30_000);
 
@@ -102,6 +102,74 @@ describe('PgChatRepository (PostgreSQL integration)', () => {
       await cleanupConversationData(pool, { conversationId, userId });
     }
   });
+
+  (hasDbUrl ? it : it.skip)('stores whatsapp outbox with message_id and conversation_id when source=whatsapp', async () => {
+    if (!repository || !pool) {
+      throw new Error('Repository test setup failed');
+    }
+
+    const runId = randomUUID();
+    const userId = `it-user-${runId}`;
+    const conversationId = randomUUID();
+    const externalEventId = `it-event-whatsapp-${runId}`;
+
+    try {
+      await repository.persistTurn({
+        conversationId,
+        userId,
+        source: 'whatsapp',
+        externalEventId,
+        userMessage: 'hola',
+        botMessage: 'hola desde whatsapp',
+        intent: 'general',
+        metadata: { test: 'pg-integration-whatsapp' },
+      });
+
+      const outbox = await pool.query<{
+        channel: string;
+        to_ref: string;
+        conversation_id: string | null;
+        message_id: string | null;
+        external_event_id: string | null;
+      }>(
+        `SELECT
+           channel::text,
+           to_ref,
+           conversation_id::text AS conversation_id,
+           message_id::text AS message_id,
+           payload->>'externalEventId' AS external_event_id
+         FROM outbox_messages
+         WHERE channel = 'whatsapp'
+           AND to_ref = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [userId],
+      );
+
+      expect(outbox.rowCount).toBe(1);
+      expect(outbox.rows[0]?.channel).toBe('whatsapp');
+      expect(outbox.rows[0]?.to_ref).toBe(userId);
+      expect(outbox.rows[0]?.conversation_id).toBe(conversationId);
+      expect(outbox.rows[0]?.external_event_id).toBe(externalEventId);
+      expect(outbox.rows[0]?.message_id).toEqual(expect.any(String));
+
+      const botMessage = await pool.query<{ id: string }>(
+        `SELECT id::text AS id
+         FROM messages
+         WHERE conversation_id = $1
+           AND external_event_id = $2
+           AND sender = 'bot'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [conversationId, externalEventId],
+      );
+
+      expect(botMessage.rowCount).toBe(1);
+      expect(outbox.rows[0]?.message_id).toBe(botMessage.rows[0]?.id);
+    } finally {
+      await cleanupConversationData(pool, { conversationId, userId });
+    }
+  });
 });
 
 function resolveDatabaseUrl(): string {
@@ -168,6 +236,7 @@ async function cleanupConversationData(
   pool: Pool,
   input: { conversationId: string; userId: string },
 ): Promise<void> {
+  await pool.query('DELETE FROM outbox_messages WHERE to_ref = $1', [input.userId]);
   await pool.query('DELETE FROM messages WHERE conversation_id = $1', [input.conversationId]);
   await pool.query('DELETE FROM conversations WHERE id = $1', [input.conversationId]);
   await pool.query('DELETE FROM users WHERE id = $1', [input.userId]);

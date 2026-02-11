@@ -35,6 +35,26 @@ Date: 2026-02-09
    - 5xx/timeout/network => generic fallback
    - invalid payload => HTTP 400
 
+## Final output stage mapping (legacy n8n -> dedicated BE)
+
+| Legacy stage | Dedicated BE equivalent |
+| --- | --- |
+| Extract Response | `OpenAiAdapter` (structured/legacy path) + `fallback-builder` |
+| Save Messages | `PgChatRepository.persistTurn()` |
+| Audit Log | `PgAuditRepository.writeAudit()` |
+| Check WhatsApp Channel | branch by `payload.source` in use-case/repository |
+| Queue WhatsApp | `outbox_messages` insert in the same transaction as message persistence |
+| HTTP Response | `Wf1Response` returned from `HandleIncomingMessageUseCase` via controller |
+
+Final-stage execution order is intentionally explicit in BE orchestration:
+1. `enrichContextByIntent(...)`
+2. `appendStaticContextBlock(...)`
+3. `llmPort.buildAssistantReply(...)`
+4. `chatPersistence.persistTurn(...)` (and queue outbox for `source=whatsapp`)
+5. `idempotencyPort.markProcessed(...)`
+6. `auditPort.writeAudit(...)`
+7. Return `Wf1Response`
+
 ## Controlled differences
 1. `audit_logs` table added in dedicated service because reusable schema did not include explicit audit table.
 2. Idempotency key source:
@@ -42,6 +62,7 @@ Date: 2026-02-09
    - Fallback: SHA-256 from raw body (documented conservative behavior).
 3. Intent extraction is deterministic rule-based in-service (N8N had tool node chain).
 4. LLM adapter falls back to safe templated response if OpenAI is unavailable or key is missing.
+5. n8n `Merge (Append)` is represented by `ContextBlock[]` composition + `appendStaticContextBlock(...)`, no dedicated merge node.
 
 ## Widget/host migration parity
 1. Widget payload remains backward compatible and now also forwards optional `currency` + `locale`.
@@ -52,3 +73,6 @@ Date: 2026-02-09
 1. Service build + lint + unit/integration/e2e tests.
 2. Widget type-check + build.
 3. Frontend host build.
+
+## Trace integrity note (P3)
+`scripts/trace-wf1-up-to-output-validation.ts` computes fallback idempotency hash from `request.rawBody` (not `request.body`) to match controller behavior and avoid trace/prod drift.

@@ -352,7 +352,7 @@ Los repositorios comparten helpers comunes para operaciones JSON y conversión d
 
 Ejemplos:
 - `repositories/shared/` — `json-helpers.ts` con `toJsonb` (convierte valores a JSON string para columnas jsonb)
-- `repositories/pg-chat.repository.ts` — usa `toJsonb` y `coerceTimestamp` (desde `common/utils/date.utils.ts`)
+- `repositories/pg-chat.repository.ts` — usa `toJsonb` y `coerceTimestamp` (desde `common/utils/date.utils.ts`). Para WhatsApp, el outbox incluye `conversation_id` y `message_id` con `ON CONFLICT (message_id, channel, to_ref) DO NOTHING` para idempotencia.
 
 Los helpers compartidos eliminan duplicación (DRY) de operaciones JSON y conversión de timestamps.
 
