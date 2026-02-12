@@ -17,6 +17,7 @@ import type { PersistTurnInput } from '@/modules/wf1/application/ports/chat-pers
 import { TextSanitizer } from '@/modules/wf1/infrastructure/security/services/text-sanitizer';
 import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from '@/modules/wf1/application/use-cases/handle-incoming-message';
+import { EntelequiaOrderLookupClient } from '@/modules/wf1/infrastructure/adapters/entelequia-http';
 
 class InMemoryPersistence {
   constructor(private readonly onEvent?: (event: string) => void) {}
@@ -241,6 +242,18 @@ class StubLlm implements LlmPort {
     input: Parameters<LlmPort['buildAssistantReply']>[0],
   ): Promise<string> {
     this.lastInput = input;
+
+    if (input.intent === 'store_info') {
+      const normalizedText = input.userText.toLowerCase();
+      if (
+        normalizedText.includes('horario') ||
+        normalizedText.includes('abren') ||
+        normalizedText.includes('feriado')
+      ) {
+        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
+      }
+    }
+
     return 'Respuesta de prueba';
   }
 }
@@ -311,6 +324,63 @@ class StubEntelequia {
     return {
       contextType: 'order_detail',
       contextPayload: { order: {} },
+    };
+  }
+}
+
+class StubOrderLookupClient {
+  public mode: 'matched' | 'not-found' | 'invalid' | 'unauthorized' | 'throttled' = 'matched';
+
+  async lookupOrder(): Promise<{
+    ok: boolean;
+    order?: {
+      id: string | number;
+      state: string;
+      total?: { currency: string; amount: number };
+      paymentMethod?: string;
+      shipMethod?: string;
+      trackingCode?: string;
+    };
+    code?: 'not_found_or_mismatch' | 'invalid_payload' | 'unauthorized' | 'throttled';
+  }> {
+    if (this.mode === 'matched') {
+      return {
+        ok: true,
+        order: {
+          id: 12345,
+          state: 'En preparación',
+          total: { currency: 'ARS', amount: 5100 },
+          paymentMethod: 'Mercado Pago',
+          shipMethod: 'Envío - Correo',
+          trackingCode: 'ABC123',
+        },
+      };
+    }
+
+    if (this.mode === 'not-found') {
+      return {
+        ok: false,
+        code: 'not_found_or_mismatch',
+      };
+    }
+
+    if (this.mode === 'invalid') {
+      return {
+        ok: false,
+        code: 'invalid_payload',
+      };
+    }
+
+    if (this.mode === 'unauthorized') {
+      return {
+        ok: false,
+        code: 'unauthorized',
+      };
+    }
+
+    return {
+      ok: false,
+      code: 'throttled',
     };
   }
 }
@@ -405,7 +475,13 @@ class StubPromptTemplates {
   }
 
   getStoreInfoHoursContext(): string {
-    return 'Info de horarios';
+    return [
+      'HORARIOS DE ATENCION',
+      '- Lunes a viernes: 10:00 a 19:00 hs.',
+      '- Sabados: 11:00 a 18:00 hs.',
+      '- Domingos: cerrado.',
+      '- Feriados y fechas especiales: validar horario actualizado en canales oficiales.',
+    ].join('\n');
   }
 
   getStoreInfoParkingContext(): string {
@@ -421,7 +497,11 @@ class StubPromptTemplates {
   }
 
   getStoreInfoContextInstructions(): string {
-    return 'Instrucciones de store_info';
+    return [
+      'Instrucciones para tu respuesta:',
+      '- Primero responder el dato solicitado.',
+      '- Luego agregar disclaimer de feriados si aplica.',
+    ].join('\n');
   }
 
   getGeneralContextHint(): string {
@@ -443,6 +523,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   let idempotency: InMemoryIdempotency;
   let audit: InMemoryAudit;
   let entelequia: StubEntelequia;
+  let orderLookupClient: StubOrderLookupClient;
   let llm: StubLlm;
   let metrics: InMemoryMetrics;
   let finalStageEvents: string[];
@@ -456,6 +537,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     idempotency = new InMemoryIdempotency(onEvent);
     audit = new InMemoryAudit(onEvent);
     entelequia = new StubEntelequia();
+    orderLookupClient = new StubOrderLookupClient();
     llm = new StubLlm();
     metrics = new InMemoryMetrics();
 
@@ -471,6 +553,9 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
               if (key === 'CHAT_HISTORY_LIMIT') {
                 return 10;
               }
+              if (key === 'WF1_UI_CARDS_ENABLED') {
+                return true;
+              }
               return undefined;
             },
           },
@@ -481,6 +566,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         { provide: IDEMPOTENCY_PORT, useValue: idempotency },
         { provide: AUDIT_PORT, useValue: audit },
         { provide: ENTELEQUIA_CONTEXT_PORT, useValue: entelequia },
+        { provide: EntelequiaOrderLookupClient, useValue: orderLookupClient },
         { provide: PROMPT_TEMPLATES_PORT, useClass: StubPromptTemplates },
         { provide: METRICS_PORT, useValue: metrics },
       ],
@@ -489,7 +575,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     useCase = moduleRef.get(HandleIncomingMessageUseCase);
   });
 
-  it('returns requiresAuth when guest asks for orders', async () => {
+  it('asks for order id when guest asks for orders without order number', async () => {
     const response = await useCase.execute({
       requestId: 'req-1',
       externalEventId: 'event-1',
@@ -512,12 +598,121 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     });
 
     expect(response.ok).toBe(false);
-    expect('requiresAuth' in response && response.requiresAuth).toBe(true);
-    expect(response.message).toContain('NECESITAS INICIAR SESION');
-    expect(response.message).toContain('Inicia sesion en entelequia.com.ar');
-    expect(response.message).toContain('No compartas credenciales en el chat');
+    expect(response.message).toContain('No encontre el numero de pedido');
     expect(persistence.turns).toHaveLength(1);
     expect(audit.entries).toHaveLength(1);
+  });
+
+  it('returns deterministic order summary when guest sends order_id + 2 factors', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-lookup-1',
+      externalEventId: 'event-lookup-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect('intent' in response && response.intent).toBe('orders');
+    expect(response.message).toContain('PEDIDO #12345');
+    expect(response.message).toContain('Estado: En preparación');
+    expect(response.message).toContain('Tracking: ABC123');
+    expect(llm.lastInput?.intent).not.toBe('orders');
+  });
+
+  it('returns verification failed message when identity does not match', async () => {
+    orderLookupClient.mode = 'not-found';
+
+    const response = await useCase.execute({
+      requestId: 'req-lookup-2',
+      externalEventId: 'event-lookup-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('No pudimos validar los datos del pedido');
+  });
+
+  it('asks for more identity factors when guest sends less than 2', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-lookup-3',
+      externalEventId: 'event-lookup-3',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('Necesito 1 dato(s) mas');
+  });
+
+  it('returns high-demand message when secure order lookup is throttled', async () => {
+    orderLookupClient.mode = 'throttled';
+
+    const response = await useCase.execute({
+      requestId: 'req-lookup-4',
+      externalEventId: 'event-lookup-4',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('alta demanda');
   });
 
   it('handles duplicate event without duplicating writes', async () => {
@@ -691,6 +886,69 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(recommendationsBlock?.contextPayload).toHaveProperty('aiContext');
   });
 
+  it('attaches optional ui payload for catalog intents and persists ui metadata', async () => {
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        items: [
+          {
+            id: 'ev-1',
+            slug: 'evangelion-01',
+            title: 'Evangelion 01',
+            categoryName: 'Mangas',
+            stock: 2,
+            url: 'https://entelequia.com.ar/producto/evangelion-01',
+            imageUrl: 'https://entelequia.com.ar/images/ev-1.jpg',
+            price: { amount: 12000, currency: 'ARS' },
+          },
+        ],
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-ui-1',
+      externalEventId: 'event-ui-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'tienen evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'tienen evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected success response');
+    }
+
+    expect(response.ui).toBeDefined();
+    expect(response.ui?.version).toBe('1');
+    expect(response.ui?.cards).toHaveLength(1);
+    expect(response.ui?.cards[0]).toMatchObject({
+      id: 'ev-1',
+      title: 'Evangelion 01',
+      availabilityLabel: 'quedan pocas unidades',
+      productUrl: 'https://entelequia.com.ar/producto/evangelion-01',
+    });
+
+    const persistedTurn = persistence.turns[persistence.turns.length - 1];
+    const metadata = (persistedTurn.metadata ?? {}) as Record<string, unknown>;
+    expect(metadata.uiPayloadVersion).toBe('1');
+    expect(metadata.uiKind).toBe('catalog');
+    expect(metadata.uiCardsCount).toBe(1);
+    expect(metadata.uiCardsWithImageCount).toBe(1);
+  });
+
   it('handles tickets intent with aiContext and escalation metadata', async () => {
     const response = await useCase.execute({
       requestId: 'req-8',
@@ -749,12 +1007,55 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     });
 
     expect(response.ok).toBe(true);
-    expect(response.message).toBe('Respuesta de prueba');
     const storeBlock = llm.lastInput?.contextBlocks.find(
       (block) => block.contextType === 'store_info',
     );
     expect(storeBlock?.contextPayload).toHaveProperty('aiContext');
     expect(storeBlock?.contextPayload).toHaveProperty('infoRequested', 'location');
+  });
+
+  it('returns exact weekly schedule and holiday guidance for store_info hours', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-9b',
+      externalEventId: 'event-store-info-hours',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Que horario tienen? Abren feriados?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Que horario tienen? Abren feriados?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toContain('Lunes a viernes 10:00 a 19:00 hs');
+    expect(response.message).toContain('Sabados 11:00 a 18:00 hs');
+    expect(response.message).toContain('feriados');
+
+    const persistedTurn = persistence.turns[persistence.turns.length - 1];
+    const persistedMetadata = (persistedTurn.metadata ?? {}) as Record<string, unknown>;
+    expect(persistedMetadata.storeInfoSubtype).toBe('hours');
+    expect(persistedMetadata.storeInfoPolicyVersion).toBe(
+      'v2-exact-weekly-hours',
+    );
+
+    const lastAudit = audit.entries[audit.entries.length - 1];
+    const auditMetadata = (lastAudit.metadata ?? {}) as Record<string, unknown>;
+    expect(auditMetadata.storeInfoSubtype).toBe('hours');
+    expect(auditMetadata.storeInfoPolicyVersion).toBe(
+      'v2-exact-weekly-hours',
+    );
+    expect(auditMetadata.llmPath).toBe('fallback_default');
+    expect(auditMetadata.fallbackReason).toBeNull();
   });
 
   it('handles general intent with minimal ai context', async () => {

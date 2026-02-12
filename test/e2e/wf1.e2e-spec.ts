@@ -7,11 +7,15 @@ import type { Request, Response } from 'express';
 
 process.env.CHATBOT_DB_URL = 'postgres://test:test@localhost:5432/chatbot';
 process.env.ENTELEQUIA_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+process.env.BOT_ORDER_LOOKUP_HMAC_SECRET = 'test-hmac-secret';
 process.env.TURNSTILE_SECRET_KEY = '';
 process.env.WHATSAPP_SECRET = 'test-whatsapp-secret';
 
 import { AppModule } from '@/app.module';
-import { EntelequiaHttpAdapter } from '@/modules/wf1/infrastructure/adapters/entelequia-http';
+import {
+  EntelequiaHttpAdapter,
+  EntelequiaOrderLookupClient,
+} from '@/modules/wf1/infrastructure/adapters/entelequia-http';
 import { IntentExtractorAdapter } from '@/modules/wf1/infrastructure/adapters/intent-extractor';
 import { OpenAiAdapter } from '@/modules/wf1/infrastructure/adapters/openai';
 import { PgAuditRepository } from '@/modules/wf1/infrastructure/repositories/pg-audit.repository';
@@ -270,8 +274,48 @@ class E2EEntelequia {
   }
 }
 
+class E2EOrderLookupClient {
+  async lookupOrder(): Promise<{
+    ok: boolean;
+    order?: {
+      id: number;
+      state: string;
+      total: { currency: string; amount: number };
+      paymentMethod: string;
+      shipMethod: string;
+      trackingCode: string;
+    };
+  }> {
+    return {
+      ok: true,
+      order: {
+        id: 12345,
+        state: 'En preparación',
+        total: { currency: 'ARS', amount: 5100 },
+        paymentMethod: 'Mercado Pago',
+        shipMethod: 'Envío - Correo',
+        trackingCode: 'ABC123',
+      },
+    };
+  }
+}
+
 class E2ELlm {
-  async buildAssistantReply(): Promise<string> {
+  async buildAssistantReply(input: {
+    intent: string;
+    userText: string;
+  }): Promise<string> {
+    if (input.intent === 'store_info') {
+      const normalizedText = input.userText.toLowerCase();
+      if (
+        normalizedText.includes('horario') ||
+        normalizedText.includes('abren') ||
+        normalizedText.includes('feriado')
+      ) {
+        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
+      }
+    }
+
     return 'Respuesta e2e';
   }
 }
@@ -292,6 +336,9 @@ describe('WF1 API (e2e)', () => {
     moduleBuilder.overrideProvider(PgAuditRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(IntentExtractorAdapter).useValue(new E2EIntent());
     moduleBuilder.overrideProvider(EntelequiaHttpAdapter).useValue(new E2EEntelequia());
+    moduleBuilder.overrideProvider(EntelequiaOrderLookupClient).useValue(
+      new E2EOrderLookupClient(),
+    );
     moduleBuilder.overrideProvider(OpenAiAdapter).useValue(new E2ELlm());
 
     const moduleRef = await moduleBuilder.compile();
@@ -391,7 +438,7 @@ describe('WF1 API (e2e)', () => {
       });
   });
 
-  it('returns requiresAuth for guest order intent', async () => {
+  it('asks for order id when guest order intent lacks lookup data', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
       .set('x-external-event-id', 'e2e-order-1')
@@ -404,9 +451,26 @@ describe('WF1 API (e2e)', () => {
       .expect(200)
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
-        expect(body.requiresAuth).toBe(true);
-        expect(body.message).toContain('NECESITAS INICIAR SESION');
-        expect(body.message).toContain('Inicia sesion en entelequia.com.ar');
+        expect(body.message).toContain('No encontre el numero de pedido');
+      });
+  });
+
+  it('returns deterministic lookup response for guest order with id + 2 factors', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-guest-lookup-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-1');
+        expect(body.intent).toBe('orders');
+        expect(body.message).toContain('PEDIDO #12345');
       });
   });
 
@@ -687,6 +751,25 @@ describe('WF1 API (e2e)', () => {
         expect(body.ok).toBe(true);
         expect(body.conversationId).toBe('conv-1');
         expect(typeof body.message).toBe('string');
+      });
+  });
+
+  it('returns exact weekly schedule for store_info hours query', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-store-info-hours-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Que horario tienen? Abren feriados?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toContain('Lunes a viernes 10:00 a 19:00 hs');
+        expect(body.message).toContain('Sabados 11:00 a 18:00 hs');
+        expect(body.message).toContain('feriados');
       });
   });
 

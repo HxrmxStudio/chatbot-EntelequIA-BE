@@ -16,6 +16,7 @@ import {
   normalizeProductDetailPayload,
   normalizeProductsListPayload,
 } from './payload-normalizers';
+import { resolveEntelequiaApiBaseUrl } from './base-url';
 
 @Injectable()
 export class EntelequiaHttpAdapter implements EntelequiaContextPort {
@@ -24,8 +25,7 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
   private readonly timeoutMs: number;
 
   constructor(private readonly configService: ConfigService) {
-    const configuredBaseUrl = this.configService.get<string>('ENTELEQUIA_API_BASE_URL');
-    this.baseUrl = (configuredBaseUrl ?? '').replace(/\/$/, '');
+    this.baseUrl = resolveEntelequiaApiBaseUrl(this.configService);
     const configuredWebBaseUrl = this.configService.get<string>('ENTELEQUIA_WEB_BASE_URL');
     this.webBaseUrl = (configuredWebBaseUrl ?? 'https://entelequia.com.ar').replace(/\/$/, '');
     this.timeoutMs = this.configService.get<number>('ENTELEQUIA_API_TIMEOUT_MS') ?? 8000;

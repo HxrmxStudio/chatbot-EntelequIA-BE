@@ -8,9 +8,10 @@ export const DEFAULT_STORE_INFO_LOCATION_CONTEXT = [
 
 export const DEFAULT_STORE_INFO_HOURS_CONTEXT = [
   'HORARIOS DE ATENCIÓN',
-  '- Manejamos horarios regulares de lunes a viernes y sábados.',
-  '- No inventes horarios específicos: para feriados o fechas especiales, sugerí validar el horario actualizado en los canales oficiales.',
-  '- Si la persona quiere ir hoy, sugerí siempre confirmar el horario en la web oficial o por WhatsApp antes de acercarse.',
+  '- Lunes a viernes: 10:00 a 19:00 hs.',
+  '- Sábados: 11:00 a 18:00 hs.',
+  '- Domingos: cerrado.',
+  '- Para feriados o fechas especiales, el horario puede variar: sugerí confirmar en web/redes oficiales antes de acercarse.',
 ].join('\n');
 
 export const DEFAULT_STORE_INFO_PARKING_CONTEXT = [
@@ -38,8 +39,9 @@ export const DEFAULT_STORE_INFO_GENERAL_CONTEXT = [
 
 export const DEFAULT_STORE_INFO_INSTRUCTIONS = [
   'Instrucciones para tu respuesta:',
-  '- Responder de forma clara, breve y práctica.',
+  '- Primero responder el dato solicitado de forma clara, breve y práctica.',
+  '- Si aplica, luego agregar disclaimer de feriados y fechas especiales.',
   '- Si falta contexto clave (por ejemplo, desde dónde sale o a qué sucursal va), pedir una sola aclaración breve.',
-  '- No inventar direcciones, horarios ni datos operativos: siempre sugerir validar en la web oficial o por WhatsApp.',
+  '- No inventar direcciones ni datos operativos no confirmados: sugerir validar en web/redes oficiales.',
   '- Ofrecer ayuda adicional para elegir sucursal, cómo llegar y planificar la visita.',
 ].join('\n');

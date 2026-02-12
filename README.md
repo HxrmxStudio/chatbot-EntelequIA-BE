@@ -71,6 +71,7 @@ Only these endpoints are used:
 4. `GET /api/v1/cart/payment-info`
 5. `GET /api/v1/account/orders`
 6. `GET /api/v1/account/orders/{id}`
+7. `POST /api/v1/bot/order-lookup` (HMAC signed; guest order verification)
 
 Forbidden endpoints are not used (`/api/v1/products`, `/chatbot/context`).
 
@@ -98,6 +99,12 @@ Forbidden endpoints are not used (`/api/v1/products`, `/chatbot/context`).
 - Backend 404 => not-found message
 - Backend 5xx/timeout/network => generic fallback
 - Invalid payload => HTTP 400
+- Guest order lookup (`/bot/order-lookup`) statuses:
+  - `200` => deterministic order status response
+  - `404` => verification failed (without exposing which field failed)
+  - `422` => ask user to complete or correct data
+  - `401` => one automatic retry with new timestamp/nonce/signature, then safe temporary-error message
+  - `429` => retry/backoff controlled by env and safe high-demand message
 
 ## Local setup
 1. Install deps
@@ -126,6 +133,11 @@ npm run start:dev
 ## Key env vars
 - `OPENAI_TIMEOUT_MS` (default `8000`): timeout in milliseconds for OpenAI requests.
 - `CHATBOT_DB_TEST_URL` (optional): explicit DB URL for PostgreSQL integration tests (`test:integration:pg`).
+- `ENTELEQUIA_BASE_URL` (recommended): Entelequia base URL. If empty, falls back to `ENTELEQUIA_API_BASE_URL`.
+- `BOT_ORDER_LOOKUP_HMAC_SECRET`: shared secret for HMAC signing in `/api/v1/bot/order-lookup`.
+- `BOT_ORDER_LOOKUP_TIMEOUT_MS` (default `8000`): timeout for secure order lookup requests.
+- `BOT_ORDER_LOOKUP_RETRY_MAX` (default `1`): max retries for `429` responses.
+- `BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS` (default `500`): base backoff for `429` retries.
 
 ## Tests
 ```bash

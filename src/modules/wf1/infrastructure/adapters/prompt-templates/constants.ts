@@ -174,8 +174,10 @@ export const DEFAULT_STORE_INFO_LOCATION_CONTEXT = [
 ].join('\n');
 export const DEFAULT_STORE_INFO_HOURS_CONTEXT = [
   'HORARIOS DE ATENCION',
-  '- Hay horarios regulares en semana y sabados.',
-  '- Para feriados o fechas especiales, sugeri validar horarios actualizados.',
+  '- Lunes a viernes: 10:00 a 19:00 hs.',
+  '- Sabados: 11:00 a 18:00 hs.',
+  '- Domingos: cerrado.',
+  '- Para feriados o fechas especiales, el horario puede variar: sugeri validar horarios actualizados en web/redes.',
 ].join('\n');
 export const DEFAULT_STORE_INFO_PARKING_CONTEXT = [
   'ESTACIONAMIENTO',
@@ -194,7 +196,8 @@ export const DEFAULT_STORE_INFO_GENERAL_CONTEXT = [
 ].join('\n');
 export const DEFAULT_STORE_INFO_CONTEXT_INSTRUCTIONS = [
   'Instrucciones para tu respuesta:',
-  '- Responder claro y practico.',
+  '- Primero responder el dato solicitado de forma clara y practica.',
+  '- Si aplica, luego agregar disclaimer de feriados y fechas especiales.',
   '- Si falta detalle, pedir una sola aclaracion corta.',
   '- Ofrecer ayuda adicional.',
 ].join('\n');
@@ -210,6 +213,12 @@ export const DEFAULT_STATIC_CONTEXT = [
   'LOCALES',
   '- Uruguay 341 (Centro)',
   '- Juramento 2584 (Belgrano)',
+  '',
+  'HORARIOS DE ATENCION',
+  '- Lunes a viernes: 10:00 a 19:00 hs',
+  '- Sabados: 11:00 a 18:00 hs',
+  '- Domingos: cerrado',
+  '- Feriados y fechas especiales: validar horarios actualizados en web/redes',
   '',
   'COMPRA Y ENVIOS',
   '- Retiro sin cargo en tienda',

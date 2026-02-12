@@ -1,4 +1,5 @@
 HORARIOS DE ATENCION
-- Tenemos horarios regulares en semana y sabados.
-- Para feriados o fechas especiales, validar horario actualizado en canales oficiales.
-- Si necesita ir hoy, sugeri confirmar antes.
+- Lunes a viernes: 10:00 a 19:00 hs.
+- Sabados: 11:00 a 18:00 hs.
+- Domingos: cerrado.
+- Feriados y fechas especiales: el horario puede variar; sugeri confirmar en web/redes oficiales antes de ir.

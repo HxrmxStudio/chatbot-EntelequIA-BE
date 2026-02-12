@@ -33,19 +33,34 @@ import { appendStaticContextBlock } from '../../../domain/context-block';
 import { sanitizeText } from '../../../domain/text-sanitizer';
 import { validateAndEnrichIntentOutput } from '../../../domain/output-validation';
 import { resolveIntentRoute } from '../../../domain/intent-routing';
+import type { UiPayloadV1 } from '../../../domain/ui-payload';
+import { buildCatalogUiPayload } from '../../../domain/ui-payload';
 import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
+import { EntelequiaOrderLookupClient } from '../../../infrastructure/adapters/entelequia-http';
 import {
   BACKEND_ERROR_MESSAGE,
   mapContextOrBackendError,
 } from './error-mapper';
 import { checkIfAuthenticated } from './check-if-authenticated';
-import { buildOrdersRequiresAuthResponse } from './orders-unauthenticated-response';
+import {
+  buildOrderLookupInvalidPayloadResponse,
+  buildOrderLookupMissingIdentityFactorsResponse,
+  buildOrderLookupMissingOrderIdResponse,
+  buildOrderLookupSuccessMessage,
+  buildOrderLookupThrottledResponse,
+  buildOrderLookupUnauthorizedResponse,
+  buildOrderLookupVerificationFailedResponse,
+} from './orders-order-lookup-response';
+import { resolveOrderLookupRequest } from './resolve-order-lookup-request';
+
+const STORE_INFO_POLICY_VERSION = 'v2-exact-weekly-hours';
 
 @Injectable()
 export class HandleIncomingMessageUseCase {
   private readonly logger = createLogger(HandleIncomingMessageUseCase.name);
   private readonly historyLimit: number;
+  private readonly uiCardsEnabled: boolean;
 
   constructor(
     @Inject(INTENT_EXTRACTOR_PORT)
@@ -61,6 +76,7 @@ export class HandleIncomingMessageUseCase {
     @Inject(ENTELEQUIA_CONTEXT_PORT)
     private readonly entelequiaContextPort: EntelequiaContextPort,
     private readonly enrichContextByIntent: EnrichContextByIntentUseCase,
+    private readonly orderLookupClient: EntelequiaOrderLookupClient,
     @Inject(PROMPT_TEMPLATES_PORT)
     private readonly promptTemplates: PromptTemplatesPort,
     @Inject(METRICS_PORT)
@@ -73,6 +89,9 @@ export class HandleIncomingMessageUseCase {
     this.historyLimit = Math.min(
       Math.max(0, configuredLimit),
       WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
+    );
+    this.uiCardsEnabled = resolveUiCardsEnabled(
+      this.configService.get<string | boolean>('WF1_UI_CARDS_ENABLED'),
     );
   }
 
@@ -210,9 +229,15 @@ export class HandleIncomingMessageUseCase {
       let response: Wf1Response;
       let llmMetadata: LlmReplyMetadata | undefined;
       let exactStockDisclosed = false;
+      let uiPayload: UiPayloadV1 | undefined;
 
       if (routedIntent === 'orders' && !checkIfAuthenticated(input.payload.accessToken)) {
-        response = buildOrdersRequiresAuthResponse();
+        response = await this.handleGuestOrderLookup({
+          requestId: input.requestId,
+          conversationId: input.payload.conversationId,
+          text: sanitizedText,
+          entities: validatedIntent.entities,
+        });
       } else {
         try {
           contextBlocks = await this.enrichContextByIntent.execute({
@@ -241,12 +266,16 @@ export class HandleIncomingMessageUseCase {
           const { message, metadata } = normalizeLlmReply(llmReply);
           llmMetadata = metadata;
           exactStockDisclosed = resolveExactStockDisclosure(contextBlocks);
+          uiPayload = this.uiCardsEnabled
+            ? buildCatalogUiPayload(contextBlocks)
+            : undefined;
 
           response = {
             ok: true,
             message,
             conversationId: input.payload.conversationId,
             intent: routedIntent,
+            ...(uiPayload ? { ui: uiPayload } : {}),
           };
         } catch (error: unknown) {
           response = mapContextOrBackendError(error);
@@ -254,6 +283,18 @@ export class HandleIncomingMessageUseCase {
       }
 
       const auditStatus = getResponseAuditStatus(response);
+      const contextTypes = Array.isArray(contextBlocks)
+        ? contextBlocks.map((block) => block.contextType)
+        : [];
+      const storeInfoSubtype = resolveStoreInfoSubtype(contextBlocks);
+      const storeInfoPolicyVersion = storeInfoSubtype
+        ? STORE_INFO_POLICY_VERSION
+        : null;
+      const uiCardsCount = uiPayload?.cards.length ?? 0;
+      const uiCardsWithImageCount =
+        uiPayload?.cards.filter(
+          (card) => typeof card.thumbnailUrl === 'string' && card.thumbnailUrl.length > 0,
+        ).length ?? 0;
 
       await this.chatPersistence.persistTurn({
         conversationId: input.payload.conversationId,
@@ -276,14 +317,18 @@ export class HandleIncomingMessageUseCase {
           inputTokenCount: llmMetadata?.inputTokenCount ?? null,
           outputTokenCount: llmMetadata?.outputTokenCount ?? null,
           cachedTokenCount: llmMetadata?.cachedTokenCount ?? null,
-          contextTypes: Array.isArray(contextBlocks)
-            ? contextBlocks.map((block) => block.contextType)
-            : [],
+          contextTypes,
           sessionId: input.payload.conversationId,
           traceId: input.requestId,
           spanId: input.externalEventId.slice(0, 16),
           discloseExactStock: exactStockDisclosed,
           lowStockThreshold: 3,
+          storeInfoSubtype,
+          storeInfoPolicyVersion,
+          uiPayloadVersion: uiPayload?.version ?? null,
+          uiKind: uiPayload?.kind ?? null,
+          uiCardsCount,
+          uiCardsWithImageCount,
         },
       });
 
@@ -326,14 +371,18 @@ export class HandleIncomingMessageUseCase {
           inputTokenCount: llmMetadata?.inputTokenCount ?? null,
           outputTokenCount: llmMetadata?.outputTokenCount ?? null,
           cachedTokenCount: llmMetadata?.cachedTokenCount ?? null,
-          contextTypes: Array.isArray(contextBlocks)
-            ? contextBlocks.map((block) => block.contextType)
-            : [],
+          contextTypes,
           sessionId: input.payload.conversationId,
           traceId: input.requestId,
           spanId: input.externalEventId.slice(0, 16),
           discloseExactStock: exactStockDisclosed,
           lowStockThreshold: 3,
+          storeInfoSubtype,
+          storeInfoPolicyVersion,
+          uiPayloadVersion: uiPayload?.version ?? null,
+          uiKind: uiPayload?.kind ?? null,
+          uiCardsCount,
+          uiCardsWithImageCount,
         },
       });
 
@@ -421,6 +470,77 @@ export class HandleIncomingMessageUseCase {
     }
   }
 
+  private async handleGuestOrderLookup(input: {
+    requestId: string;
+    conversationId: string;
+    text: string;
+    entities: string[];
+  }): Promise<Wf1Response> {
+    const resolved = resolveOrderLookupRequest({
+      text: input.text,
+      entities: input.entities,
+    });
+
+    if (!resolved.orderId) {
+      return buildOrderLookupMissingOrderIdResponse();
+    }
+
+    if (resolved.providedFactors < 2) {
+      return buildOrderLookupMissingIdentityFactorsResponse({
+        providedFactors: resolved.providedFactors,
+      });
+    }
+
+    try {
+      const lookup = await this.orderLookupClient.lookupOrder({
+        requestId: input.requestId,
+        orderId: resolved.orderId,
+        identity: resolved.identity,
+      });
+
+      if (lookup.ok) {
+        return {
+          ok: true,
+          conversationId: input.conversationId,
+          intent: 'orders',
+          message: buildOrderLookupSuccessMessage(lookup.order),
+        };
+      }
+
+      if (lookup.code === 'not_found_or_mismatch') {
+        return buildOrderLookupVerificationFailedResponse();
+      }
+
+      if (lookup.code === 'invalid_payload') {
+        return buildOrderLookupInvalidPayloadResponse();
+      }
+
+      if (lookup.code === 'unauthorized') {
+        return buildOrderLookupUnauthorizedResponse();
+      }
+
+      if (lookup.code === 'throttled') {
+        return buildOrderLookupThrottledResponse();
+      }
+
+      return {
+        ok: false,
+        message: BACKEND_ERROR_MESSAGE,
+      };
+    } catch (error: unknown) {
+      this.logger.warn('guest_order_lookup_failed', {
+        event: 'guest_order_lookup_failed',
+        request_id: input.requestId,
+        error_type: error instanceof Error ? error.name : 'UnknownError',
+      });
+
+      return {
+        ok: false,
+        message: BACKEND_ERROR_MESSAGE,
+      };
+    }
+  }
+
   private async resolveUserContext(payload: ChatRequestDto): Promise<UserContext> {
     const accessToken = payload.accessToken;
     if (!checkIfAuthenticated(accessToken)) {
@@ -487,4 +607,35 @@ function resolveExactStockDisclosure(
   }
 
   return products.contextPayload['discloseExactStock'] === true;
+}
+
+function resolveStoreInfoSubtype(
+  contextBlocks?: Array<{ contextType: string; contextPayload: Record<string, unknown> }>,
+): string | null {
+  if (!Array.isArray(contextBlocks)) {
+    return null;
+  }
+
+  const storeInfo = contextBlocks.find((block) => block.contextType === 'store_info');
+  if (!storeInfo) {
+    return null;
+  }
+
+  const infoRequested = storeInfo.contextPayload['infoRequested'];
+  return typeof infoRequested === 'string' && infoRequested.length > 0
+    ? infoRequested
+    : null;
+}
+
+function resolveUiCardsEnabled(value: string | boolean | undefined): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
 }

@@ -26,6 +26,7 @@ wf1/
     context-block/  # types.ts, render.ts, append-static-context.ts, index.ts
     user/           # types.ts, index.ts
     wf1-response/   # types.ts, index.ts
+    ui-payload/     # types.ts, constants.ts, build-catalog-ui.ts, index.ts
     conversation-history/  # types.ts, constants.ts, map.ts, index.ts
     output-validation/     # types.ts, constants.ts, sentiment.ts, index.ts
     prepare-conversation-query/  # types.ts, build-query.ts, index.ts
@@ -35,7 +36,7 @@ wf1/
   application/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
-      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
+      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, orders-order-lookup-response.ts, resolve-order-lookup-request.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
       enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, recommendation-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
@@ -45,7 +46,7 @@ wf1/
       intent-validator/ # IntentValidationError, validateAndNormalizeIntentPayload
       openai/       # openai.adapter.ts, endpoints.ts, openai-client.ts, prompt-builder.ts, fallback-builder.ts, constants.ts, errors.ts, retry-helpers.ts, types.ts, index.ts
       intent-extractor/  # intent-extractor.adapter.ts, endpoints.ts, openai-client.ts, text-helpers.ts, response-helpers.ts, constants.ts, index.ts
-      entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, index.ts
+      entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, entelequia-order-lookup.client.ts, bot-hmac-signer.ts, base-url.ts, index.ts
       prompt-templates/  # prompt-templates.adapter.ts, constants.ts, index.ts (centralizes all prompt loading)
       metrics/           # prometheus-metrics.adapter.ts (Prometheus metrics; optional index.ts as public API)
       # Each adapter in its own folder with index.ts as public API

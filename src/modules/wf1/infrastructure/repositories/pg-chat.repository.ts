@@ -39,14 +39,31 @@ export class PgChatRepository implements ChatPersistencePort {
 
   async upsertAuthenticatedUserProfile(input: AuthenticatedUserProfileInput): Promise<UserContext> {
     const result = await this.pool.query<UserUpsertRow>(
-      `INSERT INTO users (id, email, phone, name, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT (id) DO UPDATE
-       SET email = EXCLUDED.email,
-           phone = EXCLUDED.phone,
-           name = EXCLUDED.name,
-           updated_at = CURRENT_TIMESTAMP
-       RETURNING id, email, phone, name, created_at, updated_at`,
+      `WITH updated_by_email AS (
+         UPDATE users
+         SET phone = $3,
+             name = $4,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE email = $2
+         RETURNING id, email, phone, name, created_at, updated_at
+       ),
+       upserted_by_id AS (
+         INSERT INTO users (id, email, phone, name, created_at, updated_at)
+         SELECT $1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+         WHERE NOT EXISTS (SELECT 1 FROM updated_by_email)
+         ON CONFLICT (id) DO UPDATE
+         SET email = EXCLUDED.email,
+             phone = EXCLUDED.phone,
+             name = EXCLUDED.name,
+             updated_at = CURRENT_TIMESTAMP
+         RETURNING id, email, phone, name, created_at, updated_at
+       )
+       SELECT id, email, phone, name, created_at, updated_at
+       FROM updated_by_email
+       UNION ALL
+       SELECT id, email, phone, name, created_at, updated_at
+       FROM upserted_by_id
+       LIMIT 1`,
       [input.id, input.email, input.phone, input.name],
     );
 

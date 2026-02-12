@@ -1,10 +1,12 @@
 import type { IntentName } from '../intent';
+import type { UiPayloadV1 } from '../ui-payload';
 
 export type Wf1SuccessResponse = {
   ok: true;
   message: string;
   conversationId: string;
   intent?: IntentName;
+  ui?: UiPayloadV1;
 };
 
 export type Wf1RequiresAuthResponse = {

@@ -1,4 +1,5 @@
 Instrucciones para tu respuesta:
-- Responder claro, util y directo.
-- Si falta detalle, pedir una sola aclaracion breve.
-- Ofrecer ayuda adicional para planificar visita.
+- Primero responder el dato solicitado de forma clara y directa.
+- Si aplica, luego agregar el disclaimer de feriados y fechas especiales.
+- Si falta detalle clave, pedir una sola aclaracion breve.
+- Ofrecer ayuda adicional para planificar la visita.

@@ -14,7 +14,11 @@ import {
 } from './application/ports/tokens';
 import { EnrichContextByIntentUseCase } from './application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from './application/use-cases/handle-incoming-message';
-import { EntelequiaHttpAdapter } from './infrastructure/adapters/entelequia-http';
+import {
+  BotHmacSigner,
+  EntelequiaHttpAdapter,
+  EntelequiaOrderLookupClient,
+} from './infrastructure/adapters/entelequia-http';
 import { IntentExtractorAdapter } from './infrastructure/adapters/intent-extractor';
 import { PrometheusMetricsAdapter } from './infrastructure/adapters/metrics/prometheus-metrics.adapter';
 import { OpenAiAdapter } from './infrastructure/adapters/openai';
@@ -47,6 +51,8 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     EnrichContextByIntentUseCase,
     HandleIncomingMessageUseCase,
     IntentExtractorAdapter,
+    BotHmacSigner,
+    EntelequiaOrderLookupClient,
     EntelequiaHttpAdapter,
     PrometheusMetricsAdapter,
     OpenAiAdapter,

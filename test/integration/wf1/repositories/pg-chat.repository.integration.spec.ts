@@ -179,6 +179,57 @@ describe('PgChatRepository (PostgreSQL integration)', () => {
       await cleanupConversationData(pool, { conversationId, userId });
     }
   });
+
+  (hasDbUrl ? it : it.skip)('upserts authenticated profile by email when email already exists with different id', async () => {
+    if (!repository || !pool) {
+      throw new Error('Repository test setup failed');
+    }
+
+    const runId = randomUUID();
+    const existingUserId = `it-user-existing-${runId}`;
+    const incomingUserId = `it-user-auth-${runId}`;
+    const sharedEmail = `it-email-${runId}@example.com`;
+
+    try {
+      await pool.query(
+        `INSERT INTO users (id, email, phone, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [existingUserId, sharedEmail, '', 'Customer'],
+      );
+
+      const upserted = await repository.upsertAuthenticatedUserProfile({
+        id: incomingUserId,
+        email: sharedEmail,
+        phone: '1122334455',
+        name: 'Test User',
+      });
+
+      expect(upserted.id).toBe(existingUserId);
+      expect(upserted.email).toBe(sharedEmail);
+      expect(upserted.phone).toBe('1122334455');
+      expect(upserted.name).toBe('Test User');
+
+      const usersWithEmail = await pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total
+         FROM users
+         WHERE email = $1`,
+        [sharedEmail],
+      );
+      expect(usersWithEmail.rows[0]?.total).toBe(1);
+
+      const incomingUser = await pool.query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total
+         FROM users
+         WHERE id = $1`,
+        [incomingUserId],
+      );
+      expect(incomingUser.rows[0]?.total).toBe(0);
+    } finally {
+      await pool.query('DELETE FROM users WHERE id = $1', [incomingUserId]);
+      await pool.query('DELETE FROM users WHERE id = $1', [existingUserId]);
+      await pool.query('DELETE FROM users WHERE email = $1', [sharedEmail]);
+    }
+  });
 });
 
 function resolveDatabaseUrl(): string {
