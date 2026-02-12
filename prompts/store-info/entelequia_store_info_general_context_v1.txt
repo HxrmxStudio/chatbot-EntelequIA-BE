@@ -1,4 +1,3 @@
-INFORMACION DE LOCALES
-- Te puedo ayudar con ubicacion, horarios y como llegar.
-- Si me decis sucursal o zona, te respondo mas preciso.
-- Tambien te guio para elegir la mejor forma de llegada.
+# Informacion de locales
+- Puedo ayudarte con ubicacion, horarios y como llegar.
+- Si me decis sucursal o zona, te respondo con mas precision.

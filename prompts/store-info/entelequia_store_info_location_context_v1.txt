@@ -1,4 +1,4 @@
-LOCALES ENTELEQUIA
-- Tenemos atencion en CABA (Centro y Belgrano).
-- Si necesitas direccion exacta, sugeri abrir web oficial o mapas.
+# Ubicacion de locales
+- Entelequia tiene atencion en CABA (Centro y Belgrano).
+- Si necesita direccion exacta, sugerir web oficial o mapas.
 - Si indica sucursal, responder enfocado en esa sede.

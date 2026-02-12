@@ -6,6 +6,7 @@ export type ContextType =
   | 'payment_info'
   | 'tickets'
   | 'recommendations'
+  | 'catalog_taxonomy'
   | 'store_info'
   | 'general'
   | 'static_context';

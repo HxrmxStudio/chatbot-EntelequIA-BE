@@ -8,6 +8,8 @@ import {
   accountOrdersEndpoint,
   cartPaymentInfoEndpoint,
   productDetailEndpoint,
+  productsAuthorsEndpoint,
+  productsBrandsEndpoint,
   productsListEndpoint,
   productsRecommendedEndpoint,
 } from './endpoints';
@@ -17,6 +19,10 @@ import {
   normalizeProductsListPayload,
 } from './payload-normalizers';
 import { resolveEntelequiaApiBaseUrl } from './base-url';
+import {
+  normalizeAuthorsPayload,
+  normalizeBrandsPayload,
+} from './taxonomy-normalizers';
 
 @Injectable()
 export class EntelequiaHttpAdapter implements EntelequiaContextPort {
@@ -98,6 +104,28 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
     return {
       contextType: 'recommendations',
       contextPayload: data,
+    };
+  }
+
+  async getProductBrands(): Promise<ContextBlock> {
+    const endpoint = productsBrandsEndpoint();
+    const data = await fetchEntelequiaJson(this.baseUrl, endpoint, this.timeoutMs);
+    const normalized = normalizeBrandsPayload(data);
+
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: normalized,
+    };
+  }
+
+  async getProductAuthors(input?: { search?: string }): Promise<ContextBlock> {
+    const endpoint = productsAuthorsEndpoint(input?.search);
+    const data = await fetchEntelequiaJson(this.baseUrl, endpoint, this.timeoutMs);
+    const normalized = normalizeAuthorsPayload(data);
+
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: normalized,
     };
   }
 

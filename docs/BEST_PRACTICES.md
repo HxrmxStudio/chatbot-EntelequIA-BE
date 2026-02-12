@@ -251,7 +251,7 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 - **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `orders-unauthenticated-response.ts`, `orders-order-lookup-response.ts`, `resolve-order-lookup-request.ts`, `index.ts`
+- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `orders-unauthenticated-response.ts`, `orders-order-lookup-response.ts`, `resolve-order-lookup-request.ts`, `resolve-order-lookup-flow-state.ts`, `index.ts`
 - `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index), `product-parsers.ts`, `order-parsers.ts`, `payment-info-parsers.ts`, `recommendation-parsers.ts`, `index.ts`
 
 Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Cuando los mensajes de respuesta contienen formato complejo o contenido compartido, se extraen como módulos helper separados (p. ej. `orders-unauthenticated-response.ts` para respuestas de autenticación de órdenes con guía enriquecida). Cuando se extrae información de payloads de API, se usan módulos parser dedicados (p. ej. `order-parsers.ts`, `payment-info-parsers.ts`) que proporcionan funciones puras para extracción y validación de datos. Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
@@ -287,6 +287,7 @@ Ejemplos:
 - `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `constants.ts`, `index.ts`
 - `adapters/entelequia-http/` — `entelequia-http.adapter.ts`, `endpoints.ts`, `entelequia-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`, `entelequia-order-lookup.client.ts`, `bot-hmac-signer.ts`, `base-url.ts`, `index.ts`
 - `adapters/metrics/` — `prometheus-metrics.adapter.ts` (Prometheus metrics)
+- `adapters/rate-limit/` — `redis-order-lookup-rate-limiter.adapter.ts`, `index.ts` (Redis rate limiting)
 - `adapters/shared/` — `prompt-loader.ts`, `http-client.ts`, `schema-loader.ts` (compartidos por múltiples adapters)
 
 Los helpers compartidos eliminan duplicación (DRY) del patrón de timeout HTTP, carga de prompts, y carga de schemas JSON. Los archivos `endpoints.ts` centralizan las definiciones de endpoints (tanto de API como URLs del web frontend como `productWebUrl` y `storageImageUrl`) para mejorar mantenibilidad y seguir Single Responsibility Principle.

@@ -2,7 +2,7 @@ import { buildCatalogUiPayload } from '@/modules/wf1/domain/ui-payload';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 
 describe('ui payload builder', () => {
-  it('builds catalog cards from products context and enforces card limit', () => {
+  it('builds catalog cards from products context with thumbnails in every card', () => {
     const blocks: ContextBlock[] = [
       {
         contextType: 'products',
@@ -54,7 +54,7 @@ describe('ui payload builder', () => {
 
     expect(ui).toBeDefined();
     expect(ui?.version).toBe('1');
-    expect(ui?.cards).toHaveLength(4);
+    expect(ui?.cards).toHaveLength(5);
     expect(ui?.cards[0]).toMatchObject({
       id: 'p1',
       title: 'Evangelion Figure',
@@ -63,7 +63,15 @@ describe('ui payload builder', () => {
       availabilityLabel: 'quedan pocas unidades',
       thumbnailUrl: 'https://entelequia.com.ar/images/p1.jpg',
     });
-    expect(ui?.cards[1].thumbnailUrl).toBeUndefined();
+    expect(ui?.cards[1]).toMatchObject({
+      thumbnailUrl: 'https://entelequia.com.ar/images/p2.jpg',
+    });
+    expect(ui?.cards.every((card) => typeof card.thumbnailUrl === 'string')).toBe(true);
+    expect(
+      ui?.cards
+        .filter((card) => card.id === 'p3' || card.id === 'p4' || card.id === 'p5')
+        .every((card) => card.thumbnailUrl === 'https://entelequia.com.ar/favicon.ico'),
+    ).toBe(true);
     expect(ui?.cards[1].badges).toEqual(['-20%']);
     expect(ui?.cards[2].availabilityLabel).toBe('sin stock');
     expect(ui?.cards[3].availabilityLabel).toBe('hay stock');
@@ -98,6 +106,7 @@ describe('ui payload builder', () => {
       title: 'Recomendado',
       subtitle: 'Mangas',
       availabilityLabel: 'quedan pocas unidades',
+      thumbnailUrl: 'https://entelequia.com.ar/images/r1.jpg',
     });
   });
 

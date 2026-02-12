@@ -16,6 +16,22 @@ export function productsRecommendedEndpoint(): string {
   return '/products/recommended';
 }
 
+export function productsBrandsEndpoint(): string {
+  return '/products/brands';
+}
+
+export function productsAuthorsEndpoint(search?: string): string {
+  if (!search || search.trim().length === 0) {
+    return '/products/authors';
+  }
+
+  const params = new URLSearchParams({
+    search: search.trim(),
+  });
+
+  return `/products/authors?${params.toString()}`;
+}
+
 export function cartPaymentInfoEndpoint(): string {
   return '/cart/payment-info';
 }

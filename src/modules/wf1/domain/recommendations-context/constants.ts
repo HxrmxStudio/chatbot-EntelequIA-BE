@@ -23,3 +23,8 @@ export const DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE =
 export const DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE =
   'No pude consultar recomendaciones en tiempo real, pero te dejo una guia para seguir.';
 
+export const DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION =
+  'Si queres, te muestro opciones similares de anime/manga o buscamos por personaje/producto.';
+
+export const DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE =
+  'Ahora mismo no puedo consultar el catalogo en tiempo real. Intenta nuevamente en unos minutos o te muestro categorias disponibles.';

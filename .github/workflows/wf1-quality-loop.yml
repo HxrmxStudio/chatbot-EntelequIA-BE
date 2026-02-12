@@ -1,0 +1,87 @@
+name: WF1 Quality Loop
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * *'
+    - cron: '30 4 * * 1'
+
+jobs:
+  daily-quality-loop:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '15 3 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Evaluate responses
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/evaluate-response-quality-llm-judge.ts
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WF1_EVAL_ENABLED: 'true'
+
+      - name: Enqueue HITL samples
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/enqueue-hitl-review-samples.ts
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+
+      - name: Prune analytics retention
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/prune-analytics-data.ts
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+
+  weekly-quality-loop:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 4 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Inject golden samples
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/inject-golden-samples.ts
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+
+      - name: Calculate reviewer agreement
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/calculate-reviewer-agreement.ts
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+
+      - name: Build intent exemplars
+        run: npm run wf1:learning:build
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+          WF1_RECURSIVE_LEARNING_ENABLED: 'true'
+
+      - name: Generate weekly report
+        run: npm run wf1:quality:weekly-report
+        env:
+          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+
+      - name: Upload local reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: wf1-quality-reports
+          path: docs/reports/local/*
+          if-no-files-found: ignore

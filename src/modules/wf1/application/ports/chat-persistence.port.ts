@@ -14,6 +14,16 @@ export interface PersistTurnInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface PersistTurnResult {
+  botMessageId: string;
+}
+
+export interface LastBotTurnByExternalEvent {
+  message: string;
+  messageId: string;
+  metadata: Record<string, unknown> | null;
+}
+
 export interface AuthenticatedUserProfileInput {
   id: string;
   email: string;
@@ -32,5 +42,10 @@ export interface ChatPersistencePort {
     externalEventId: string;
     conversationId?: string;
   }): Promise<string | null>;
-  persistTurn(input: PersistTurnInput): Promise<void>;
+  getLastBotTurnByExternalEvent(input: {
+    channel: ChannelSource;
+    externalEventId: string;
+    conversationId?: string;
+  }): Promise<LastBotTurnByExternalEvent | null>;
+  persistTurn(input: PersistTurnInput): Promise<PersistTurnResult>;
 }

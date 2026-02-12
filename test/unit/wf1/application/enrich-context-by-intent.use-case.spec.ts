@@ -15,6 +15,8 @@ describe('EnrichContextByIntentUseCase', () => {
       getProducts: jest.fn().mockResolvedValue({ contextType: 'products', contextPayload: {} }),
       getProductDetail: jest.fn(),
       getRecommendations: jest.fn().mockResolvedValue({ contextType: 'recommendations', contextPayload: {} }),
+      getProductBrands: jest.fn().mockResolvedValue({ contextType: 'catalog_taxonomy', contextPayload: { brands: [] } }),
+      getProductAuthors: jest.fn().mockResolvedValue({ contextType: 'catalog_taxonomy', contextPayload: { authors: [] } }),
       getPaymentInfo: jest.fn().mockResolvedValue({ contextType: 'payment_info', contextPayload: {} }),
       getAuthenticatedUserProfile: jest.fn().mockResolvedValue({
         email: 'user@example.com',
@@ -417,6 +419,7 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 1);
     expect(result[0].contextPayload).toHaveProperty('totalRecommendations', 3);
     expect(result[0].contextPayload).toHaveProperty('afterStockFilter', 2);
+    expect(result[0].contextPayload).toHaveProperty('afterFranchiseFilter', 2);
     expect(result[0].contextPayload).toHaveProperty('afterTypeFilter', 1);
 
     const products = result[0].contextPayload.products as Array<{ slug: string }>;
@@ -522,7 +525,99 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(result[0].contextPayload).toHaveProperty('apiFallback', false);
     expect(result[0].contextPayload).toHaveProperty('fallbackReason', 'no_matches');
     expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 0);
+    expect(result[0].contextPayload).toHaveProperty('afterFranchiseFilter', 1);
     expect(result[0].contextPayload).toHaveProperty('products');
+  });
+
+  it('prioritizes franchise matches over category-only filtering', async () => {
+    entelequiaPort.getRecommendations.mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: {
+        data: [
+          {
+            id: 40,
+            slug: 'remera-evangelion',
+            title: 'Remera EVA Unit-01',
+            stock: '4',
+            categories: [{ name: 'Ropa Remeras', slug: 'ropa-remeras' }],
+          },
+          {
+            id: 41,
+            slug: 'remera-naruto',
+            title: 'Remera Naruto',
+            stock: '6',
+            categories: [{ name: 'Ropa Remeras', slug: 'ropa-remeras' }],
+          },
+        ],
+        pagination: { total: 2 },
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: ['evangelion'] },
+      text: 'Quiero un regalo de envangelion',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('matchedFranchises', ['evangelion']);
+    expect(result[0].contextPayload).toHaveProperty('afterFranchiseFilter', 1);
+
+    const products = result[0].contextPayload.products as Array<{ slug: string }>;
+    expect(products).toHaveLength(1);
+    expect(products[0].slug).toBe('remera-evangelion');
+  });
+
+  it('keeps recommendations when search total is 0 but items exist', async () => {
+    entelequiaPort.getProducts.mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        total: 0,
+        items: [
+          {
+            id: 57997,
+            slug: 'neon-genesis-evangelion-anima-03-novela_57997',
+            title: 'NEON GENESIS EVANGELION: ANIMA 03 (NOVELA)',
+            stock: 1,
+            categorySlug: 'mangas',
+            categoryName: 'Mangas',
+          },
+        ],
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: ['evangelion'] },
+      text: 'Quiero un manga de evangelion',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 1);
+    expect(result[0].contextPayload).toHaveProperty('totalRecommendations', 1);
+  });
+
+  it('returns catalog_unavailable fallback when recommendations payload shape is invalid', async () => {
+    entelequiaPort.getRecommendations.mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: {
+        raw: '<html>upstream error</html>',
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'recommendations', confidence: 0.9, entities: ['evangelion'] },
+      text: 'Tenes algo de evangelion?',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].contextType).toBe('recommendations');
+    expect(result[0].contextPayload).toHaveProperty('apiFallback', true);
+    expect(result[0].contextPayload).toHaveProperty(
+      'fallbackReason',
+      'catalog_unavailable',
+    );
+    expect(result[0].contextPayload).toHaveProperty('recommendationsCount', 0);
   });
 
   it('returns api_error fallback when recommendations API fails', async () => {

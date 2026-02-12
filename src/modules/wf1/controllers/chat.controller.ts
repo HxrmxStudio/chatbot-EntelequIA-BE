@@ -29,12 +29,14 @@ export class ChatController {
     const payload = this.resolvePayload(request, request.extractedVariables, request.inputValidation);
     const requestId = request.requestId ?? randomUUID();
     const externalEventId = this.resolveExternalEventId(request, payload);
+    const clientIp = this.resolveClientIp(request);
 
     return this.handleIncomingMessage.execute({
       requestId,
       externalEventId,
       payload,
       idempotencyPayload: request.extractedVariables ?? {},
+      clientIp,
     });
   }
 
@@ -89,6 +91,27 @@ export class ChatController {
         });
 
     return createHash('sha256').update(rawCandidate).digest('hex');
+  }
+
+  private resolveClientIp(request: Request): string | undefined {
+    const forwarded = request.header('x-forwarded-for');
+    if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+      return forwarded.trim();
+    }
+
+    if (Array.isArray(request.ips) && request.ips.length > 0) {
+      const first = request.ips[0]?.trim();
+      if (first) {
+        return first;
+      }
+    }
+
+    if (typeof request.ip === 'string' && request.ip.trim().length > 0) {
+      return request.ip.trim();
+    }
+
+    const remoteAddress = request.socket?.remoteAddress?.trim();
+    return remoteAddress && remoteAddress.length > 0 ? remoteAddress : undefined;
   }
 }
 

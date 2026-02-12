@@ -8,6 +8,19 @@ describe('OpenAiAdapter', () => {
     observeResponseLatency: jest.fn(),
     incrementFallback: jest.fn(),
     incrementStockExactDisclosure: jest.fn(),
+    incrementOrderLookupRateLimited: jest.fn(),
+    incrementOrderLookupRateLimitDegraded: jest.fn(),
+    incrementOrderLookupVerificationFailed: jest.fn(),
+    incrementRecommendationsFranchiseMatch: jest.fn(),
+    incrementRecommendationsCatalogDegraded: jest.fn(),
+    incrementRecommendationsNoMatch: jest.fn(),
+    incrementRecommendationsDisambiguationTriggered: jest.fn(),
+    incrementRecommendationsDisambiguationResolved: jest.fn(),
+    incrementRecommendationsEditorialMatch: jest.fn(),
+    incrementRecommendationsEditorialSuggested: jest.fn(),
+    incrementOrderFlowAmbiguousAck: jest.fn(),
+    incrementOrderFlowHijackPrevented: jest.fn(),
+    incrementOutputTechnicalTermsSanitized: jest.fn(),
   };
 
   afterEach(() => {
@@ -17,6 +30,19 @@ describe('OpenAiAdapter', () => {
     metricsStub.observeResponseLatency.mockReset();
     metricsStub.incrementFallback.mockReset();
     metricsStub.incrementStockExactDisclosure.mockReset();
+    metricsStub.incrementOrderLookupRateLimited.mockReset();
+    metricsStub.incrementOrderLookupRateLimitDegraded.mockReset();
+    metricsStub.incrementOrderLookupVerificationFailed.mockReset();
+    metricsStub.incrementRecommendationsFranchiseMatch.mockReset();
+    metricsStub.incrementRecommendationsCatalogDegraded.mockReset();
+    metricsStub.incrementRecommendationsNoMatch.mockReset();
+    metricsStub.incrementRecommendationsDisambiguationTriggered.mockReset();
+    metricsStub.incrementRecommendationsDisambiguationResolved.mockReset();
+    metricsStub.incrementRecommendationsEditorialMatch.mockReset();
+    metricsStub.incrementRecommendationsEditorialSuggested.mockReset();
+    metricsStub.incrementOrderFlowAmbiguousAck.mockReset();
+    metricsStub.incrementOrderFlowHijackPrevented.mockReset();
+    metricsStub.incrementOutputTechnicalTermsSanitized.mockReset();
   });
 
   it('returns fallback when OPENAI_API_KEY is missing', async () => {
@@ -34,6 +60,7 @@ describe('OpenAiAdapter', () => {
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
     expect(resolveMessage(result)).toContain('Perfecto');
+    expect(resolvePromptVersion(result)).toBe('assistant_v2');
   });
 
   it('returns orders fallback for orders intent when key missing', async () => {
@@ -136,6 +163,7 @@ describe('OpenAiAdapter', () => {
     const result = await adapter.buildAssistantReply(buildInput('general'));
 
     expect(resolveMessage(result)).toBe('Respuesta estructurada');
+    expect(resolvePromptVersion(result)).toBe('assistant_v2');
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as Record<string, unknown>;
     expect(body['text']).toEqual(
@@ -190,4 +218,10 @@ function buildInput(
 
 function resolveMessage(result: Awaited<ReturnType<OpenAiAdapter['buildAssistantReply']>>): string {
   return typeof result === 'string' ? result : result.message;
+}
+
+function resolvePromptVersion(
+  result: Awaited<ReturnType<OpenAiAdapter['buildAssistantReply']>>,
+): string | null {
+  return typeof result === 'string' ? null : result.metadata?.promptVersion ?? null;
 }

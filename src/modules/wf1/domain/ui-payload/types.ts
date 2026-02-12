@@ -10,8 +10,8 @@ export interface UiProductCard {
   priceLabel?: string;
   availabilityLabel?: UiAvailabilityLabel;
   productUrl: string;
-  thumbnailUrl?: string;
-  thumbnailAlt?: string;
+  thumbnailUrl: string;
+  thumbnailAlt: string;
   badges?: string[];
 }
 

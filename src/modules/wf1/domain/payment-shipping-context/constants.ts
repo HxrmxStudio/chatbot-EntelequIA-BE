@@ -17,6 +17,7 @@ export const DEFAULT_SHIPPING_CONTEXT = [
   'ENVIOS',
   '- Podes elegir retiro sin cargo en tienda.',
   '- Tambien podes pedir envio a domicilio.',
+  '- Tambien hacemos envios internacionales con DHL.',
   '- Cuando el pedido se despacha, te compartimos tracking.',
 ].join('\n');
 
@@ -39,6 +40,7 @@ export const DEFAULT_GENERAL_CONTEXT = [
   '- Te contamos medios de pago, opciones de envio y seguimiento.',
   '- Para costo exacto, el checkout te muestra el valor final.',
   '- Retiro sin cargo disponible.',
+  '- Tambien hacemos envios internacionales con DHL.',
 ].join('\n');
 
 export const DEFAULT_INSTRUCTIONS = [

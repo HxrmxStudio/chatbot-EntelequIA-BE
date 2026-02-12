@@ -11,6 +11,8 @@ export interface EntelequiaContextPort {
   getProducts(input: { query?: string; categorySlug?: string; currency?: 'ARS' | 'USD' }): Promise<ContextBlock>;
   getProductDetail(input: { idOrSlug: string; currency?: 'ARS' | 'USD' }): Promise<ContextBlock>;
   getRecommendations(input: { currency?: 'ARS' | 'USD' }): Promise<ContextBlock>;
+  getProductBrands(): Promise<ContextBlock>;
+  getProductAuthors(input?: { search?: string }): Promise<ContextBlock>;
   getPaymentInfo(): Promise<ContextBlock>;
   getAuthenticatedUserProfile(input: { accessToken: string }): Promise<AuthenticatedUserProfile>;
   getOrders(input: { accessToken: string }): Promise<ContextBlock>;

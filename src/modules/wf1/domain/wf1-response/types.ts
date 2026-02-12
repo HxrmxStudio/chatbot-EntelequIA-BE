@@ -6,6 +6,7 @@ export type Wf1SuccessResponse = {
   message: string;
   conversationId: string;
   intent?: IntentName;
+  responseId?: string;
   ui?: UiPayloadV1;
 };
 

@@ -1,6 +1,6 @@
 import type { ContextBlock } from '../context-block';
 import { formatMoney } from '../money';
-import { WF1_UI_CATALOG_MAX_CARDS, WF1_UI_LOW_STOCK_THRESHOLD } from './constants';
+import { WF1_UI_LOW_STOCK_THRESHOLD, WF1_UI_THUMBNAIL_FALLBACK_URL } from './constants';
 import type { UiAvailabilityLabel, UiPayloadV1, UiProductCard } from './types';
 
 type SupportedContextType = 'products' | 'recommendations';
@@ -18,7 +18,7 @@ export function buildCatalogUiPayload(
       version: '1',
       kind: 'catalog',
       layout: 'list',
-      cards: cards.slice(0, WF1_UI_CATALOG_MAX_CARDS),
+      cards,
     };
   }
 
@@ -96,12 +96,8 @@ function mapRecordToCard(record: Record<string, unknown>): UiProductCard | undef
     ...(priceLabel ? { priceLabel } : {}),
     ...(availabilityLabel ? { availabilityLabel } : {}),
     productUrl,
-    ...(thumbnailUrl
-      ? {
-          thumbnailUrl,
-          thumbnailAlt: `Imagen de ${title}`,
-        }
-      : {}),
+    thumbnailUrl,
+    thumbnailAlt: `Imagen de ${title}`,
     ...(badges.length > 0 ? { badges } : {}),
   };
 }
@@ -168,13 +164,57 @@ function resolveAvailabilityLabel(value: unknown): UiAvailabilityLabel | undefin
   return 'hay stock';
 }
 
-function resolveThumbnailUrl(record: Record<string, unknown>): string | undefined {
-  const imageUrl = normalizeHttpsUrl(record.imageUrl);
-  if (imageUrl) {
-    return imageUrl;
+function resolveThumbnailUrl(record: Record<string, unknown>): string {
+  const directCandidates = [
+    record.imageUrl,
+    record.image_url,
+    record.thumbnailUrl,
+    record.thumbnail_url,
+  ];
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeImageUrl(candidate);
+    if (normalized) {
+      return normalized;
+    }
   }
 
-  return normalizeHttpsUrl(record.thumbnailUrl);
+  if (isRecord(record.image)) {
+    const normalized = normalizeImageUrl(record.image.url ?? record.image.src);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  if (isRecord(record.thumbnail)) {
+    const normalized = normalizeImageUrl(record.thumbnail.url ?? record.thumbnail.src);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  if (Array.isArray(record.images)) {
+    for (const rawImage of record.images) {
+      if (typeof rawImage === 'string') {
+        const normalized = normalizeImageUrl(rawImage);
+        if (normalized) {
+          return normalized;
+        }
+        continue;
+      }
+
+      if (!isRecord(rawImage)) {
+        continue;
+      }
+
+      const normalized = normalizeImageUrl(rawImage.url ?? rawImage.src ?? rawImage.path);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  return WF1_UI_THUMBNAIL_FALLBACK_URL;
 }
 
 function resolveBadges(discountValue: unknown): string[] {
@@ -248,21 +288,19 @@ function normalizeHttpUrl(value: unknown): string | undefined {
   }
 }
 
-function normalizeHttpsUrl(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const normalized = value.trim();
-  if (normalized.length === 0) {
+function normalizeImageUrl(value: unknown): string | undefined {
+  const normalized = normalizeHttpUrl(value);
+  if (!normalized) {
     return undefined;
   }
 
   try {
     const url = new URL(normalized);
-    if (url.protocol !== 'https:') {
-      return undefined;
+    if (url.protocol === 'http:') {
+      url.protocol = 'https:';
+      return url.toString();
     }
+
     return normalized;
   } catch {
     return undefined;

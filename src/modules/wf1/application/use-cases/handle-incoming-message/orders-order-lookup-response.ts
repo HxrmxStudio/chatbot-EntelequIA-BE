@@ -10,13 +10,51 @@ interface OrderLookupResponseOrder {
   trackingCode?: string;
 }
 
-const LOOKUP_INSTRUCTIONS = [
-  'Para consultar tu pedido sin iniciar sesion, enviame todo en un solo mensaje:',
+const ORDER_LOOKUP_DATA_REQUIREMENTS = [
   '- Numero de pedido (order_id)',
   '- Al menos 2 datos entre: dni, nombre, apellido, telefono',
+].join('\n');
+
+const HAS_ORDER_DATA_QUESTION = [
+  'Para ayudarte con tu pedido sin iniciar sesion, necesito confirmar si tenes estos datos:',
+  ORDER_LOOKUP_DATA_REQUIREMENTS,
+  '',
+  'Responde SI o NO.',
+].join('\n');
+
+const LOOKUP_INSTRUCTIONS = [
+  'Para consultar tu pedido sin iniciar sesion, enviame todo en un solo mensaje:',
+  ORDER_LOOKUP_DATA_REQUIREMENTS,
   '',
   'Ejemplo: pedido 12345, dni 12345678, nombre Juan, apellido Perez',
 ].join('\n');
+
+const LOOKUP_FORMAT_RULES = [
+  '- dni: 7 u 8 digitos',
+  '- nombre y apellido: hasta 50 letras',
+  '- telefono: entre 8 y 20 digitos (puede incluir +)',
+].join('\n');
+
+export function buildOrderLookupHasDataQuestionResponse(): Wf1Response {
+  return {
+    ok: false,
+    message: HAS_ORDER_DATA_QUESTION,
+  };
+}
+
+export function buildOrderLookupUnknownHasDataAnswerResponse(): Wf1Response {
+  return {
+    ok: false,
+    message: `${HAS_ORDER_DATA_QUESTION}\n\nNo entendi tu respuesta. Por favor responde SI o NO.`,
+  };
+}
+
+export function buildOrderLookupProvideDataResponse(): Wf1Response {
+  return {
+    ok: false,
+    message: `Perfecto.\n\n${LOOKUP_INSTRUCTIONS}`,
+  };
+}
 
 export function buildOrderLookupMissingOrderIdResponse(): Wf1Response {
   return {
@@ -36,10 +74,18 @@ export function buildOrderLookupMissingIdentityFactorsResponse(input: {
   };
 }
 
-export function buildOrderLookupInvalidPayloadResponse(): Wf1Response {
+export function buildOrderLookupInvalidPayloadResponse(input?: {
+  invalidFactors?: string[];
+}): Wf1Response {
+  const invalidCount = input?.invalidFactors?.length ?? 0;
+  const details =
+    invalidCount > 0
+      ? `\n\nDetecte ${invalidCount} dato(s) con formato invalido.\n${LOOKUP_FORMAT_RULES}`
+      : '';
+
   return {
     ok: false,
-    message: `${LOOKUP_INSTRUCTIONS}\n\nNo pude validar el formato enviado.`,
+    message: `${LOOKUP_INSTRUCTIONS}\n\nNo pude validar el formato enviado.${details}`,
   };
 }
 
@@ -63,7 +109,7 @@ export function buildOrderLookupThrottledResponse(): Wf1Response {
   return {
     ok: false,
     message:
-      'Hay alta demanda para consultas de pedidos. Intenta nuevamente en unos segundos.',
+      'Hay alta demanda para consultas de pedidos. Intenta nuevamente en 1 minuto.',
   };
 }
 

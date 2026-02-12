@@ -1,5 +1,5 @@
-HORARIOS DE ATENCION
+# Horarios de atencion
 - Lunes a viernes: 10:00 a 19:00 hs.
 - Sabados: 11:00 a 18:00 hs.
 - Domingos: cerrado.
-- Feriados y fechas especiales: el horario puede variar; sugeri confirmar en web/redes oficiales antes de ir.
+- Feriados y fechas especiales: pueden variar; sugerir confirmar en web/redes oficiales.

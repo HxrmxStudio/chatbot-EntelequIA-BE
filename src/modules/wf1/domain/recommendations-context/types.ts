@@ -30,6 +30,7 @@ export type RecommendationTypeKey =
   | 'merch';
 
 export interface RecommendationPreferences {
+  franchiseKeywords: string[];
   genre: string[];
   type: string[];
   age: number | null;

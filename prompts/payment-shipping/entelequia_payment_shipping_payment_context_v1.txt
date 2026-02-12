@@ -1,5 +1,5 @@
-MEDIOS DE PAGO
-- Aceptamos tarjetas de credito y debito.
-- Tambien podes pagar con Mercado Pago.
-- Transferencia bancaria disponible desde checkout.
-- Si hay promos de cuotas o descuentos, te las detallo segun disponibilidad.
+# Medios de pago
+- Tarjetas de credito y debito.
+- Mercado Pago.
+- Transferencia bancaria desde checkout.
+- Efectivo en local.

@@ -1,5 +1,5 @@
-ENVIOS
-- Podes elegir retiro sin cargo en tienda.
-- Tambien podes pedir envio a domicilio.
-- Cuando el pedido se despacha, se habilita seguimiento.
-- Si queres, te ayudo a elegir la opcion mas conveniente para tu compra.
+# Envios
+- Retiro sin cargo en tienda.
+- Envio a domicilio.
+- Envio internacional disponible con DHL.
+- Cuando se despacha, se habilita seguimiento.

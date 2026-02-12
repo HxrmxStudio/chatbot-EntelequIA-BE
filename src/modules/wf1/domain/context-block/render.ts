@@ -9,6 +9,7 @@ const BLOCK_TITLE_ORDERS = 'Ordenes';
 const BLOCK_TITLE_ORDER_DETAIL = 'Detalle de orden';
 const BLOCK_TITLE_PAYMENT_INFO = 'Informacion de pagos y envios';
 const BLOCK_TITLE_TICKETS = 'Soporte';
+const BLOCK_TITLE_CATALOG_TAXONOMY = 'Taxonomia de catalogo';
 const BLOCK_TITLE_STORE_INFO = 'Informacion de locales';
 const BLOCK_TITLE_STATIC_CONTEXT = 'Contexto estatico';
 const BLOCK_TITLE_GENERAL = 'Contexto general';
@@ -67,6 +68,10 @@ function renderContextBlock(block: ContextBlock): string | null {
 
     case 'tickets': {
       return renderAiContextBlock(block, BLOCK_TITLE_TICKETS);
+    }
+
+    case 'catalog_taxonomy': {
+      return renderAiContextBlock(block, BLOCK_TITLE_CATALOG_TAXONOMY);
     }
 
     case 'store_info': {

@@ -1,4 +1,4 @@
-Informacion adicional:
-- Locales: Uruguay 341 (Centro) y Juramento 2584 (Belgrano)
-- Retiro sin cargo en tienda
-- Envios a todo el pais
+# Datos de negocio adicionales
+- Retiro sin cargo en tienda.
+- Envio a domicilio disponible.
+- Si el usuario quiere mas detalle de un producto, invitalo a abrir el link.

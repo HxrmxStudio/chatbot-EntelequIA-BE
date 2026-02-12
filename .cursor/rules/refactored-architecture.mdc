@@ -36,7 +36,7 @@ wf1/
   application/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
-      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, orders-order-lookup-response.ts, resolve-order-lookup-request.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
+      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, orders-order-lookup-response.ts, resolve-order-lookup-request.ts, resolve-order-lookup-flow-state.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
       enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, recommendation-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
@@ -49,6 +49,7 @@ wf1/
       entelequia-http/   # entelequia-http.adapter.ts, endpoints.ts, entelequia-client.ts, payload-normalizers.ts, product-helpers.ts, entelequia-order-lookup.client.ts, bot-hmac-signer.ts, base-url.ts, index.ts
       prompt-templates/  # prompt-templates.adapter.ts, constants.ts, index.ts (centralizes all prompt loading)
       metrics/           # prometheus-metrics.adapter.ts (Prometheus metrics; optional index.ts as public API)
+      rate-limit/        # redis-order-lookup-rate-limiter.adapter.ts, index.ts
       # Each adapter in its own folder with index.ts as public API
       # endpoints.ts centralizes all endpoint definitions (API endpoints and web frontend URLs like productWebUrl, storageImageUrl) for better maintainability
     repositories/   # PgChat, PgIdempotency, PgAudit (share PG_POOL)
@@ -80,6 +81,7 @@ Defined in `application/ports/tokens.ts`:
 - INTENT_EXTRACTOR_PORT, ENTELEQUIA_CONTEXT_PORT, LLM_PORT
 - PROMPT_TEMPLATES_PORT (for centralized prompt access)
 - METRICS_PORT (for Prometheus metrics)
+- ORDER_LOOKUP_RATE_LIMITER_PORT (for order lookup rate limiting)
 - CHAT_PERSISTENCE_PORT, IDEMPOTENCY_PORT, AUDIT_PORT
 - PG_POOL (for repository implementations)
 
@@ -95,6 +97,8 @@ Defined in `application/ports/tokens.ts`:
 - `src/common/utils/string.utils.ts`: resolveOptionalString (consolidated from security/shared)
 - `src/common/utils/date.utils.ts`: coerceTimestamp (moved from pg-chat.repository.ts)
 - `src/common/utils/object.utils.ts`: ensureObject, isRecord
+- `src/common/utils/logger.ts`: createLogger (with automatic PII redaction via pii-redaction.ts)
+- `src/common/utils/pii-redaction.ts`: redactSensitiveData (redacts PII from logs/metrics)
 - `infrastructure/adapters/openai-retry.client.ts`: withRetry
 - `infrastructure/repositories/shared/json-helpers.ts`: toJsonb (for PostgreSQL jsonb columns)
 - `domain/money/`: parseMoney, formatMoney (shared domain concept for products and orders)

@@ -5,11 +5,18 @@ export interface AppEnv {
   ENTELEQUIA_BASE_URL: string;
   ENTELEQUIA_API_BASE_URL: string;
   ENTELEQUIA_WEB_BASE_URL: string;
+  CHATBOT_ENTELEQUIA_BASE_URL?: string;
   ENTELEQUIA_API_TIMEOUT_MS: number;
   BOT_ORDER_LOOKUP_HMAC_SECRET: string;
   BOT_ORDER_LOOKUP_TIMEOUT_MS: number;
   BOT_ORDER_LOOKUP_RETRY_MAX: number;
   BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS: number;
+  REDIS_URL?: string;
+  ORDER_LOOKUP_RATE_LIMIT_ENABLED: boolean;
+  ORDER_LOOKUP_RATE_LIMIT_WINDOW_MS: number;
+  ORDER_LOOKUP_RATE_LIMIT_IP_MAX: number;
+  ORDER_LOOKUP_RATE_LIMIT_USER_MAX: number;
+  ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX: number;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
   OPENAI_TIMEOUT_MS: number;
@@ -22,6 +29,19 @@ export interface AppEnv {
   WF1_EVAL_SAMPLE_RANDOM_PERCENT: number;
   WF1_EVAL_LOW_SCORE_THRESHOLD: number;
   WF1_UI_CARDS_ENABLED: boolean;
+  WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED: boolean;
+  WF1_RECOMMENDATIONS_FRANCHISE_THRESHOLD: number;
+  WF1_RECOMMENDATIONS_VOLUME_THRESHOLD: number;
+  WF1_RECURSIVE_LEARNING_ENABLED: boolean;
+  WF1_RECURSIVE_AUTOPROMOTE_ENABLED: boolean;
+  WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED: boolean;
+  WF1_RECURSIVE_MIN_EVAL_SAMPLES: number;
+  WF1_RECURSIVE_MIN_FEEDBACK_SAMPLES: number;
+  WF1_RECURSIVE_MIN_SEMANTIC_LIFT: number;
+  WF1_RECURSIVE_MAX_FALLBACK_DELTA: number;
+  WF1_RECURSIVE_MAX_HALLUCINATION_DELTA: number;
+  WF1_RECURSIVE_ROLLBACK_MAX_FALLBACK_DELTA: number;
+  WF1_RECURSIVE_ROLLBACK_MAX_DOWNVOTE_DELTA: number;
   TURNSTILE_SECRET_KEY?: string;
   WHATSAPP_SECRET?: string;
   ALLOWED_ORIGINS: string[];
@@ -101,10 +121,13 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     ENTELEQUIA_BASE_URL.length > 0 ? ENTELEQUIA_BASE_URL : ENTELEQUIA_API_BASE_URL;
   const ENTELEQUIA_WEB_BASE_URL =
     String(config.ENTELEQUIA_WEB_BASE_URL ?? '').trim() || 'https://entelequia.com.ar';
+  const CHATBOT_ENTELEQUIA_BASE_URL =
+    String(config.CHATBOT_ENTELEQUIA_BASE_URL ?? '').trim() || undefined;
   const BOT_ORDER_LOOKUP_HMAC_SECRET =
     String(config.BOT_ORDER_LOOKUP_HMAC_SECRET ?? '').trim();
   const TURNSTILE_SECRET_KEY =
     String(config.TURNSTILE_SECRET_KEY ?? '').trim() || undefined;
+  const REDIS_URL = String(config.REDIS_URL ?? '').trim() || undefined;
 
   if (CHATBOT_DB_URL.length === 0) {
     throw new Error('CHATBOT_DB_URL is required');
@@ -131,6 +154,7 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     ENTELEQUIA_API_BASE_URL:
       ENTELEQUIA_API_BASE_URL.length > 0 ? ENTELEQUIA_API_BASE_URL : resolvedEntelequiaBaseUrl,
     ENTELEQUIA_WEB_BASE_URL,
+    CHATBOT_ENTELEQUIA_BASE_URL,
     ENTELEQUIA_API_TIMEOUT_MS: parseNumber(config.ENTELEQUIA_API_TIMEOUT_MS, 8000),
     BOT_ORDER_LOOKUP_HMAC_SECRET,
     BOT_ORDER_LOOKUP_TIMEOUT_MS: Math.max(
@@ -141,6 +165,27 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS: Math.max(
       0,
       parseNumber(config.BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS, 500),
+    ),
+    REDIS_URL,
+    ORDER_LOOKUP_RATE_LIMIT_ENABLED: parseBoolean(
+      config.ORDER_LOOKUP_RATE_LIMIT_ENABLED,
+      true,
+    ),
+    ORDER_LOOKUP_RATE_LIMIT_WINDOW_MS: Math.max(
+      1_000,
+      parseNumber(config.ORDER_LOOKUP_RATE_LIMIT_WINDOW_MS, 900_000),
+    ),
+    ORDER_LOOKUP_RATE_LIMIT_IP_MAX: Math.max(
+      1,
+      parseNumber(config.ORDER_LOOKUP_RATE_LIMIT_IP_MAX, 8),
+    ),
+    ORDER_LOOKUP_RATE_LIMIT_USER_MAX: Math.max(
+      1,
+      parseNumber(config.ORDER_LOOKUP_RATE_LIMIT_USER_MAX, 6),
+    ),
+    ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX: Math.max(
+      1,
+      parseNumber(config.ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX, 4),
     ),
     OPENAI_API_KEY: String(config.OPENAI_API_KEY ?? '').trim() || undefined,
     OPENAI_MODEL: String(config.OPENAI_MODEL ?? 'gpt-4.1-mini').trim(),
@@ -165,7 +210,60 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
       1,
       Math.max(0, parseNumber(config.WF1_EVAL_LOW_SCORE_THRESHOLD, 0.6)),
     ),
-    WF1_UI_CARDS_ENABLED: parseBoolean(config.WF1_UI_CARDS_ENABLED, false),
+    // Deprecated gate: UI cards are always enabled for FE rendering consistency.
+    WF1_UI_CARDS_ENABLED: true,
+    WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED: parseBoolean(
+      config.WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED,
+      true,
+    ),
+    WF1_RECOMMENDATIONS_FRANCHISE_THRESHOLD: Math.max(
+      1,
+      parseNumber(config.WF1_RECOMMENDATIONS_FRANCHISE_THRESHOLD, 20),
+    ),
+    WF1_RECOMMENDATIONS_VOLUME_THRESHOLD: Math.max(
+      1,
+      parseNumber(config.WF1_RECOMMENDATIONS_VOLUME_THRESHOLD, 10),
+    ),
+    WF1_RECURSIVE_LEARNING_ENABLED: parseBoolean(
+      config.WF1_RECURSIVE_LEARNING_ENABLED,
+      true,
+    ),
+    WF1_RECURSIVE_AUTOPROMOTE_ENABLED: parseBoolean(
+      config.WF1_RECURSIVE_AUTOPROMOTE_ENABLED,
+      false,
+    ),
+    WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED: parseBoolean(
+      config.WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED,
+      false,
+    ),
+    WF1_RECURSIVE_MIN_EVAL_SAMPLES: Math.max(
+      1,
+      parseNumber(config.WF1_RECURSIVE_MIN_EVAL_SAMPLES, 120),
+    ),
+    WF1_RECURSIVE_MIN_FEEDBACK_SAMPLES: Math.max(
+      1,
+      parseNumber(config.WF1_RECURSIVE_MIN_FEEDBACK_SAMPLES, 20),
+    ),
+    WF1_RECURSIVE_MIN_SEMANTIC_LIFT: parseNumber(
+      config.WF1_RECURSIVE_MIN_SEMANTIC_LIFT,
+      0.03,
+    ),
+    WF1_RECURSIVE_MAX_FALLBACK_DELTA: parseNumber(
+      config.WF1_RECURSIVE_MAX_FALLBACK_DELTA,
+      0.005,
+    ),
+    WF1_RECURSIVE_MAX_HALLUCINATION_DELTA: parseNumber(
+      config.WF1_RECURSIVE_MAX_HALLUCINATION_DELTA,
+      0.002,
+    ),
+    WF1_RECURSIVE_ROLLBACK_MAX_FALLBACK_DELTA: parseNumber(
+      config.WF1_RECURSIVE_ROLLBACK_MAX_FALLBACK_DELTA,
+      0.01,
+    ),
+    WF1_RECURSIVE_ROLLBACK_MAX_DOWNVOTE_DELTA: parseNumber(
+      config.WF1_RECURSIVE_ROLLBACK_MAX_DOWNVOTE_DELTA,
+      0.02,
+    ),
     TURNSTILE_SECRET_KEY,
     WHATSAPP_SECRET: String(config.WHATSAPP_SECRET ?? '').trim() || undefined,
     ALLOWED_ORIGINS: parseOrigins(config.ALLOWED_ORIGINS),

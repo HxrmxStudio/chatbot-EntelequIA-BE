@@ -12,6 +12,7 @@ Dedicated backend service for WF1 migration from N8N with functional parity, ide
 
 ## Implemented endpoint
 - `POST /wf1/chat/message`
+- `POST /wf1/chat/feedback`
 - `POST /api/v1/chat/intent`
 - `GET /health`
 
@@ -30,9 +31,28 @@ Dedicated backend service for WF1 migration from N8N with functional parity, ide
 ```
 
 ### Response union
-- Success: `{ "ok": true, "message": "...", "conversationId": "...", "intent": "optional" }`
+- Success: `{ "ok": true, "message": "...", "conversationId": "...", "intent": "optional", "responseId": "optional", "ui": "optional" }`
 - Requires auth: `{ "ok": false, "requiresAuth": true, "message": "..." }`
 - Failure: `{ "ok": false, "message": "..." }`
+
+### Feedback request
+```json
+{
+  "source": "web",
+  "conversationId": "string<=255",
+  "responseId": "uuid",
+  "rating": "up|down",
+  "reason": "optional<=280",
+  "category": "accuracy|relevance|tone|ux|other optional"
+}
+```
+
+### Feedback response
+```json
+{
+  "ok": true
+}
+```
 
 ## Intent node contract
 ### Request
@@ -120,6 +140,13 @@ cp .env.example .env
 psql "$CHATBOT_DB_URL" -f sql/01_initial_schema.sql
 psql "$CHATBOT_DB_URL" -f sql/02_audit_logs.sql
 psql "$CHATBOT_DB_URL" -f sql/03_fix_messages_event_dedupe.sql
+psql "$CHATBOT_DB_URL" -f sql/04_response_evaluations.sql
+psql "$CHATBOT_DB_URL" -f sql/05_hitl_review_queue.sql
+psql "$CHATBOT_DB_URL" -f sql/06_hitl_golden_examples.sql
+psql "$CHATBOT_DB_URL" -f sql/07_retention_policies.sql
+psql "$CHATBOT_DB_URL" -f sql/08_message_feedback.sql
+psql "$CHATBOT_DB_URL" -f sql/09_wf1_learning_runs.sql
+psql "$CHATBOT_DB_URL" -f sql/10_wf1_intent_exemplars.sql
 ```
 4. Build
 ```bash
@@ -130,14 +157,63 @@ npm run build
 npm run start:dev
 ```
 
+## Local full stack launcher
+To run Entelequia FE + Chatbot BE + Entelequia BE together for local E2E testing:
+
+```bash
+chmod +x scripts/run-entelequia-local-stack.sh
+scripts/run-entelequia-local-stack.sh up
+```
+
+Common commands:
+
+```bash
+scripts/run-entelequia-local-stack.sh status
+scripts/run-entelequia-local-stack.sh logs chatbot
+scripts/run-entelequia-local-stack.sh logs all
+scripts/run-entelequia-local-stack.sh logs entelequia
+scripts/run-entelequia-local-stack.sh down
+```
+
+Defaults (overridable by env vars):
+- FE repo: `/Users/user/Workspace/entelequia_tienda` (port `5173`)
+- Chatbot BE repo: `/Users/user/Workspace/chatbot-EntelequIA-BE` (port `3090`)
+- Entelequia BE repo: `/Users/user/Workspace/p-entelequia24` (port `8010`)
+- Chatbot upstream API for catalog/context: `https://entelequia.com.ar`
+- Default script log target: `chatbot`
+- Runtime files/logs: `/tmp/entelequia-local-stack`
+
+Run local stack with production read-only upstream for chatbot (recommended):
+
+```bash
+CHATBOT_ENTELEQUIA_BASE_URL=https://entelequia.com.ar \
+scripts/run-entelequia-local-stack.sh up
+```
+
+Switch chatbot upstream to local Entelequia BE for debugging:
+
+```bash
+CHATBOT_ENTELEQUIA_BASE_URL=http://127.0.0.1:8010 \
+scripts/run-entelequia-local-stack.sh up
+```
+
 ## Key env vars
 - `OPENAI_TIMEOUT_MS` (default `8000`): timeout in milliseconds for OpenAI requests.
 - `CHATBOT_DB_TEST_URL` (optional): explicit DB URL for PostgreSQL integration tests (`test:integration:pg`).
 - `ENTELEQUIA_BASE_URL` (recommended): Entelequia base URL. If empty, falls back to `ENTELEQUIA_API_BASE_URL`.
+- `CHATBOT_ENTELEQUIA_BASE_URL` (stack script runtime): upstream API used when launching local stack; default `https://entelequia.com.ar`.
 - `BOT_ORDER_LOOKUP_HMAC_SECRET`: shared secret for HMAC signing in `/api/v1/bot/order-lookup`.
 - `BOT_ORDER_LOOKUP_TIMEOUT_MS` (default `8000`): timeout for secure order lookup requests.
 - `BOT_ORDER_LOOKUP_RETRY_MAX` (default `1`): max retries for `429` responses.
 - `BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS` (default `500`): base backoff for `429` retries.
+- `WF1_RECURSIVE_LEARNING_ENABLED` (default `true`): enables adaptive exemplar hints.
+- `WF1_RECURSIVE_AUTOPROMOTE_ENABLED` (default `false`): promotion remains manual by default.
+- `WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED` (default `false`): rollback remains manual by default.
+
+## Production upstream guardrails
+- In local E2E mode, chatbot requests to production Entelequia are read-only (catalog/context GET endpoints).
+- Do not log full tokens, secrets, signatures or full PII values.
+- Keep conservative timeout/retry settings to avoid flooding upstream.
 
 ## Tests
 ```bash

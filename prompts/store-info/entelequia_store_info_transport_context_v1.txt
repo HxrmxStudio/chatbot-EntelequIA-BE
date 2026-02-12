@@ -1,4 +1,4 @@
-COMO LLEGAR
+# Como llegar
 - Se puede llegar por transporte publico y apps de movilidad.
-- Si dice desde donde sale, sugeri opcion mas conveniente.
+- Si dice desde donde sale, sugerir opcion mas conveniente.
 - Si duda entre sucursales, orientar por comodidad de trayecto.

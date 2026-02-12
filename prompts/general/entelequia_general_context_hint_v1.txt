@@ -1,1 +1,1 @@
-Responder con claridad y pedir precision cuando falten datos.
+Responder con claridad, detectar la necesidad principal y pedir precision solo si hace falta.

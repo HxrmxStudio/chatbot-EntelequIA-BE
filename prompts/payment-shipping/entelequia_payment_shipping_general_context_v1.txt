@@ -1,5 +1,4 @@
-PAGOS Y ENVIOS
-- Te comparto medios de pago, opciones de envio y seguimiento.
-- Para costo exacto de envio, checkout te muestra el valor final.
-- Tambien podes retirar sin cargo en tienda.
-- Si queres, te ayudo a resolver tu caso puntual.
+# Pagos y envios
+- Puedo ayudarte con medios de pago, costos, tiempos y opciones de envio/retiro.
+- Para costo exacto de envio, usar checkout.
+- Si queres, te guio segun tu caso puntual.

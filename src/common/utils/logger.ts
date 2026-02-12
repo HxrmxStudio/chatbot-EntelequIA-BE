@@ -1,3 +1,5 @@
+import { redactSensitiveData } from './pii-redaction';
+
 /**
  * Backend logger aligned with chatbot-widget FE logger.
  * Same style: indicators, timestamp, meta box, security wrapper, error stack.
@@ -85,13 +87,14 @@ function getTimestamp(): string {
 }
 
 function formatMetaForDisplay(meta?: LogMeta): string {
+  const safeMeta = sanitizeMeta(meta);
   if (
-    !meta ||
-    Object.keys(meta).filter((k) => k !== 'type' && k !== 'method').length === 0
+    !safeMeta ||
+    Object.keys(safeMeta).filter((k) => k !== 'type' && k !== 'method').length === 0
   ) {
     return '';
   }
-  const filtered = { ...meta };
+  const filtered = { ...safeMeta };
   delete filtered.type;
   delete filtered.method;
   if (Object.keys(filtered).length === 0) return '';
@@ -103,8 +106,22 @@ function formatMetaForDisplay(meta?: LogMeta): string {
 }
 
 function formatMetaForPayload(meta?: LogMeta): Record<string, unknown> {
-  if (!meta || Object.keys(meta).length === 0) return {};
-  return { ...meta };
+  const safeMeta = sanitizeMeta(meta);
+  if (!safeMeta || Object.keys(safeMeta).length === 0) return {};
+  return { ...safeMeta };
+}
+
+function sanitizeMeta(meta?: LogMeta): LogMeta | undefined {
+  if (!meta) {
+    return undefined;
+  }
+
+  const redacted = redactSensitiveData(meta);
+  if (typeof redacted !== 'object' || redacted === null || Array.isArray(redacted)) {
+    return undefined;
+  }
+
+  return redacted as LogMeta;
 }
 
 function log(level: LogLevel, message: string, meta?: LogMeta, context?: string): void {

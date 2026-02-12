@@ -42,6 +42,11 @@ describe('EntelequiaHttpAdapter', () => {
     expect(err).toBeInstanceOf(ExternalServiceError);
     expect(err?.statusCode).toBe(404);
     expect(err?.errorCode).toBe('http');
+    expect(err?.context).toMatchObject({
+      service: 'entelequia',
+      endpointGroup: 'catalog',
+      endpointPath: '/products-list',
+    });
   });
 
   it('throws ExternalServiceError with timeout on AbortError', async () => {
@@ -62,6 +67,30 @@ describe('EntelequiaHttpAdapter', () => {
 
     expect(err).toBeInstanceOf(ExternalServiceError);
     expect(err?.errorCode).toBe('timeout');
+    expect(err?.context).toMatchObject({
+      service: 'entelequia',
+      endpointGroup: 'catalog',
+      endpointPath: '/products-list',
+    });
+  });
+
+  it('classifies /account/orders failures as orders endpoint group', async () => {
+    global.fetch = jest.fn().mockImplementation(() => {
+      const e = new Error('Aborted');
+      e.name = 'AbortError';
+      return Promise.reject(e);
+    }) as typeof fetch;
+
+    const adapter = buildAdapter();
+
+    await expect(adapter.getOrders({ accessToken: 'token' })).rejects.toMatchObject({
+      errorCode: 'timeout',
+      context: {
+        service: 'entelequia',
+        endpointGroup: 'orders',
+        endpointPath: '/account/orders',
+      },
+    });
   });
 
   it('returns context block on success', async () => {
@@ -119,6 +148,34 @@ describe('EntelequiaHttpAdapter', () => {
     );
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('q=One+Piece');
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('currency=ARS');
+  });
+
+  it('normalizes product brands payload', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          brands: [
+            { id: 1, name: 'Ivrea Argentina', slug: 'ivrea-argentina' },
+            { id: 2, name: 'Panini Argentina', slug: 'panini-argentina' },
+          ],
+        }),
+    }) as typeof fetch;
+
+    const adapter = buildAdapter();
+    const result = await adapter.getProductBrands();
+
+    expect(result.contextType).toBe('catalog_taxonomy');
+    expect(result.contextPayload).toEqual({
+      brands: [
+        { id: 1, name: 'Ivrea Argentina', slug: 'ivrea-argentina' },
+        { id: 2, name: 'Panini Argentina', slug: 'panini-argentina' },
+      ],
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${baseUrl}/api/v1/products/brands`,
+      expect.any(Object),
+    );
   });
 
   it('normalizes authenticated profile payload from /account/profile', async () => {

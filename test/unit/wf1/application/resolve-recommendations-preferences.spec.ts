@@ -35,6 +35,7 @@ describe('resolveRecommendationsPreferences', () => {
     });
 
     expect(result).toEqual({
+      franchiseKeywords: [],
       genre: [],
       type: [],
       age: null,
@@ -47,6 +48,7 @@ describe('resolveRecommendationsPreferences', () => {
       entities: [],
     });
 
+    expect(result.franchiseKeywords).toContain('naruto');
     expect(result.type).toContain('merch_figuras');
   });
 });

@@ -8,6 +8,9 @@ import {
 import type { Request, Response } from 'express';
 import { createLogger } from '../utils/logger';
 
+const SAFE_FALLBACK_MESSAGE =
+  'Tuvimos un inconveniente momentaneo. Si queres, te ayudo con otra consulta o lo intentamos de nuevo en un momento.';
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = createLogger(HttpExceptionFilter.name);
@@ -25,7 +28,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const message =
       exception instanceof HttpException
         ? this.safeHttpMessage(exception)
-        : 'No pudimos procesar tu mensaje.';
+        : SAFE_FALLBACK_MESSAGE;
 
     if (status >= 500) {
       this.logger.error(
@@ -69,6 +72,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return 'Firma o credenciales invalidas.';
     }
 
-    return 'No pudimos procesar tu mensaje.';
+    return SAFE_FALLBACK_MESSAGE;
   }
 }

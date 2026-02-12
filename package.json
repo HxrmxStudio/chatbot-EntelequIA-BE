@@ -15,7 +15,12 @@
     "test:integration": "jest --testPathPattern=test/integration --runInBand",
     "test:integration:pg": "jest --runInBand --testPathPattern=test/integration/.*pg-.*.repository.integration.spec",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "smoke:wf1:final-stage": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/smoke-wf1-final-stage.ts"
+    "smoke:wf1:final-stage": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/smoke-wf1-final-stage.ts",
+    "validate:prompts": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-prompts.ts",
+    "wf1:learning:build": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/build-intent-exemplars.ts",
+    "wf1:learning:promote": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/promote-intent-exemplars.ts",
+    "wf1:learning:rollback": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/rollback-intent-exemplars.ts",
+    "wf1:quality:weekly-report": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/generate-wf1-weekly-quality-report.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.13",
@@ -27,6 +32,7 @@
     "class-validator": "^0.14.3",
     "helmet": "^8.1.0",
     "pg": "^8.18.0",
+    "redis": "^4.7.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "undici": "^7.21.0"

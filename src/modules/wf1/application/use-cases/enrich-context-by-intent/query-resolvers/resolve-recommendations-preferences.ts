@@ -6,6 +6,7 @@ import {
 } from '@/modules/wf1/domain/recommendations-context';
 import { detectProductCategory } from './detect-category';
 import { normalizeForToken } from './normalize';
+import { resolveRecommendationFranchiseKeywords } from './recommendation-franchise-keywords';
 import type { DetectedProductCategory } from './types';
 
 const GENRE_PATTERNS: ReadonlyArray<{ genre: string; pattern: RegExp }> = [
@@ -28,11 +29,13 @@ export function resolveRecommendationsPreferences(input: {
   entities: string[];
 }): RecommendationPreferences {
   const normalizedText = normalizeForToken(input.text);
+  const franchiseKeywords = resolveRecommendationFranchiseKeywords(input);
   const genre = detectGenres(normalizedText);
   const type = detectTypes(input.text, input.entities);
   const age = detectAge(normalizedText);
 
   return {
+    franchiseKeywords,
     genre,
     type,
     age,

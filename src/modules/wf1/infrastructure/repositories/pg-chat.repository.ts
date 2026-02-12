@@ -5,7 +5,9 @@ import { toJsonb } from './shared';
 import type {
   AuthenticatedUserProfileInput,
   ChatPersistencePort,
+  LastBotTurnByExternalEvent,
   PersistTurnInput,
+  PersistTurnResult,
 } from '../../application/ports/chat-persistence.port';
 import type { ChannelSource } from '../../domain/source';
 import type { MessageHistoryItem } from '../../domain/context-block';
@@ -151,7 +153,40 @@ export class PgChatRepository implements ChatPersistencePort {
     return result.rows[0]?.content ?? null;
   }
 
-  async persistTurn(input: PersistTurnInput): Promise<void> {
+  async getLastBotTurnByExternalEvent(input: {
+    channel: ChannelSource;
+    externalEventId: string;
+    conversationId?: string;
+  }): Promise<LastBotTurnByExternalEvent | null> {
+    const result = await this.pool.query<{
+      id: string;
+      content: string;
+      metadata: unknown;
+    }>(
+      `SELECT id::text, content, metadata
+       FROM messages
+       WHERE channel = $1
+         AND external_event_id = $2
+         AND ($3::varchar IS NULL OR conversation_id = $3)
+         AND sender = 'bot'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [input.channel, input.externalEventId, input.conversationId ?? null],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      message: row.content,
+      messageId: row.id,
+      metadata: isRecord(row.metadata) ? row.metadata : null,
+    };
+  }
+
+  async persistTurn(input: PersistTurnInput): Promise<PersistTurnResult> {
     const client = await this.pool.connect();
 
     try {
@@ -216,6 +251,11 @@ export class PgChatRepository implements ChatPersistencePort {
       }
 
       await client.query('COMMIT');
+      const botMessageId = botMessageInsert.rows[0]?.id;
+      if (!botMessageId) {
+        throw new Error('Missing bot message id after persist');
+      }
+      return { botMessageId };
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       throw error;
@@ -263,6 +303,10 @@ export class PgChatRepository implements ChatPersistencePort {
       [input.conversationId, input.userId, input.channel],
     );
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function asNullableUuid(value: string): string | null {

@@ -6,3 +6,5 @@ coverage/
 .DS_Store
 *.log
 docs/reports/local/
+.playwright-cli/
+output/

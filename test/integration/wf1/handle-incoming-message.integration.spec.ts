@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
+  ADAPTIVE_EXEMPLARS_PORT,
   AUDIT_PORT,
   CHAT_PERSISTENCE_PORT,
   ENTELEQUIA_CONTEXT_PORT,
@@ -8,6 +9,7 @@ import {
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
   METRICS_PORT,
+  ORDER_LOOKUP_RATE_LIMITER_PORT,
   PROMPT_TEMPLATES_PORT,
 } from '@/modules/wf1/application/ports/tokens';
 import type { LlmPort } from '@/modules/wf1/application/ports/llm.port';
@@ -29,7 +31,22 @@ class InMemoryPersistence {
     phone: string;
     name: string;
   }> = [];
-  private botByEvent = new Map<string, string>();
+  private botByEvent = new Map<
+    string,
+    { message: string; messageId: string; metadata: Record<string, unknown> | null }
+  >();
+  private sequence = 0;
+  private historyRows: Array<{
+    sequence: number;
+    conversationId: string;
+    id: string;
+    content: string | null;
+    sender: string | null;
+    type: string | null;
+    channel: string | null;
+    metadata: unknown;
+    created_at: string | null;
+  }> = [];
 
   async upsertUser(userId: string): Promise<{
     id: string;
@@ -77,11 +94,29 @@ class InMemoryPersistence {
 
   async upsertConversation(): Promise<void> {}
 
-  async getConversationHistory(): Promise<Array<{ sender: 'user'; content: string; createdAt: string }>> {
-    return [];
+  async getConversationHistory(input: {
+    conversationId: string;
+    limit: number;
+  }): Promise<Array<{ sender: 'user' | 'bot'; content: string; createdAt: string }>> {
+    const rows = await this.getConversationHistoryRows(input);
+    return [...rows]
+      .reverse()
+      .flatMap((row) => {
+        if (row.sender !== 'user' && row.sender !== 'bot') {
+          return [];
+        }
+        if (typeof row.content !== 'string' || typeof row.created_at !== 'string') {
+          return [];
+        }
+
+        return [{ sender: row.sender, content: row.content, createdAt: row.created_at }];
+      });
   }
 
-  async getConversationHistoryRows(): Promise<
+  async getConversationHistoryRows(input: {
+    conversationId: string;
+    limit: number;
+  }): Promise<
     Array<{
       id: string;
       content: string | null;
@@ -92,7 +127,19 @@ class InMemoryPersistence {
       created_at: string | null;
     }>
   > {
-    return [];
+    return this.historyRows
+      .filter((row) => row.conversationId === input.conversationId)
+      .sort((a, b) => b.sequence - a.sequence)
+      .slice(0, input.limit)
+      .map((row) => ({
+        id: row.id,
+        content: row.content,
+        sender: row.sender,
+        type: row.type,
+        channel: row.channel,
+        metadata: row.metadata,
+        created_at: row.created_at,
+      }));
   }
 
   async getLastBotMessageByExternalEvent(input: {
@@ -101,15 +148,84 @@ class InMemoryPersistence {
     conversationId?: string;
   }): Promise<string | null> {
     const key = `${input.channel}:${input.externalEventId}`;
+    return this.botByEvent.get(key)?.message ?? null;
+  }
+
+  async getLastBotTurnByExternalEvent(input: {
+    channel: 'web' | 'whatsapp';
+    externalEventId: string;
+    conversationId?: string;
+  }): Promise<{ message: string; messageId: string; metadata: Record<string, unknown> | null } | null> {
+    const key = `${input.channel}:${input.externalEventId}`;
     return this.botByEvent.get(key) ?? null;
   }
 
-  async persistTurn(input: PersistTurnInput): Promise<void> {
+  async persistTurn(input: PersistTurnInput): Promise<{ botMessageId: string }> {
     this.onEvent?.('persist_turn');
     this.turns.push(input);
+
+    const userRow = this.buildHistoryRow({
+      conversationId: input.conversationId,
+      sender: 'user',
+      content: input.userMessage,
+      channel: input.source,
+      metadata: input.metadata ?? null,
+    });
+    const botRow = this.buildHistoryRow({
+      conversationId: input.conversationId,
+      sender: 'bot',
+      content: input.botMessage,
+      channel: input.source,
+      metadata: input.metadata ?? null,
+    });
+
+    this.historyRows.push(userRow);
+    this.historyRows.push(botRow);
+
     const key = `${input.source}:${input.externalEventId}`;
-    this.botByEvent.set(key, input.botMessage);
+    this.botByEvent.set(key, {
+      message: input.botMessage,
+      messageId: botRow.id,
+      metadata: isRecord(input.metadata) ? input.metadata : null,
+    });
+
+    return { botMessageId: botRow.id };
   }
+
+  private buildHistoryRow(input: {
+    conversationId: string;
+    sender: 'user' | 'bot';
+    content: string;
+    channel: 'web' | 'whatsapp';
+    metadata: unknown;
+  }): {
+    sequence: number;
+    conversationId: string;
+    id: string;
+    content: string | null;
+    sender: string | null;
+    type: string | null;
+    channel: string | null;
+    metadata: unknown;
+    created_at: string | null;
+  } {
+    this.sequence += 1;
+    return {
+      sequence: this.sequence,
+      conversationId: input.conversationId,
+      id: `msg-${this.sequence}`,
+      content: input.content,
+      sender: input.sender,
+      type: 'text',
+      channel: input.channel,
+      metadata: input.metadata,
+      created_at: new Date(1_700_000_000_000 + this.sequence).toISOString(),
+    };
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 class InMemoryIdempotency {
@@ -148,12 +264,72 @@ class InMemoryAudit {
   }
 }
 
+class InMemoryAdaptiveExemplars {
+  async getActiveExemplarsByIntent(): Promise<Array<{
+    intent: string;
+    promptHint: string;
+    confidenceWeight: number;
+  }>> {
+    return [];
+  }
+}
+
 class InMemoryMetrics {
   incrementMessage(): void {}
   observeResponseLatency(): void {}
   incrementFallback(): void {}
   incrementStockExactDisclosure(): void {}
+  incrementOrderLookupRateLimited(): void {}
+  incrementOrderLookupRateLimitDegraded(): void {}
+  incrementOrderLookupVerificationFailed(): void {}
+  incrementRecommendationsFranchiseMatch(): void {}
+  incrementRecommendationsCatalogDegraded(): void {}
+  incrementRecommendationsNoMatch(): void {}
+  incrementRecommendationsDisambiguationTriggered(): void {}
+  incrementRecommendationsDisambiguationResolved(): void {}
+  incrementRecommendationsEditorialMatch(): void {}
+  incrementRecommendationsEditorialSuggested(): void {}
+  incrementOrderFlowAmbiguousAck(): void {}
+  incrementOrderFlowHijackPrevented(): void {}
+  incrementOutputTechnicalTermsSanitized(): void {}
+  incrementFeedbackReceived(): void {}
+  incrementUiPayloadEmitted(): void {}
+  incrementUiPayloadSuppressed(): void {}
+  incrementLearningAutopromote(): void {}
+  incrementLearningAutorollback(): void {}
 }
+
+class InMemoryOrderLookupRateLimiter {
+  public mode: 'allow' | 'throttle' | 'degraded' = 'allow';
+
+  async consume(): Promise<{
+    allowed: boolean;
+    degraded: boolean;
+    blockedBy?: 'ip' | 'user' | 'order';
+  }> {
+    if (this.mode === 'throttle') {
+      return {
+        allowed: false,
+        degraded: false,
+        blockedBy: 'order',
+      };
+    }
+
+    if (this.mode === 'degraded') {
+      return {
+        allowed: true,
+        degraded: true,
+      };
+    }
+
+    return {
+      allowed: true,
+      degraded: false,
+    };
+  }
+}
+
+const RECOMMENDATION_FRANCHISE_HINTS = ['one piece', 'naruto', 'evangelion', 'dragon ball'];
 
 class StubIntentExtractor {
   async extractIntent(input: { text: string }): Promise<{
@@ -191,6 +367,14 @@ class StubIntentExtractor {
         intent: 'recommendations',
         entities: [],
         confidence: 0.86,
+      };
+    }
+
+    if (shouldRouteToRecommendationsByFranchise(normalized)) {
+      return {
+        intent: 'recommendations',
+        entities: [],
+        confidence: 0.83,
       };
     }
 
@@ -242,9 +426,9 @@ class StubLlm implements LlmPort {
     input: Parameters<LlmPort['buildAssistantReply']>[0],
   ): Promise<string> {
     this.lastInput = input;
+    const normalizedText = input.userText.toLowerCase();
 
     if (input.intent === 'store_info') {
-      const normalizedText = input.userText.toLowerCase();
       if (
         normalizedText.includes('horario') ||
         normalizedText.includes('abren') ||
@@ -252,6 +436,13 @@ class StubLlm implements LlmPort {
       ) {
         return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
       }
+    }
+
+    if (
+      normalizedText.includes('porque fue cancelado') ||
+      normalizedText.includes('por que fue cancelado')
+    ) {
+      return 'Por ahora no me figura el motivo de la cancelacion del pedido #78399. Queres que consulte con el area correspondiente o preferis que te ayude con otra cosa?';
     }
 
     return 'Respuesta de prueba';
@@ -283,6 +474,26 @@ class StubEntelequia {
     return {
       contextType: 'recommendations',
       contextPayload: { data: [] },
+    };
+  }
+
+  async getProductBrands(): Promise<{
+    contextType: 'catalog_taxonomy';
+    contextPayload: Record<string, unknown>;
+  }> {
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: { brands: [] },
+    };
+  }
+
+  async getProductAuthors(): Promise<{
+    contextType: 'catalog_taxonomy';
+    contextPayload: Record<string, unknown>;
+  }> {
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: { authors: [] },
     };
   }
 
@@ -330,6 +541,7 @@ class StubEntelequia {
 
 class StubOrderLookupClient {
   public mode: 'matched' | 'not-found' | 'invalid' | 'unauthorized' | 'throttled' = 'matched';
+  public calls = 0;
 
   async lookupOrder(): Promise<{
     ok: boolean;
@@ -343,6 +555,8 @@ class StubOrderLookupClient {
     };
     code?: 'not_found_or_mismatch' | 'invalid_payload' | 'unauthorized' | 'throttled';
   }> {
+    this.calls += 1;
+
     if (this.mode === 'matched') {
       return {
         ok: true,
@@ -526,6 +740,8 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   let orderLookupClient: StubOrderLookupClient;
   let llm: StubLlm;
   let metrics: InMemoryMetrics;
+  let orderLookupRateLimiter: InMemoryOrderLookupRateLimiter;
+  let adaptiveExemplars: InMemoryAdaptiveExemplars;
   let finalStageEvents: string[];
 
   beforeEach(async () => {
@@ -540,6 +756,8 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     orderLookupClient = new StubOrderLookupClient();
     llm = new StubLlm();
     metrics = new InMemoryMetrics();
+    orderLookupRateLimiter = new InMemoryOrderLookupRateLimiter();
+    adaptiveExemplars = new InMemoryAdaptiveExemplars();
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -569,13 +787,15 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         { provide: EntelequiaOrderLookupClient, useValue: orderLookupClient },
         { provide: PROMPT_TEMPLATES_PORT, useClass: StubPromptTemplates },
         { provide: METRICS_PORT, useValue: metrics },
+        { provide: ORDER_LOOKUP_RATE_LIMITER_PORT, useValue: orderLookupRateLimiter },
+        { provide: ADAPTIVE_EXEMPLARS_PORT, useValue: adaptiveExemplars },
       ],
     }).compile();
 
     useCase = moduleRef.get(HandleIncomingMessageUseCase);
   });
 
-  it('asks for order id when guest asks for orders without order number', async () => {
+  it('asks if guest has order data when order intent starts without lookup payload', async () => {
     const response = await useCase.execute({
       requestId: 'req-1',
       externalEventId: 'event-1',
@@ -598,9 +818,162 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     });
 
     expect(response.ok).toBe(false);
-    expect(response.message).toContain('No encontre el numero de pedido');
+    expect(response.message).toContain('Responde SI o NO');
     expect(persistence.turns).toHaveLength(1);
     expect(audit.entries).toHaveLength(1);
+    const metadata = (persistence.turns[0].metadata ?? {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBe('awaiting_has_data_answer');
+  });
+
+  it('returns requiresAuth when guest answers NO to order data question', async () => {
+    await useCase.execute({
+      requestId: 'req-1a',
+      externalEventId: 'event-1a',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde esta mi pedido?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde esta mi pedido?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-1b',
+      externalEventId: 'event-1b',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'no',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'no',
+        channel: null,
+        timestamp: '2026-02-10T00:00:01.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect('requiresAuth' in response ? response.requiresAuth : false).toBe(true);
+    expect(response.message).toContain('NECESITAS INICIAR SESION');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBeNull();
+  });
+
+  it('asks for lookup payload when guest answers SI without order details yet', async () => {
+    await useCase.execute({
+      requestId: 'req-1c',
+      externalEventId: 'event-1c',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'necesito el estado de mi pedido',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'necesito el estado de mi pedido',
+        channel: null,
+        timestamp: '2026-02-10T00:00:02.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-1d',
+      externalEventId: 'event-1d',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+        channel: null,
+        timestamp: '2026-02-10T00:00:03.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('enviame todo en un solo mensaje');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBe('awaiting_lookup_payload');
+  });
+
+  it('does not hijack guest order flow when weak yes is mixed with a non-order query', async () => {
+    await useCase.execute({
+      requestId: 'req-1e',
+      externalEventId: 'event-1e',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'necesito el estado de mi pedido',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'necesito el estado de mi pedido',
+        channel: null,
+        timestamp: '2026-02-10T00:00:02.500Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-1f',
+      externalEventId: 'event-1f',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'dale, tenes el nro 1 de evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'dale, tenes el nro 1 de evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:03.500Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.message.length).toBeGreaterThan(0);
+    expect(response.message).not.toContain('consultar tu pedido sin iniciar sesion');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBeNull();
   });
 
   it('returns deterministic order summary when guest sends order_id + 2 factors', async () => {
@@ -633,6 +1006,104 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(llm.lastInput?.intent).not.toBe('orders');
   });
 
+  it('accepts compact unlabeled order payload without forcing SI/NO again', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-lookup-compact-1',
+      externalEventId: 'event-lookup-compact-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '#12345, 12345678, juan perez',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '#12345, 12345678, juan perez',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.001Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toContain('PEDIDO #12345');
+  });
+
+  it('returns deterministic order summary after SI confirmation and lookup payload', async () => {
+    await useCase.execute({
+      requestId: 'req-lookup-flow-1',
+      externalEventId: 'event-lookup-flow-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero saber mi pedido',
+        channel: null,
+        timestamp: '2026-02-10T00:00:04.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    await useCase.execute({
+      requestId: 'req-lookup-flow-2',
+      externalEventId: 'event-lookup-flow-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+        channel: null,
+        timestamp: '2026-02-10T00:00:05.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-lookup-flow-3',
+      externalEventId: 'event-lookup-flow-3',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+        channel: null,
+        timestamp: '2026-02-10T00:00:06.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect('intent' in response && response.intent).toBe('orders');
+    expect(response.message).toContain('PEDIDO #12345');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBeNull();
+  });
+
   it('returns verification failed message when identity does not match', async () => {
     orderLookupClient.mode = 'not-found';
 
@@ -661,10 +1132,52 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.message).toContain('No pudimos validar los datos del pedido');
   });
 
-  it('asks for more identity factors when guest sends less than 2', async () => {
+  it('asks for missing identity factors while awaiting lookup payload', async () => {
+    await useCase.execute({
+      requestId: 'req-lookup-3a',
+      externalEventId: 'event-lookup-3a',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero ver mi pedido',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'quiero ver mi pedido',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    await useCase.execute({
+      requestId: 'req-lookup-3b',
+      externalEventId: 'event-lookup-3b',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'si',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.500Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
     const response = await useCase.execute({
-      requestId: 'req-lookup-3',
-      externalEventId: 'event-lookup-3',
+      requestId: 'req-lookup-3c',
+      externalEventId: 'event-lookup-3c',
       payload: {
         source: 'web',
         userId: 'user-1',
@@ -677,7 +1190,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         conversationId: 'conv-1',
         text: 'pedido 12345, dni 12345678',
         channel: null,
-        timestamp: '2026-02-10T00:00:00.000Z',
+        timestamp: '2026-02-10T00:00:01.000Z',
         validated: null,
         validSignature: 'true',
       },
@@ -685,6 +1198,113 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect(response.message).toContain('Necesito 1 dato(s) mas');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestFlowState).toBe('awaiting_lookup_payload');
+  });
+
+  it('does not hijack conversation when pending state receives irrelevant text', async () => {
+    await useCase.execute({
+      requestId: 'req-lookup-3d',
+      externalEventId: 'event-lookup-3d',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde esta mi pedido?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'donde esta mi pedido?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:02.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-lookup-3e',
+      externalEventId: 'event-lookup-3e',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'gracias por la ayuda',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'gracias por la ayuda',
+        channel: null,
+        timestamp: '2026-02-10T00:00:03.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+  });
+
+  it('resolves cancelled-order escalation confirmation without repeating the same prompt', async () => {
+    const firstResponse = await useCase.execute({
+      requestId: 'req-cancel-1',
+      externalEventId: 'event-cancel-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-cancel',
+        text: 'por que fue cancelado?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-cancel',
+        text: 'por que fue cancelado?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:07.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(firstResponse.ok).toBe(true);
+    expect(firstResponse.message).toContain('Queres que consulte con el area correspondiente');
+    const firstMetadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(firstMetadata.ordersEscalationFlowState).toBe('awaiting_cancelled_reason_confirmation');
+
+    const secondResponse = await useCase.execute({
+      requestId: 'req-cancel-2',
+      externalEventId: 'event-cancel-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-cancel',
+        text: 'si por favor',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-cancel',
+        text: 'si por favor',
+        channel: null,
+        timestamp: '2026-02-10T00:00:08.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(secondResponse.ok).toBe(false);
+    expect(secondResponse.message).toContain('No tengo el motivo exacto de cancelacion');
+    expect(secondResponse.message).not.toContain('Queres que consulte con el area correspondiente');
+    const secondMetadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(secondMetadata.ordersEscalationFlowState).toBeNull();
   });
 
   it('returns high-demand message when secure order lookup is throttled', async () => {
@@ -713,6 +1333,35 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect(response.message).toContain('alta demanda');
+  });
+
+  it('returns high-demand message when local rate limit blocks anonymous lookup', async () => {
+    orderLookupRateLimiter.mode = 'throttle';
+
+    const response = await useCase.execute({
+      requestId: 'req-lookup-4b',
+      externalEventId: 'event-lookup-4b',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.100Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('alta demanda');
+    expect(orderLookupClient.calls).toBe(0);
   });
 
   it('handles duplicate event without duplicating writes', async () => {
@@ -884,6 +1533,329 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     );
     expect(recommendationsBlock).toBeDefined();
     expect(recommendationsBlock?.contextPayload).toHaveProperty('aiContext');
+  });
+
+  it('keeps recommendations flow resilient when catalog payload is invalid', async () => {
+    jest.spyOn(entelequia, 'getRecommendations').mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: { raw: '<html>upstream error</html>' },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-7b',
+      externalEventId: 'event-recommendations-invalid-payload',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame algo de evangelion',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame algo de evangelion',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    const recommendationsBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'recommendations',
+    );
+    expect(recommendationsBlock?.contextPayload).toHaveProperty(
+      'fallbackReason',
+      'catalog_unavailable',
+    );
+  });
+
+  it('sanitizes technical jargon from llm output before persisting user response', async () => {
+    jest
+      .spyOn(llm, 'buildAssistantReply')
+      .mockResolvedValueOnce(
+        'No tenemos el numero 1 en el contexto. La API devolvio JSON invalido por timeout.',
+      );
+
+    const response = await useCase.execute({
+      requestId: 'req-7b-sanitize',
+      externalEventId: 'event-recommendations-sanitize',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'tienen el numero 1 de evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'tienen el numero 1 de evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.100Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.message.toLowerCase()).not.toContain('contexto');
+    expect(response.message.toLowerCase()).not.toContain('api');
+    expect(response.message.toLowerCase()).not.toContain('json');
+    expect(response.message.toLowerCase()).not.toContain('timeout');
+  });
+
+  it('prioritizes franchise matching for recommendations queries', async () => {
+    jest.spyOn(entelequia, 'getRecommendations').mockResolvedValueOnce({
+      contextType: 'recommendations',
+      contextPayload: {
+        data: [
+          {
+            id: 1,
+            slug: 'remera-evangelion',
+            title: 'Remera EVA Unit 01',
+            stock: '3',
+            categories: [{ name: 'Ropa Remeras', slug: 'ropa-remeras' }],
+          },
+          {
+            id: 2,
+            slug: 'remera-naruto',
+            title: 'Remera Naruto',
+            stock: '2',
+            categories: [{ name: 'Ropa Remeras', slug: 'ropa-remeras' }],
+          },
+        ],
+        pagination: { total: 2 },
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-7c',
+      externalEventId: 'event-recommendations-franchise',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame un regalo de envangelion',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'recomendame un regalo de envangelion',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const recommendationsBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'recommendations',
+    );
+    expect(recommendationsBlock?.contextPayload).toHaveProperty('matchedFranchises', [
+      'evangelion',
+    ]);
+    const products = recommendationsBlock?.contextPayload.products as Array<{ slug: string }>;
+    expect(products).toHaveLength(1);
+    expect(products[0]?.slug).toBe('remera-evangelion');
+  });
+
+  it('handles multi-turn recommendations disambiguation (franchise -> type -> volume)', async () => {
+    jest
+      .spyOn(entelequia, 'getProducts')
+      .mockResolvedValueOnce({
+        contextType: 'products',
+        contextPayload: {
+          total: 24,
+          items: buildRecommendationProductsFixture({
+            franchiseLabel: 'One Piece',
+            count: 24,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+            slugPrefix: 'one-piece',
+          }),
+        },
+      })
+      .mockResolvedValueOnce({
+        contextType: 'products',
+        contextPayload: {
+          total: 1,
+          items: [
+            {
+              id: 'op-1',
+              slug: 'one-piece-tomo-1',
+              title: 'One Piece tomo 1',
+              stock: 5,
+              categoryName: 'Mangas',
+              categorySlug: 'mangas',
+            },
+          ],
+        },
+      });
+
+    const firstTurn = await useCase.execute({
+      requestId: 'req-rec-flow-1',
+      externalEventId: 'event-rec-flow-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'quiero one piece',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'quiero one piece',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(firstTurn.ok).toBe(false);
+    expect(firstTurn.message).toContain('decime que tipo te interesa');
+    let metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.recommendationsFlowState).toBe('awaiting_category_or_volume');
+    expect(metadata.recommendationsFlowFranchise).toBe('one_piece');
+
+    const secondTurn = await useCase.execute({
+      requestId: 'req-rec-flow-2',
+      externalEventId: 'event-rec-flow-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'mangas',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'mangas',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(secondTurn.ok).toBe(false);
+    expect(secondTurn.message).toContain('tomo/numero especifico');
+    metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.recommendationsFlowState).toBe('awaiting_volume_detail');
+    expect(metadata.recommendationsFlowFranchise).toBe('one_piece');
+    expect(metadata.recommendationsFlowCategoryHint).toBe('mangas');
+
+    const thirdTurn = await useCase.execute({
+      requestId: 'req-rec-flow-3',
+      externalEventId: 'event-rec-flow-3',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'tomo 1',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-1',
+        text: 'tomo 1',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(thirdTurn.ok).toBe(true);
+    expect(thirdTurn.message).toBe('Respuesta de prueba');
+    expect(llm.lastInput?.intent).toBe('recommendations');
+    expect(llm.lastInput?.userText).toContain('tomo 1');
+    const recommendationsBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'recommendations',
+    );
+    const products = recommendationsBlock?.contextPayload.products as Array<{ slug: string }>;
+    expect(products).toHaveLength(1);
+    expect(products[0]?.slug).toBe('one-piece-tomo-1');
+
+    metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.recommendationsFlowState).toBeNull();
+    expect(metadata.recommendationsFlowFranchise).toBeNull();
+    expect(metadata.recommendationsFlowCategoryHint).toBeNull();
+  });
+
+  it('does not hijack unrelated messages when recommendations disambiguation is pending', async () => {
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        total: 22,
+        items: buildRecommendationProductsFixture({
+          franchiseLabel: 'Naruto',
+          count: 22,
+          categoryName: 'Mangas',
+          categorySlug: 'mangas',
+          slugPrefix: 'naruto',
+        }),
+      },
+    });
+
+    await useCase.execute({
+      requestId: 'req-rec-flow-nh-1',
+      externalEventId: 'event-rec-flow-nh-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-nh-1',
+        text: 'quiero naruto',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-nh-1',
+        text: 'quiero naruto',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-rec-flow-nh-2',
+      externalEventId: 'event-rec-flow-nh-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-nh-1',
+        text: 'gracias',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-flow-nh-1',
+        text: 'gracias',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toBe('Respuesta de prueba');
+    expect(llm.lastInput?.intent).toBe('general');
+    const metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata).not.toHaveProperty('recommendationsFlowState');
   });
 
   it('attaches optional ui payload for catalog intents and persists ui metadata', async () => {
@@ -1198,3 +2170,41 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(markProcessedIndex).toBeLessThan(auditIndex);
   });
 });
+
+function shouldRouteToRecommendationsByFranchise(normalizedText: string): boolean {
+  const hasFranchiseHint = RECOMMENDATION_FRANCHISE_HINTS.some((hint) =>
+    normalizedText.includes(hint),
+  );
+  if (!hasFranchiseHint) {
+    return false;
+  }
+
+  return (
+    normalizedText.startsWith('quiero') ||
+    normalizedText.includes('regalo') ||
+    normalizedText.includes('algo de') ||
+    normalizedText.includes('busco') ||
+    normalizedText.includes('tenes') ||
+    normalizedText.includes('tienen')
+  );
+}
+
+function buildRecommendationProductsFixture(input: {
+  franchiseLabel: string;
+  count: number;
+  categoryName: string;
+  categorySlug: string;
+  slugPrefix: string;
+}): Array<Record<string, unknown>> {
+  return Array.from({ length: input.count }, (_, index) => {
+    const volume = index + 1;
+    return {
+      id: `${input.slugPrefix}-${volume}`,
+      slug: `${input.slugPrefix}-tomo-${volume}`,
+      title: `${input.franchiseLabel} tomo ${volume}`,
+      stock: 5,
+      categoryName: input.categoryName,
+      categorySlug: input.categorySlug,
+    };
+  });
+}

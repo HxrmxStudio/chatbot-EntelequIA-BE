@@ -8,6 +8,7 @@ import type { ContextBlock } from '../../../domain/context-block';
 import { withRetry } from '../openai-retry';
 import { loadJsonFile, loadPromptFile } from '../shared';
 import {
+  ASSISTANT_PROMPT_VERSION,
   ASSISTANT_PROMPT_PATH,
   ASSISTANT_SCHEMA_PATH,
   BASE_BACKOFF_MS,
@@ -168,7 +169,7 @@ export class OpenAiAdapter implements LlmPort {
           inputTokenCount: result.usage.inputTokens,
           outputTokenCount: result.usage.outputTokens,
           cachedTokenCount: result.usage.cachedTokens,
-          promptVersion: 'assistant_v1',
+          promptVersion: ASSISTANT_PROMPT_VERSION,
         },
       };
     } catch (error: unknown) {
@@ -213,7 +214,7 @@ export class OpenAiAdapter implements LlmPort {
       metadata: {
         llmPath: fallback.path,
         fallbackReason: input.reason,
-        promptVersion: 'assistant_v1',
+        promptVersion: ASSISTANT_PROMPT_VERSION,
       },
     };
   }

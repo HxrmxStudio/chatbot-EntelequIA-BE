@@ -5,6 +5,7 @@ import {
 
 describe('RecommendationsContext', () => {
   const preferences = {
+    franchiseKeywords: [],
     genre: ['accion'],
     type: ['mangas'],
     age: 16,
@@ -45,7 +46,7 @@ describe('RecommendationsContext', () => {
 
   it('builds empty context with fallback message', () => {
     const result = buildEmptyRecommendationsAiContext({
-      preferences: { genre: [], type: [], age: null },
+      preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
       apiFallback: false,
     });
 
@@ -57,7 +58,7 @@ describe('RecommendationsContext', () => {
 
   it('keeps rioplatense tone in defaults', () => {
     const result = buildEmptyRecommendationsAiContext({
-      preferences: { genre: [], type: [], age: null },
+      preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
       apiFallback: false,
     });
 
@@ -67,7 +68,7 @@ describe('RecommendationsContext', () => {
   it('does not duplicate static context business strings', () => {
     const result = buildRecommendationsAiContext({
       items: [{ id: 1, slug: 'a', title: 'A', stock: 1, categoryNames: [], categorySlugs: [] }],
-      preferences: { genre: [], type: [], age: null },
+      preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
     });
 
     expect(result.contextText).not.toContain('Uruguay 341');

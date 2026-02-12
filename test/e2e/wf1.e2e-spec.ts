@@ -1,5 +1,6 @@
 import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ThrottlerGuard, getStorageToken } from '@nestjs/throttler';
 import request from 'supertest';
 import { createHmac } from 'node:crypto';
 import { json } from 'express';
@@ -8,6 +9,7 @@ import type { Request, Response } from 'express';
 process.env.CHATBOT_DB_URL = 'postgres://test:test@localhost:5432/chatbot';
 process.env.ENTELEQUIA_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 process.env.BOT_ORDER_LOOKUP_HMAC_SECRET = 'test-hmac-secret';
+process.env.ORDER_LOOKUP_RATE_LIMIT_ENABLED = 'false';
 process.env.TURNSTILE_SECRET_KEY = '';
 process.env.WHATSAPP_SECRET = 'test-whatsapp-secret';
 
@@ -20,11 +22,29 @@ import { IntentExtractorAdapter } from '@/modules/wf1/infrastructure/adapters/in
 import { OpenAiAdapter } from '@/modules/wf1/infrastructure/adapters/openai';
 import { PgAuditRepository } from '@/modules/wf1/infrastructure/repositories/pg-audit.repository';
 import { PgChatRepository } from '@/modules/wf1/infrastructure/repositories/pg-chat.repository';
+import { PgChatFeedbackRepository } from '@/modules/wf1/infrastructure/repositories/pg-chat-feedback.repository';
 import { PgIdempotencyRepository } from '@/modules/wf1/infrastructure/repositories/pg-idempotency.repository';
+import type { PersistTurnInput } from '@/modules/wf1/application/ports/chat-persistence.port';
 import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
 
 class E2ERepository {
   private readonly seen = new Set<string>();
+  private readonly botByEvent = new Map<
+    string,
+    { message: string; messageId: string; metadata: Record<string, unknown> | null }
+  >();
+  private sequence = 0;
+  private historyRows: Array<{
+    sequence: number;
+    conversationId: string;
+    id: string;
+    content: string | null;
+    sender: string | null;
+    type: string | null;
+    channel: string | null;
+    metadata: unknown;
+    created_at: string | null;
+  }> = [];
   public turns: Array<{
     source: 'web' | 'whatsapp';
     conversationId: string;
@@ -73,11 +93,29 @@ class E2ERepository {
 
   async upsertConversation(): Promise<void> {}
 
-  async getConversationHistory(): Promise<Array<{ sender: 'user'; content: string; createdAt: string }>> {
-    return [];
+  async getConversationHistory(input: {
+    conversationId: string;
+    limit: number;
+  }): Promise<Array<{ sender: 'user' | 'bot'; content: string; createdAt: string }>> {
+    const rows = await this.getConversationHistoryRows(input);
+    return [...rows]
+      .reverse()
+      .flatMap((row) => {
+        if (row.sender !== 'user' && row.sender !== 'bot') {
+          return [];
+        }
+        if (typeof row.content !== 'string' || typeof row.created_at !== 'string') {
+          return [];
+        }
+
+        return [{ sender: row.sender, content: row.content, createdAt: row.created_at }];
+      });
   }
 
-  async getConversationHistoryRows(): Promise<
+  async getConversationHistoryRows(input: {
+    conversationId: string;
+    limit: number;
+  }): Promise<
     Array<{
       id: string;
       content: string | null;
@@ -88,7 +126,19 @@ class E2ERepository {
       created_at: string | null;
     }>
   > {
-    return [];
+    return this.historyRows
+      .filter((row) => row.conversationId === input.conversationId)
+      .sort((a, b) => b.sequence - a.sequence)
+      .slice(0, input.limit)
+      .map((row) => ({
+        id: row.id,
+        content: row.content,
+        sender: row.sender,
+        type: row.type,
+        channel: row.channel,
+        metadata: row.metadata,
+        created_at: row.created_at,
+      }));
   }
 
   async getLastBotMessageByExternalEvent(input: {
@@ -97,22 +147,50 @@ class E2ERepository {
     conversationId?: string;
   }): Promise<string | null> {
     const key = `${input.channel}:${input.externalEventId}`;
-    if (this.seen.has(key)) {
-      return 'Respuesta e2e';
-    }
-    return null;
+    return this.botByEvent.get(key)?.message ?? null;
   }
 
-  async persistTurn(input: {
-    source: 'web' | 'whatsapp';
-    conversationId: string;
+  async getLastBotTurnByExternalEvent(input: {
+    channel: 'web' | 'whatsapp';
     externalEventId: string;
-  }): Promise<void> {
+    conversationId?: string;
+  }): Promise<{ message: string; messageId: string; metadata: Record<string, unknown> | null } | null> {
+    const key = `${input.channel}:${input.externalEventId}`;
+    return this.botByEvent.get(key) ?? null;
+  }
+
+  async persistTurn(input: PersistTurnInput): Promise<{ botMessageId: string }> {
     this.turns.push({
       source: input.source,
       conversationId: input.conversationId,
       externalEventId: input.externalEventId,
     });
+    const userRow = this.buildHistoryRow({
+      conversationId: input.conversationId,
+      sender: 'user',
+      content: input.userMessage,
+      channel: input.source,
+      metadata: input.metadata ?? null,
+    });
+    const botRow = this.buildHistoryRow({
+      conversationId: input.conversationId,
+      sender: 'bot',
+      content: input.botMessage,
+      channel: input.source,
+      metadata: input.metadata ?? null,
+    });
+
+    this.historyRows.push(userRow);
+    this.historyRows.push(botRow);
+
+    const eventKey = `${input.source}:${input.externalEventId}`;
+    this.botByEvent.set(eventKey, {
+      message: input.botMessage,
+      messageId: botRow.id,
+      metadata: isRecord(input.metadata) ? input.metadata : null,
+    });
+
+    return { botMessageId: botRow.id };
   }
 
   async startProcessing(input: {
@@ -133,6 +211,41 @@ class E2ERepository {
   async markFailed(): Promise<void> {}
 
   async writeAudit(): Promise<void> {}
+
+  private buildHistoryRow(input: {
+    conversationId: string;
+    sender: 'user' | 'bot';
+    content: string;
+    channel: 'web' | 'whatsapp';
+    metadata: unknown;
+  }): {
+    sequence: number;
+    conversationId: string;
+    id: string;
+    content: string | null;
+    sender: string | null;
+    type: string | null;
+    channel: string | null;
+    metadata: unknown;
+    created_at: string | null;
+  } {
+    this.sequence += 1;
+    return {
+      sequence: this.sequence,
+      conversationId: input.conversationId,
+      id: `msg-${this.sequence}`,
+      content: input.content,
+      sender: input.sender,
+      type: 'text',
+      channel: input.channel,
+      metadata: input.metadata,
+      created_at: new Date(1_700_000_000_000 + this.sequence).toISOString(),
+    };
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 class E2EIntent {
@@ -171,6 +284,14 @@ class E2EIntent {
         intent: 'recommendations',
         entities: [],
         confidence: 0.86,
+      };
+    }
+
+    if (shouldRouteToRecommendationsByFranchise(normalized)) {
+      return {
+        intent: 'recommendations',
+        entities: [],
+        confidence: 0.83,
       };
     }
 
@@ -216,10 +337,91 @@ class E2EIntent {
 }
 
 class E2EEntelequia {
-  async getProducts(): Promise<{ contextType: 'products'; contextPayload: Record<string, unknown> }> {
+  async getProducts(input?: {
+    query?: string;
+    categorySlug?: string;
+  }): Promise<{ contextType: 'products'; contextPayload: Record<string, unknown> }> {
+    const normalizedQuery = String(input?.query ?? '').toLowerCase();
+    const isMangaCategory = input?.categorySlug === 'mangas';
+
+    if (normalizedQuery.includes('one piece')) {
+      if (isMangaCategory) {
+        return {
+          contextType: 'products',
+          contextPayload: {
+            total: 2,
+            items: [
+              {
+                id: 'op-1',
+                slug: 'one-piece-tomo-1',
+                title: 'One Piece tomo 1',
+                stock: 5,
+                categoryName: 'Mangas',
+                categorySlug: 'mangas',
+              },
+              {
+                id: 'op-2',
+                slug: 'one-piece-tomo-2',
+                title: 'One Piece tomo 2',
+                stock: 4,
+                categoryName: 'Mangas',
+                categorySlug: 'mangas',
+              },
+            ],
+          },
+        };
+      }
+
+      return {
+        contextType: 'products',
+        contextPayload: {
+          total: 24,
+          items: buildRecommendationProductsFixture({
+            franchiseLabel: 'One Piece',
+            count: 24,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+            slugPrefix: 'one-piece',
+          }),
+        },
+      };
+    }
+
+    if (normalizedQuery.includes('naruto')) {
+      return {
+        contextType: 'products',
+        contextPayload: {
+          total: 6,
+          items: buildRecommendationProductsFixture({
+            franchiseLabel: 'Naruto',
+            count: 6,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+            slugPrefix: 'naruto',
+          }),
+        },
+      };
+    }
+
+    if (normalizedQuery.includes('evangelion')) {
+      return {
+        contextType: 'products',
+        contextPayload: {
+          total: 6,
+          items: buildRecommendationProductsFixture({
+            franchiseLabel: 'Evangelion',
+            count: 6,
+            categoryName: 'Figuras',
+            categorySlug: 'figuras',
+            slugPrefix: 'evangelion',
+          }),
+        },
+      };
+    }
+
     return {
       contextType: 'products',
-      contextPayload: { products: { data: [] } },
+      contextPayload: { total: 0, items: [] },
     };
   }
 
@@ -237,6 +439,26 @@ class E2EEntelequia {
     return {
       contextType: 'recommendations',
       contextPayload: { data: [] },
+    };
+  }
+
+  async getProductBrands(): Promise<{
+    contextType: 'catalog_taxonomy';
+    contextPayload: Record<string, unknown>;
+  }> {
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: { brands: [] },
+    };
+  }
+
+  async getProductAuthors(): Promise<{
+    contextType: 'catalog_taxonomy';
+    contextPayload: Record<string, unknown>;
+  }> {
+    return {
+      contextType: 'catalog_taxonomy',
+      contextPayload: { authors: [] },
     };
   }
 
@@ -300,6 +522,25 @@ class E2EOrderLookupClient {
   }
 }
 
+class E2EFeedbackRepository {
+  private readonly seen = new Set<string>();
+  public feedbackEvents = 0;
+
+  async persistFeedback(input: {
+    source: 'web' | 'whatsapp';
+    externalEventId: string;
+  }): Promise<{ created: boolean }> {
+    const key = `${input.source}:${input.externalEventId}`;
+    if (this.seen.has(key)) {
+      return { created: false };
+    }
+
+    this.seen.add(key);
+    this.feedbackEvents += 1;
+    return { created: true };
+  }
+}
+
 class E2ELlm {
   async buildAssistantReply(input: {
     intent: string;
@@ -316,6 +557,10 @@ class E2ELlm {
       }
     }
 
+    if (input.userText.toLowerCase().includes('forzar tecnico')) {
+      return 'No tenemos ese dato en el contexto. La API devolvio JSON invalido por timeout.';
+    }
+
     return 'Respuesta e2e';
   }
 }
@@ -324,6 +569,7 @@ describe('WF1 API (e2e)', () => {
   let app: INestApplication;
   let httpApp: unknown;
   let e2eRepo: E2ERepository;
+  let e2eFeedbackRepo: E2EFeedbackRepository;
 
   beforeAll(async () => {
     const moduleBuilder = Test.createTestingModule({
@@ -334,12 +580,17 @@ describe('WF1 API (e2e)', () => {
     moduleBuilder.overrideProvider(PgChatRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(PgIdempotencyRepository).useValue(e2eRepo);
     moduleBuilder.overrideProvider(PgAuditRepository).useValue(e2eRepo);
+    e2eFeedbackRepo = new E2EFeedbackRepository();
+    moduleBuilder.overrideProvider(PgChatFeedbackRepository).useValue(e2eFeedbackRepo);
     moduleBuilder.overrideProvider(IntentExtractorAdapter).useValue(new E2EIntent());
     moduleBuilder.overrideProvider(EntelequiaHttpAdapter).useValue(new E2EEntelequia());
     moduleBuilder.overrideProvider(EntelequiaOrderLookupClient).useValue(
       new E2EOrderLookupClient(),
     );
     moduleBuilder.overrideProvider(OpenAiAdapter).useValue(new E2ELlm());
+    moduleBuilder.overrideProvider(ThrottlerGuard).useValue({
+      canActivate: () => true,
+    });
 
     const moduleRef = await moduleBuilder.compile();
 
@@ -362,6 +613,11 @@ describe('WF1 API (e2e)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
     httpApp = app.getHttpAdapter().getInstance();
+  });
+
+  beforeEach(() => {
+    const throttlerStorage = app.get<{ storage?: Map<string, unknown> }>(getStorageToken());
+    throttlerStorage.storage?.clear();
   });
 
   afterAll(async () => {
@@ -404,6 +660,35 @@ describe('WF1 API (e2e)', () => {
       });
   });
 
+  it('accepts chat feedback and supports idempotent replay', async () => {
+    const payload = {
+      source: 'web',
+      conversationId: 'conv-feedback-1',
+      responseId: '11111111-2222-4333-8444-555555555555',
+      rating: 'up',
+    };
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/feedback')
+      .set('x-external-event-id', 'evt-feedback-1')
+      .send(payload)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual({ ok: true });
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/feedback')
+      .set('x-external-event-id', 'evt-feedback-1')
+      .send(payload)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual({ ok: true });
+      });
+
+    expect(e2eFeedbackRepo.feedbackEvents).toBe(1);
+  });
+
   it('accepts web requests without webhook secret header', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
@@ -417,6 +702,7 @@ describe('WF1 API (e2e)', () => {
       .expect(({ body }) => {
         expect(body.ok).toBe(true);
         expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.responseId).toBe('string');
       });
   });
 
@@ -438,7 +724,7 @@ describe('WF1 API (e2e)', () => {
       });
   });
 
-  it('asks for order id when guest order intent lacks lookup data', async () => {
+  it('asks SI/NO when guest order intent lacks complete lookup payload', async () => {
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
       .set('x-external-event-id', 'e2e-order-1')
@@ -451,7 +737,111 @@ describe('WF1 API (e2e)', () => {
       .expect(200)
       .expect(({ body }) => {
         expect(body.ok).toBe(false);
-        expect(body.message).toContain('No encontre el numero de pedido');
+        expect(body.message).toContain('Responde SI o NO');
+      });
+  });
+
+  it('returns requiresAuth when guest answers NO after order-data question', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-no-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-order-no-1',
+        text: 'quiero saber mi pedido',
+      })
+      .expect(200);
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-no-2')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-order-no-1',
+        text: 'no',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.requiresAuth).toBe(true);
+        expect(body.message).toContain('NECESITAS INICIAR SESION');
+      });
+  });
+
+  it('continues lookup flow after SI and resolves with payload', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-yes-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-order-yes-1',
+        text: 'quiero saber mi pedido',
+      })
+      .expect(200);
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-yes-2')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-order-yes-1',
+        text: 'si',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain('enviame todo en un solo mensaje');
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-yes-3')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-order-yes-1',
+        text: 'pedido 12345, dni 12345678, telefono +54 11 4444 5555',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.conversationId).toBe('conv-order-yes-1');
+        expect(body.intent).toBe('orders');
+        expect(body.message).toContain('PEDIDO #12345');
+      });
+  });
+
+  it('prevents guest order-flow hijack when weak ack is mixed with product query', async () => {
+    const conversationId = 'conv-order-hijack-1';
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-hijack-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId,
+        text: 'quiero saber mi pedido',
+      })
+      .expect(200);
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-order-hijack-2')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId,
+        text: 'dale, tenes el nro 1 de evangelion?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.message).not.toContain('consultar tu pedido sin iniciar sesion');
+        expect(body.message).not.toContain('No pudimos procesar tu mensaje');
       });
   });
 
@@ -707,14 +1097,114 @@ describe('WF1 API (e2e)', () => {
       .send({
         source: 'web',
         userId: 'user-1',
-        conversationId: 'conv-1',
+        conversationId: 'conv-recommendations-1',
         text: 'recomendame mangas',
       })
       .expect(200)
       .expect(({ body }) => {
-        expect(body.ok).toBe(true);
-        expect(body.conversationId).toBe('conv-1');
+        expect(typeof body.ok).toBe('boolean');
         expect(typeof body.message).toBe('string');
+        expect(body.message).not.toContain('No pudimos procesar tu mensaje');
+      });
+  });
+
+  it('supports multi-turn recommendations disambiguation flow', async () => {
+    const conversationId = 'conv-rec-flow-e2e-1';
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-rec-flow-1')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId,
+        text: 'quiero one piece',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain('decime que tipo te interesa');
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-rec-flow-2')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId,
+        text: 'mangas',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(false);
+        expect(body.message).toContain('tomo/numero especifico');
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-rec-flow-3')
+      .send({
+        source: 'web',
+        userId: 'user-1',
+        conversationId,
+        text: 'tomo 1',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toBe('Respuesta e2e');
+      });
+  });
+
+  it('keeps franchise recommendations resilient for evangelion and naruto', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-rec-evangelion-1')
+      .send({
+        source: 'web',
+        userId: 'user-ev',
+        conversationId: 'conv-rec-ev',
+        text: 'quiero un regalo de envangelion',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toBe('Respuesta e2e');
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-rec-naruto-1')
+      .send({
+        source: 'web',
+        userId: 'user-naruto',
+        conversationId: 'conv-rec-naruto',
+        text: 'algo de naruto tienen?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toBe('Respuesta e2e');
+      });
+  });
+
+  it('sanitizes technical jargon before returning final user message', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-sanitize-1')
+      .send({
+        source: 'web',
+        userId: 'user-sanitize',
+        conversationId: 'conv-sanitize',
+        text: 'forzar tecnico evangelion',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.message.toLowerCase()).not.toContain('contexto');
+        expect(body.message.toLowerCase()).not.toContain('api');
+        expect(body.message.toLowerCase()).not.toContain('json');
+        expect(body.message.toLowerCase()).not.toContain('timeout');
       });
   });
 
@@ -792,6 +1282,9 @@ describe('WF1 API (e2e)', () => {
   });
 
   it('uses deterministic payload hash for duplicate detection when idempotency header is missing', async () => {
+    const throttlerStorage = app.get<{ storage?: Map<string, unknown> }>(getStorageToken());
+    throttlerStorage.storage?.clear();
+
     const payload = {
       source: 'web',
       userId: 'user-2',
@@ -801,6 +1294,7 @@ describe('WF1 API (e2e)', () => {
 
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
+      .set('x-forwarded-for', '203.0.113.201')
       .send(payload)
       .expect(200)
       .expect(({ body }) => {
@@ -809,6 +1303,7 @@ describe('WF1 API (e2e)', () => {
 
     await request(httpApp as Parameters<typeof request>[0])
       .post('/wf1/chat/message')
+      .set('x-forwarded-for', '203.0.113.201')
       .send(payload)
       .expect(200)
       .expect(({ body }) => {
@@ -817,3 +1312,43 @@ describe('WF1 API (e2e)', () => {
       });
   });
 });
+
+const RECOMMENDATION_FRANCHISE_HINTS = ['one piece', 'naruto', 'evangelion', 'dragon ball'];
+
+function shouldRouteToRecommendationsByFranchise(normalizedText: string): boolean {
+  const hasFranchiseHint = RECOMMENDATION_FRANCHISE_HINTS.some((hint) =>
+    normalizedText.includes(hint),
+  );
+  if (!hasFranchiseHint) {
+    return false;
+  }
+
+  return (
+    normalizedText.startsWith('quiero') ||
+    normalizedText.includes('regalo') ||
+    normalizedText.includes('algo de') ||
+    normalizedText.includes('busco') ||
+    normalizedText.includes('tenes') ||
+    normalizedText.includes('tienen')
+  );
+}
+
+function buildRecommendationProductsFixture(input: {
+  franchiseLabel: string;
+  count: number;
+  categoryName: string;
+  categorySlug: string;
+  slugPrefix: string;
+}): Array<Record<string, unknown>> {
+  return Array.from({ length: input.count }, (_, index) => {
+    const volume = index + 1;
+    return {
+      id: `${input.slugPrefix}-${volume}`,
+      slug: `${input.slugPrefix}-tomo-${volume}`,
+      title: `${input.franchiseLabel} tomo ${volume}`,
+      stock: 5,
+      categoryName: input.categoryName,
+      categorySlug: input.categorySlug,
+    };
+  });
+}

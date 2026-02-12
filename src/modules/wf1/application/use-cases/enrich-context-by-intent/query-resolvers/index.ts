@@ -8,3 +8,20 @@ export { resolveTicketSignals } from './resolve-ticket-signals';
 export { resolveStoreInfoQueryType } from './resolve-store-info-query-type';
 export { getDefaultCategorySlug } from './recommendation-type-slugs';
 export { resolveStockDisclosure } from './resolve-stock-disclosure';
+export {
+  buildDynamicFranchiseAliases,
+  getRecommendationFranchiseTerms,
+  resolveRecommendationFranchiseLabel,
+  resolveRecommendationFranchiseQuery,
+  resolveRecommendationFranchiseKeywords,
+} from './recommendation-franchise-keywords';
+export {
+  resolveRecommendationDisambiguation,
+  resolveRecommendationVolumeSignals,
+  type RecommendationDisambiguationResult,
+  type RecommendationDisambiguationReason,
+} from './resolve-recommendation-disambiguation';
+export {
+  resolveRecommendationEditorialMatch,
+  type RecommendationEditorialMatchResult,
+} from './resolve-recommendation-editorial-match';

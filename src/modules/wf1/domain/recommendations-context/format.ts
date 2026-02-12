@@ -1,10 +1,12 @@
 import { formatMoney } from '../money';
 import {
   DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE,
+  DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE,
   DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER,
   DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
   DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
   DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
+  DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION,
   WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS,
 } from './constants';
 import type {
@@ -83,14 +85,23 @@ export function buildEmptyRecommendationsAiContext(input: {
   preferences: RecommendationPreferences;
   templates?: Partial<RecommendationsTemplates>;
   apiFallback: boolean;
+  fallbackReason?: 'no_matches' | 'api_error' | 'catalog_unavailable';
 }): RecommendationsAiContext {
   const templates = resolveTemplates(input.templates);
   const preferencesLines = formatPreferences(input.preferences);
+  const emptyMessage = resolveEmptyMessage(input.fallbackReason, templates.emptyMessage);
+  const suggestionLine = input.fallbackReason === 'no_matches'
+    ? DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION
+    : null;
+  const apiFallbackLine = input.apiFallback
+    ? DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE
+    : null;
 
   const lines: string[] = [
-    templates.emptyMessage,
+    emptyMessage,
     ...(preferencesLines.length > 0 ? ['', ...preferencesLines] : []),
-    ...(input.apiFallback ? ['', DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE] : []),
+    ...(suggestionLine ? ['', suggestionLine] : []),
+    ...(apiFallbackLine ? ['', apiFallbackLine] : []),
     '',
     templates.instructions,
   ];
@@ -138,6 +149,10 @@ function formatRecommendation(item: RecommendationItem, index: number): string {
 function formatPreferences(preferences: RecommendationPreferences): string[] {
   const lines: string[] = [];
 
+  if (preferences.franchiseKeywords.length > 0) {
+    lines.push(`Franquicias de interes: ${preferences.franchiseKeywords.join(', ')}`);
+  }
+
   if (preferences.genre.length > 0) {
     lines.push(`Generos de interes: ${preferences.genre.join(', ')}`);
   }
@@ -154,4 +169,15 @@ function formatPreferences(preferences: RecommendationPreferences): string[] {
   }
 
   return lines;
+}
+
+function resolveEmptyMessage(
+  fallbackReason: 'no_matches' | 'api_error' | 'catalog_unavailable' | undefined,
+  templateEmptyMessage: string,
+): string {
+  if (fallbackReason === 'catalog_unavailable') {
+    return DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE;
+  }
+
+  return templateEmptyMessage;
 }

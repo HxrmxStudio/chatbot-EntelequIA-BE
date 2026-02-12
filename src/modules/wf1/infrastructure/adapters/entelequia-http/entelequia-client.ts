@@ -1,4 +1,7 @@
-import { ExternalServiceError } from '@/modules/wf1/domain/errors';
+import {
+  ExternalServiceError,
+  type ExternalServiceErrorContext,
+} from '@/modules/wf1/domain/errors';
 import { fetchWithTimeout } from '../shared';
 import { parseJson } from './product-helpers';
 
@@ -8,6 +11,8 @@ export async function fetchEntelequiaJson(
   timeoutMs: number,
   headers?: Record<string, string>,
 ): Promise<Record<string, unknown>> {
+  const context = resolveExternalServiceErrorContext(path);
+
   try {
     const response = await fetchWithTimeout(
       `${baseUrl}${path}`,
@@ -29,6 +34,7 @@ export async function fetchEntelequiaJson(
         response.status,
         'http',
         body,
+        context,
       );
     }
 
@@ -43,9 +49,39 @@ export async function fetchEntelequiaJson(
     }
 
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ExternalServiceError('Entelequia request timeout', 0, 'timeout');
+      throw new ExternalServiceError('Entelequia request timeout', 0, 'timeout', undefined, context);
     }
 
-    throw new ExternalServiceError('Entelequia network error', 0, 'network');
+    throw new ExternalServiceError('Entelequia network error', 0, 'network', undefined, context);
   }
+}
+
+function resolveExternalServiceErrorContext(path: string): ExternalServiceErrorContext {
+  const pathWithoutQuery = path.split('?')[0] ?? '';
+  const normalizedPath = pathWithoutQuery.trim();
+
+  return {
+    service: 'entelequia',
+    endpointGroup: resolveEndpointGroup(normalizedPath),
+    endpointPath: normalizedPath.length > 0 ? normalizedPath : '/',
+  };
+}
+
+function resolveEndpointGroup(pathWithoutQuery: string): ExternalServiceErrorContext['endpointGroup'] {
+  if (
+    pathWithoutQuery.startsWith('/products-list') ||
+    pathWithoutQuery.startsWith('/products/recommended') ||
+    pathWithoutQuery.startsWith('/products/brands') ||
+    pathWithoutQuery.startsWith('/products/authors') ||
+    pathWithoutQuery.startsWith('/products/latest') ||
+    pathWithoutQuery.startsWith('/product/')
+  ) {
+    return 'catalog';
+  }
+
+  if (pathWithoutQuery.startsWith('/account/orders')) {
+    return 'orders';
+  }
+
+  return 'unknown';
 }
