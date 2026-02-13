@@ -3,6 +3,15 @@ export type UiAvailabilityLabel =
   | 'quedan pocas unidades'
   | 'sin stock';
 
+export interface CatalogSnapshotItem {
+  id: string;
+  title: string;
+  productUrl: string;
+  thumbnailUrl: string;
+  currency: string;
+  amount: number;
+}
+
 export interface UiProductCard {
   id: string;
   title: string;

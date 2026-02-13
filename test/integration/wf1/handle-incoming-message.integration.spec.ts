@@ -1921,6 +1921,121 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(metadata.uiCardsWithImageCount).toBe(1);
   });
 
+  it('answers cheapest price from the latest catalog snapshot without invoking llm again', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        items: [
+          {
+            id: 'ev-1',
+            slug: 'evangelion-01',
+            title: 'Evangelion 01',
+            categoryName: 'Mangas',
+            stock: 4,
+            url: 'https://entelequia.com.ar/producto/evangelion-01',
+            imageUrl: 'https://entelequia.com.ar/images/ev-1.jpg',
+            price: { amount: '5.000', currency: 'ARS' },
+          },
+          {
+            id: 'ev-2',
+            slug: 'evangelion-02',
+            title: 'Evangelion 02',
+            categoryName: 'Mangas',
+            stock: 5,
+            url: 'https://entelequia.com.ar/producto/evangelion-02',
+            imageUrl: 'https://entelequia.com.ar/images/ev-2.jpg',
+            price: { amount: 10000, currency: 'ARS' },
+          },
+        ],
+      },
+    });
+
+    const firstResponse = await useCase.execute({
+      requestId: 'req-price-1',
+      externalEventId: 'event-price-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-1',
+        text: 'mostrame opciones de evangelion',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-1',
+        text: 'mostrame opciones de evangelion',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(firstResponse.ok).toBe(true);
+    expect(firstResponse).toHaveProperty('ui');
+    expect(llmSpy).toHaveBeenCalledTimes(1);
+
+    const firstPersistedMetadata = (persistence.turns[persistence.turns.length - 1]
+      ?.metadata ?? {}) as Record<string, unknown>;
+    expect(Array.isArray(firstPersistedMetadata.catalogSnapshot)).toBe(true);
+
+    const secondResponse = await useCase.execute({
+      requestId: 'req-price-2',
+      externalEventId: 'event-price-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-1',
+        text: 'cual es el mas barato de los que sugeriste?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-1',
+        text: 'cual es el mas barato de los que sugeriste?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(secondResponse.ok).toBe(true);
+    expect(secondResponse.message).toContain('Evangelion 01');
+    expect(secondResponse.message).toContain('$5000 ARS');
+    expect(llmSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a clarification when asking cheapest price without previous catalog snapshot', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+
+    const response = await useCase.execute({
+      requestId: 'req-price-empty-1',
+      externalEventId: 'event-price-empty-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-empty-1',
+        text: 'cual es el mas barato de los que sugeriste?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-price-empty-1',
+        text: 'cual es el mas barato de los que sugeriste?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toContain('No tengo una lista reciente de productos');
+    expect(llmSpy).not.toHaveBeenCalled();
+  });
+
   it('handles tickets intent with aiContext and escalation metadata', async () => {
     const response = await useCase.execute({
       requestId: 'req-8',

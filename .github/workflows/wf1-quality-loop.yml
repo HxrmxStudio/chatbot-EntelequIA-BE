@@ -11,6 +11,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '15 3 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      CHATBOT_DB_IP_FAMILY: '4'
+      CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL_IPV4 || secrets.CHATBOT_DB_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -27,24 +31,29 @@ jobs:
       - name: Evaluate responses
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/evaluate-response-quality-llm-judge.ts
         env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WF1_EVAL_ENABLED: 'true'
 
       - name: Enqueue HITL samples
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/enqueue-hitl-review-samples.ts
-        env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
 
       - name: Prune analytics retention
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/prune-analytics-data.ts
+
+      - name: Close stale conversations
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/close-stale-conversations.ts
         env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
+          WF1_CONVERSATION_CLOSER_ENABLED: 'true'
+          WF1_CONVERSATION_ACTIVE_TTL_MINUTES: '1440'
 
   weekly-quality-loop:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 4 * * 1'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      CHATBOT_DB_IP_FAMILY: '4'
+      CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL_IPV4 || secrets.CHATBOT_DB_URL }}
 
     steps:
       - uses: actions/checkout@v4
@@ -60,24 +69,17 @@ jobs:
 
       - name: Inject golden samples
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/inject-golden-samples.ts
-        env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
 
       - name: Calculate reviewer agreement
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/calculate-reviewer-agreement.ts
-        env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
 
       - name: Build intent exemplars
         run: npm run wf1:learning:build
         env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
           WF1_RECURSIVE_LEARNING_ENABLED: 'true'
 
       - name: Generate weekly report
         run: npm run wf1:quality:weekly-report
-        env:
-          CHATBOT_DB_URL: ${{ secrets.CHATBOT_DB_URL }}
 
       - name: Upload local reports
         uses: actions/upload-artifact@v4

@@ -1,7 +1,12 @@
 import type { ContextBlock } from '../context-block';
-import { formatMoney } from '../money';
+import { formatMoney, parseMoney } from '../money';
 import { WF1_UI_LOW_STOCK_THRESHOLD, WF1_UI_THUMBNAIL_FALLBACK_URL } from './constants';
-import type { UiAvailabilityLabel, UiPayloadV1, UiProductCard } from './types';
+import type {
+  CatalogSnapshotItem,
+  UiAvailabilityLabel,
+  UiPayloadV1,
+  UiProductCard,
+} from './types';
 
 type SupportedContextType = 'products' | 'recommendations';
 
@@ -25,6 +30,19 @@ export function buildCatalogUiPayload(
   return undefined;
 }
 
+export function buildCatalogSnapshot(
+  contextBlocks: ContextBlock[],
+): CatalogSnapshotItem[] {
+  for (const contextType of ['products', 'recommendations'] as const) {
+    const items = extractSnapshotByContextType(contextBlocks, contextType);
+    if (items.length > 0) {
+      return items;
+    }
+  }
+
+  return [];
+}
+
 function extractCardsByContextType(
   contextBlocks: ContextBlock[],
   contextType: SupportedContextType,
@@ -39,6 +57,27 @@ function extractCardsByContextType(
   }
 
   return extractCardsFromRecommendationsPayload(block.contextPayload);
+}
+
+function extractSnapshotByContextType(
+  contextBlocks: ContextBlock[],
+  contextType: SupportedContextType,
+): CatalogSnapshotItem[] {
+  const block = contextBlocks.find((entry) => entry.contextType === contextType);
+  if (!block || !isRecord(block.contextPayload)) {
+    return [];
+  }
+
+  const items =
+    contextType === 'products'
+      ? Array.isArray(block.contextPayload.items)
+        ? block.contextPayload.items
+        : []
+      : Array.isArray(block.contextPayload.products)
+        ? block.contextPayload.products
+        : [];
+
+  return extractSnapshotFromArray(items);
 }
 
 function extractCardsFromProductsPayload(
@@ -74,6 +113,25 @@ function extractCardsFromArray(items: unknown[]): UiProductCard[] {
   return cards;
 }
 
+function extractSnapshotFromArray(items: unknown[]): CatalogSnapshotItem[] {
+  const snapshot: CatalogSnapshotItem[] = [];
+
+  for (const rawItem of items) {
+    if (!isRecord(rawItem)) {
+      continue;
+    }
+
+    const item = mapRecordToSnapshotItem(rawItem);
+    if (!item) {
+      continue;
+    }
+
+    snapshot.push(item);
+  }
+
+  return snapshot;
+}
+
 function mapRecordToCard(record: Record<string, unknown>): UiProductCard | undefined {
   const title = normalizeNonEmptyString(record.title);
   const productUrl = normalizeHttpUrl(record.url);
@@ -99,6 +157,30 @@ function mapRecordToCard(record: Record<string, unknown>): UiProductCard | undef
     thumbnailUrl,
     thumbnailAlt: `Imagen de ${title}`,
     ...(badges.length > 0 ? { badges } : {}),
+  };
+}
+
+function mapRecordToSnapshotItem(
+  record: Record<string, unknown>,
+): CatalogSnapshotItem | undefined {
+  const title = normalizeNonEmptyString(record.title);
+  const productUrl = normalizeHttpUrl(record.url);
+  if (!title || !productUrl) {
+    return undefined;
+  }
+
+  const money = resolveSnapshotMoney(record);
+  if (!money) {
+    return undefined;
+  }
+
+  return {
+    id: normalizeIdentifier(record.id, record.slug),
+    title,
+    productUrl,
+    thumbnailUrl: resolveThumbnailUrl(record),
+    currency: money.currency,
+    amount: money.amount,
   };
 }
 
@@ -227,17 +309,34 @@ function resolveBadges(discountValue: unknown): string[] {
 }
 
 function formatMoneyRecord(value: unknown): string | undefined {
-  if (!isRecord(value)) {
+  const money = parseMoney(value);
+  if (!money) {
     return undefined;
   }
 
-  const amount = toFiniteNumber(value.amount);
-  const currency = normalizeNonEmptyString(value.currency);
-  if (amount === undefined || !currency) {
-    return undefined;
+  return formatMoney(money);
+}
+
+function resolveSnapshotMoney(
+  record: Record<string, unknown>,
+): { amount: number; currency: string } | undefined {
+  const discounted = parseMoney(record.priceWithDiscount);
+  if (discounted) {
+    return {
+      amount: discounted.amount,
+      currency: discounted.currency,
+    };
   }
 
-  return formatMoney({ amount, currency });
+  const regular = parseMoney(record.price);
+  if (regular) {
+    return {
+      amount: regular.amount,
+      currency: regular.currency,
+    };
+  }
+
+  return undefined;
 }
 
 function normalizeIdentifier(id: unknown, slug: unknown): string {

@@ -78,11 +78,12 @@ export class PgChatRepository implements ChatPersistencePort {
     channel: ChannelSource;
   }): Promise<void> {
     await this.pool.query(
-      `INSERT INTO conversations (id, user_id, channel)
-       VALUES ($1, $2, $3)
+      `INSERT INTO conversations (id, user_id, channel, status)
+       VALUES ($1, $2, $3, 'active')
        ON CONFLICT (id)
        DO UPDATE SET user_id = EXCLUDED.user_id,
                      channel = EXCLUDED.channel,
+                     status = 'active',
                      updated_at = CURRENT_TIMESTAMP`,
       [input.conversationId, input.userId, input.channel],
     );
@@ -294,11 +295,12 @@ export class PgChatRepository implements ChatPersistencePort {
     input: { conversationId: string; userId: string; channel: ChannelSource },
   ): Promise<void> {
     await client.query(
-      `INSERT INTO conversations (id, user_id, channel)
-       VALUES ($1, $2, $3)
+      `INSERT INTO conversations (id, user_id, channel, status)
+       VALUES ($1, $2, $3, 'active')
        ON CONFLICT (id)
        DO UPDATE SET user_id = EXCLUDED.user_id,
                      channel = EXCLUDED.channel,
+                     status = 'active',
                      updated_at = CURRENT_TIMESTAMP`,
       [input.conversationId, input.userId, input.channel],
     );

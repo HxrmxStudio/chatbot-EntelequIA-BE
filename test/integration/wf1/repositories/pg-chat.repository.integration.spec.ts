@@ -230,6 +230,43 @@ describe('PgChatRepository (PostgreSQL integration)', () => {
       await pool.query('DELETE FROM users WHERE email = $1', [sharedEmail]);
     }
   });
+
+  (hasDbUrl ? it : it.skip)('reactivates a closed conversation when a new turn arrives', async () => {
+    if (!repository || !pool) {
+      throw new Error('Repository test setup failed');
+    }
+
+    const runId = randomUUID();
+    const userId = `it-user-closed-${runId}`;
+    const conversationId = `it-conversation-closed-${runId}`;
+
+    try {
+      await repository.upsertUser(userId);
+
+      await pool.query(
+        `INSERT INTO conversations (id, user_id, channel, status, created_at, updated_at)
+         VALUES ($1, $2, 'web', 'closed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP - interval '2 days')`,
+        [conversationId, userId],
+      );
+
+      await repository.upsertConversation({
+        conversationId,
+        userId,
+        channel: 'web',
+      });
+
+      const result = await pool.query<{ status: string }>(
+        `SELECT status
+         FROM conversations
+         WHERE id = $1`,
+        [conversationId],
+      );
+
+      expect(result.rows[0]?.status).toBe('active');
+    } finally {
+      await cleanupConversationData(pool, { conversationId, userId });
+    }
+  });
 });
 
 function resolveDatabaseUrl(): string {

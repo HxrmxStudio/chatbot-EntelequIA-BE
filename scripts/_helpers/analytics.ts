@@ -54,10 +54,12 @@ export function readStringEnv(name: string, fallback: string): string {
 export function createAnalyticsPool(): Pool {
   const connectionString =
     process.env.CHATBOT_DB_TEST_URL?.trim() || requireEnv('CHATBOT_DB_URL');
+  const ipFamily = resolveIpFamily(process.env.CHATBOT_DB_IP_FAMILY);
 
   return new Pool({
     connectionString,
     max: 2,
+    ...(ipFamily ? { family: ipFamily } : {}),
   });
 }
 
@@ -72,3 +74,18 @@ export async function writeLocalReport(
   return outPath;
 }
 
+function resolveIpFamily(rawValue: string | undefined): 4 | 6 | undefined {
+  if (typeof rawValue !== 'string') {
+    return undefined;
+  }
+
+  const normalized = rawValue.trim();
+  if (normalized === '4') {
+    return 4;
+  }
+  if (normalized === '6') {
+    return 6;
+  }
+
+  return undefined;
+}

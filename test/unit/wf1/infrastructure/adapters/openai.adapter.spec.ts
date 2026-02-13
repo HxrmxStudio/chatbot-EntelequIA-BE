@@ -21,6 +21,11 @@ describe('OpenAiAdapter', () => {
     incrementOrderFlowAmbiguousAck: jest.fn(),
     incrementOrderFlowHijackPrevented: jest.fn(),
     incrementOutputTechnicalTermsSanitized: jest.fn(),
+    incrementFeedbackReceived: jest.fn(),
+    incrementUiPayloadEmitted: jest.fn(),
+    incrementUiPayloadSuppressed: jest.fn(),
+    incrementLearningAutopromote: jest.fn(),
+    incrementLearningAutorollback: jest.fn(),
   };
 
   afterEach(() => {
@@ -43,6 +48,11 @@ describe('OpenAiAdapter', () => {
     metricsStub.incrementOrderFlowAmbiguousAck.mockReset();
     metricsStub.incrementOrderFlowHijackPrevented.mockReset();
     metricsStub.incrementOutputTechnicalTermsSanitized.mockReset();
+    metricsStub.incrementFeedbackReceived.mockReset();
+    metricsStub.incrementUiPayloadEmitted.mockReset();
+    metricsStub.incrementUiPayloadSuppressed.mockReset();
+    metricsStub.incrementLearningAutopromote.mockReset();
+    metricsStub.incrementLearningAutorollback.mockReset();
   });
 
   it('returns fallback when OPENAI_API_KEY is missing', async () => {

@@ -1037,6 +1037,42 @@ describe('WF1 API (e2e)', () => {
       });
   });
 
+  it('answers cheapest price deterministically from previous ui catalog snapshot', async () => {
+    const conversationId = 'conv-price-followup-e2e-1';
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-price-followup-1')
+      .send({
+        source: 'web',
+        userId: 'user-price',
+        conversationId,
+        text: 'mostrame evangelion',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.ui?.cards?.length).toBeGreaterThan(0);
+      });
+
+    await request(httpApp as Parameters<typeof request>[0])
+      .post('/wf1/chat/message')
+      .set('x-external-event-id', 'e2e-price-followup-2')
+      .send({
+        source: 'web',
+        userId: 'user-price',
+        conversationId,
+        text: 'cual es el mas barato de los que sugeriste?',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ok).toBe(true);
+        expect(body.message).toContain('Evangelion tomo 1');
+        expect(body.message).toContain('$5000 ARS');
+        expect(body.message).not.toBe('Respuesta e2e');
+      });
+  });
+
   it('returns success for whatsapp source and persists turn with whatsapp channel', async () => {
     const payload = {
       source: 'whatsapp',
@@ -1342,13 +1378,20 @@ function buildRecommendationProductsFixture(input: {
 }): Array<Record<string, unknown>> {
   return Array.from({ length: input.count }, (_, index) => {
     const volume = index + 1;
+    const slug = `${input.slugPrefix}-tomo-${volume}`;
     return {
       id: `${input.slugPrefix}-${volume}`,
-      slug: `${input.slugPrefix}-tomo-${volume}`,
+      slug,
       title: `${input.franchiseLabel} tomo ${volume}`,
       stock: 5,
       categoryName: input.categoryName,
       categorySlug: input.categorySlug,
+      url: `https://entelequia.com.ar/producto/${slug}`,
+      imageUrl: `https://entelequia.com.ar/images/${input.slugPrefix}-${volume}.jpg`,
+      price: {
+        amount: 4000 + volume * 1000,
+        currency: 'ARS',
+      },
     };
   });
 }

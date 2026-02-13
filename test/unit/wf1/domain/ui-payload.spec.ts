@@ -1,4 +1,7 @@
-import { buildCatalogUiPayload } from '@/modules/wf1/domain/ui-payload';
+import {
+  buildCatalogSnapshot,
+  buildCatalogUiPayload,
+} from '@/modules/wf1/domain/ui-payload';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 
 describe('ui payload builder', () => {
@@ -123,5 +126,50 @@ describe('ui payload builder', () => {
     const ui = buildCatalogUiPayload(blocks);
 
     expect(ui).toBeUndefined();
+  });
+
+  it('builds a canonical catalog snapshot with comparable prices', () => {
+    const blocks: ContextBlock[] = [
+      {
+        contextType: 'products',
+        contextPayload: {
+          items: [
+            {
+              id: 'p1',
+              slug: 'evangelion-1',
+              title: 'Evangelion Tomo 1',
+              url: 'https://entelequia.com.ar/producto/evangelion-1',
+              imageUrl: 'https://entelequia.com.ar/images/p1.jpg',
+              price: { amount: '5.000', currency: 'ARS' },
+            },
+            {
+              id: 'p2',
+              slug: 'evangelion-2',
+              title: 'Evangelion Tomo 2',
+              url: 'https://entelequia.com.ar/producto/evangelion-2',
+              imageUrl: 'https://entelequia.com.ar/images/p2.jpg',
+              priceWithDiscount: { amount: '$10.000', currency: 'ARS' },
+            },
+          ],
+        },
+      },
+    ];
+
+    const snapshot = buildCatalogSnapshot(blocks);
+
+    expect(snapshot).toHaveLength(2);
+    expect(snapshot[0]).toMatchObject({
+      id: 'p1',
+      title: 'Evangelion Tomo 1',
+      productUrl: 'https://entelequia.com.ar/producto/evangelion-1',
+      thumbnailUrl: 'https://entelequia.com.ar/images/p1.jpg',
+      currency: 'ARS',
+      amount: 5000,
+    });
+    expect(snapshot[1]).toMatchObject({
+      id: 'p2',
+      amount: 10000,
+      currency: 'ARS',
+    });
   });
 });

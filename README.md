@@ -147,6 +147,7 @@ psql "$CHATBOT_DB_URL" -f sql/07_retention_policies.sql
 psql "$CHATBOT_DB_URL" -f sql/08_message_feedback.sql
 psql "$CHATBOT_DB_URL" -f sql/09_wf1_learning_runs.sql
 psql "$CHATBOT_DB_URL" -f sql/10_wf1_intent_exemplars.sql
+psql "$CHATBOT_DB_URL" -f sql/11_conversations_status_ttl_indexes.sql
 ```
 4. Build
 ```bash
@@ -200,15 +201,30 @@ scripts/run-entelequia-local-stack.sh up
 ## Key env vars
 - `OPENAI_TIMEOUT_MS` (default `8000`): timeout in milliseconds for OpenAI requests.
 - `CHATBOT_DB_TEST_URL` (optional): explicit DB URL for PostgreSQL integration tests (`test:integration:pg`).
+- `CHATBOT_DB_IP_FAMILY` (optional): force DB DNS family (`4` or `6`) for environments with IPv6 routing issues (useful in CI).
 - `ENTELEQUIA_BASE_URL` (recommended): Entelequia base URL. If empty, falls back to `ENTELEQUIA_API_BASE_URL`.
 - `CHATBOT_ENTELEQUIA_BASE_URL` (stack script runtime): upstream API used when launching local stack; default `https://entelequia.com.ar`.
 - `BOT_ORDER_LOOKUP_HMAC_SECRET`: shared secret for HMAC signing in `/api/v1/bot/order-lookup`.
 - `BOT_ORDER_LOOKUP_TIMEOUT_MS` (default `8000`): timeout for secure order lookup requests.
 - `BOT_ORDER_LOOKUP_RETRY_MAX` (default `1`): max retries for `429` responses.
 - `BOT_ORDER_LOOKUP_RETRY_BACKOFF_MS` (default `500`): base backoff for `429` retries.
+- `WF1_CONVERSATION_ACTIVE_TTL_MINUTES` (default `1440`): TTL in minutes before auto-closing stale active conversations.
+- `WF1_CONVERSATION_CLOSER_ENABLED` (default `true`): enables scheduled stale conversation closer job.
 - `WF1_RECURSIVE_LEARNING_ENABLED` (default `true`): enables adaptive exemplar hints.
 - `WF1_RECURSIVE_AUTOPROMOTE_ENABLED` (default `false`): promotion remains manual by default.
 - `WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED` (default `false`): rollback remains manual by default.
+
+## Operations checks
+```bash
+npm run db:migration:status
+npm run wf1:conversations:close-stale
+npm run wf1:telemetry:verify
+```
+
+## GitHub Actions DB connectivity note
+- `db.<project-ref>.supabase.co` can resolve only IPv6 in some setups.
+- For GitHub runners without IPv6 route, provide an IPv4-capable connection URL in secret `CHATBOT_DB_URL_IPV4`.
+- The workflow now falls back automatically: `CHATBOT_DB_URL_IPV4 || CHATBOT_DB_URL`.
 
 ## Production upstream guardrails
 - In local E2E mode, chatbot requests to production Entelequia are read-only (catalog/context GET endpoints).

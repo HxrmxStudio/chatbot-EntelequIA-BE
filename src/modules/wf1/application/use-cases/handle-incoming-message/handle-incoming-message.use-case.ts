@@ -39,8 +39,8 @@ import { sanitizeAssistantUserMessage } from '../../../domain/assistant-output-s
 import { sanitizeText } from '../../../domain/text-sanitizer';
 import { validateAndEnrichIntentOutput } from '../../../domain/output-validation';
 import { resolveIntentRoute } from '../../../domain/intent-routing';
-import type { UiPayloadV1 } from '../../../domain/ui-payload';
-import { buildCatalogUiPayload } from '../../../domain/ui-payload';
+import type { CatalogSnapshotItem, UiPayloadV1 } from '../../../domain/ui-payload';
+import { buildCatalogSnapshot, buildCatalogUiPayload } from '../../../domain/ui-payload';
 import type { IntentName } from '../../../domain/intent';
 import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
@@ -73,6 +73,11 @@ import {
   buildRecommendationsVolumeDisambiguationResponse,
   formatRecommendationCategoryLabel,
 } from './recommendations-disambiguation-response';
+import {
+  buildCheapestPriceMessage,
+  buildMostExpensivePriceMessage,
+  buildPriceComparisonMissingSnapshotMessage,
+} from './price-comparison-response';
 import { resolveOrderLookupRequest } from './resolve-order-lookup-request';
 import { buildOrdersRequiresAuthResponse } from './orders-unauthenticated-response';
 import {
@@ -103,6 +108,11 @@ import {
   resolveRecommendationFlowStateFromHistory,
   shouldContinueRecommendationsFlow,
 } from './resolve-recommendations-flow-state';
+import {
+  resolveLatestCatalogSnapshotFromHistory,
+  resolvePriceComparisonItem,
+  resolvePriceComparisonRequestIntent,
+} from './resolve-price-comparison-followup';
 
 const STORE_INFO_POLICY_VERSION = 'v2-exact-weekly-hours';
 
@@ -291,6 +301,7 @@ export class HandleIncomingMessageUseCase {
       let llmMetadata: LlmReplyMetadata | undefined;
       let exactStockDisclosed = false;
       let uiPayload: UiPayloadV1 | undefined;
+      let catalogSnapshot: CatalogSnapshotItem[] = [];
       let guestOrderFlowStateToPersist: GuestOrderFlowState | undefined;
       let recommendationsFlowStateToPersist:
         | RecommendationDisambiguationState
@@ -421,77 +432,126 @@ export class HandleIncomingMessageUseCase {
         }
 
         if (!response) {
-        try {
-          contextBlocks = await this.enrichContextByIntent.execute({
-            intentResult: effectiveRoutedIntentResult,
-            text: effectiveText,
-            sentiment: validatedIntent.sentiment,
-            currency: input.payload.currency,
-            accessToken: input.payload.accessToken,
-          });
-          const disambiguationResponse =
-            this.buildRecommendationsDisambiguationResponseFromContext({
-              contextBlocks,
-              conversationId: input.payload.conversationId,
-            });
+          const priceComparisonIntent = resolvePriceComparisonRequestIntent(
+            sanitizedText,
+          );
+          if (priceComparisonIntent !== 'none') {
+            const snapshot = resolveLatestCatalogSnapshotFromHistory(historyRows);
+            if (snapshot.length === 0) {
+              response = {
+                ok: true,
+                conversationId: input.payload.conversationId,
+                intent: 'products',
+                message: buildPriceComparisonMissingSnapshotMessage(),
+              };
+            } else {
+              catalogSnapshot = snapshot;
+              const selected = resolvePriceComparisonItem({
+                intent: priceComparisonIntent,
+                items: snapshot,
+              });
 
-          if (disambiguationResponse) {
-            response = disambiguationResponse.response;
-            recommendationsFlowStateToPersist = disambiguationResponse.nextState;
-            recommendationsFlowFranchiseToPersist = disambiguationResponse.nextFranchise;
-            recommendationsFlowCategoryHintToPersist =
-              disambiguationResponse.nextCategoryHint;
-            this.metricsPort.incrementRecommendationsDisambiguationTriggered();
-          } else {
-            this.recordRecommendationsObservability({
-              requestId: input.requestId,
-              conversationId: input.payload.conversationId,
-              intent: effectiveRoutedIntent,
-              contextBlocks,
-            });
-
-            contextBlocks = appendStaticContextBlock(
-              contextBlocks,
-              this.promptTemplates.getStaticContext(),
-            );
-
-            contextBlocks = await this.appendAdaptiveExemplarContext({
-              contextBlocks,
-              intent: effectiveRoutedIntent as IntentName,
-            });
-
-            const llmReply = await this.llmPort.buildAssistantReply({
-              requestId: input.requestId,
-              conversationId: input.payload.conversationId,
-              externalEventId: input.externalEventId,
-              userText: effectiveText,
-              intent: effectiveRoutedIntent,
-              history,
-              contextBlocks,
-            });
-
-            const { message, metadata } = normalizeLlmReply(llmReply);
-            llmMetadata = metadata;
-            exactStockDisclosed = resolveExactStockDisclosure(contextBlocks);
-            uiPayload = buildCatalogUiPayload(contextBlocks);
-            const hasCatalogContext = hasCatalogUiContext(contextBlocks);
-            if (uiPayload) {
-              this.metricsPort.incrementUiPayloadEmitted();
-            } else if (hasCatalogContext) {
-              this.metricsPort.incrementUiPayloadSuppressed('no_cards');
+              if (selected) {
+                response = {
+                  ok: true,
+                  conversationId: input.payload.conversationId,
+                  intent: 'products',
+                  message:
+                    priceComparisonIntent === 'cheapest'
+                      ? buildCheapestPriceMessage({
+                          item: selected,
+                          comparedCount: snapshot.length,
+                        })
+                      : buildMostExpensivePriceMessage({
+                          item: selected,
+                          comparedCount: snapshot.length,
+                        }),
+                };
+              } else {
+                response = {
+                  ok: true,
+                  conversationId: input.payload.conversationId,
+                  intent: 'products',
+                  message: buildPriceComparisonMissingSnapshotMessage(),
+                };
+              }
             }
-
-            response = {
-              ok: true,
-              message,
-              conversationId: input.payload.conversationId,
-              intent: effectiveRoutedIntent,
-              ...(uiPayload ? { ui: uiPayload } : {}),
-            };
           }
-        } catch (error: unknown) {
-          response = mapContextOrBackendError(error);
         }
+
+        if (!response) {
+          try {
+            contextBlocks = await this.enrichContextByIntent.execute({
+              intentResult: effectiveRoutedIntentResult,
+              text: effectiveText,
+              sentiment: validatedIntent.sentiment,
+              currency: input.payload.currency,
+              accessToken: input.payload.accessToken,
+            });
+            const disambiguationResponse =
+              this.buildRecommendationsDisambiguationResponseFromContext({
+                contextBlocks,
+                conversationId: input.payload.conversationId,
+              });
+
+            if (disambiguationResponse) {
+              response = disambiguationResponse.response;
+              recommendationsFlowStateToPersist = disambiguationResponse.nextState;
+              recommendationsFlowFranchiseToPersist = disambiguationResponse.nextFranchise;
+              recommendationsFlowCategoryHintToPersist =
+                disambiguationResponse.nextCategoryHint;
+              this.metricsPort.incrementRecommendationsDisambiguationTriggered();
+            } else {
+              this.recordRecommendationsObservability({
+                requestId: input.requestId,
+                conversationId: input.payload.conversationId,
+                intent: effectiveRoutedIntent,
+                contextBlocks,
+              });
+
+              contextBlocks = appendStaticContextBlock(
+                contextBlocks,
+                this.promptTemplates.getStaticContext(),
+              );
+
+              contextBlocks = await this.appendAdaptiveExemplarContext({
+                contextBlocks,
+                intent: effectiveRoutedIntent as IntentName,
+              });
+
+              const llmReply = await this.llmPort.buildAssistantReply({
+                requestId: input.requestId,
+                conversationId: input.payload.conversationId,
+                externalEventId: input.externalEventId,
+                userText: effectiveText,
+                intent: effectiveRoutedIntent,
+                history,
+                contextBlocks,
+              });
+
+              const { message, metadata } = normalizeLlmReply(llmReply);
+              llmMetadata = metadata;
+              exactStockDisclosed = resolveExactStockDisclosure(contextBlocks);
+              uiPayload = buildCatalogUiPayload(contextBlocks);
+              catalogSnapshot = buildCatalogSnapshot(contextBlocks);
+              const hasCatalogContext = hasCatalogUiContext(contextBlocks);
+              if (uiPayload) {
+                this.metricsPort.incrementUiPayloadEmitted();
+              } else if (hasCatalogContext) {
+                this.metricsPort.incrementUiPayloadSuppressed('no_cards');
+              }
+
+              response = {
+                ok: true,
+                message,
+                conversationId: input.payload.conversationId,
+                intent: effectiveRoutedIntent,
+                ...(uiPayload ? { ui: uiPayload } : {}),
+              };
+            }
+          } catch (error: unknown) {
+            response = mapContextOrBackendError(error);
+          }
         }
       }
 
@@ -539,6 +599,8 @@ export class HandleIncomingMessageUseCase {
         uiPayload?.cards.filter(
           (card) => typeof card.thumbnailUrl === 'string' && card.thumbnailUrl.length > 0,
         ).length ?? 0;
+      const catalogSnapshotMetadata =
+        catalogSnapshot.length > 0 ? { catalogSnapshot } : {};
       const guestOrderFlowMetadata =
         guestOrderFlowStateToPersist === undefined
           ? {}
@@ -585,6 +647,7 @@ export class HandleIncomingMessageUseCase {
           uiKind: uiPayload?.kind ?? null,
           uiCardsCount,
           uiCardsWithImageCount,
+          ...catalogSnapshotMetadata,
           ...guestOrderFlowMetadata,
           ...recommendationsFlowMetadata,
           ...ordersEscalationFlowMetadata,

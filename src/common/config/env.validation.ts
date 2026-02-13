@@ -17,6 +17,8 @@ export interface AppEnv {
   ORDER_LOOKUP_RATE_LIMIT_IP_MAX: number;
   ORDER_LOOKUP_RATE_LIMIT_USER_MAX: number;
   ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX: number;
+  WF1_CONVERSATION_ACTIVE_TTL_MINUTES: number;
+  WF1_CONVERSATION_CLOSER_ENABLED: boolean;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
   OPENAI_TIMEOUT_MS: number;
@@ -186,6 +188,14 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX: Math.max(
       1,
       parseNumber(config.ORDER_LOOKUP_RATE_LIMIT_ORDER_MAX, 4),
+    ),
+    WF1_CONVERSATION_ACTIVE_TTL_MINUTES: Math.max(
+      1,
+      parseNumber(config.WF1_CONVERSATION_ACTIVE_TTL_MINUTES, 1_440),
+    ),
+    WF1_CONVERSATION_CLOSER_ENABLED: parseBoolean(
+      config.WF1_CONVERSATION_CLOSER_ENABLED,
+      true,
     ),
     OPENAI_API_KEY: String(config.OPENAI_API_KEY ?? '').trim() || undefined,
     OPENAI_MODEL: String(config.OPENAI_MODEL ?? 'gpt-4.1-mini').trim(),
