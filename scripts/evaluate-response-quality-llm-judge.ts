@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Pool } from 'pg';
 import { fetchWithTimeout } from '../src/modules/wf1/infrastructure/adapters/shared/http-client';
-import { openaiResponsesUrl } from '../src/modules/wf1/infrastructure/adapters/openai/endpoints';
+import { OPENAI_API_BASE_URL } from '../src/modules/wf1/infrastructure/adapters/openai/endpoints';
 import {
   createAnalyticsPool,
   readBooleanEnv,
@@ -39,10 +39,58 @@ type EvaluatedItem = {
   error: string | null;
 };
 
+type BatchStatus = 'submitted' | 'pending' | 'completed' | 'failed_parse_or_persist';
+
+type PreparedCandidate = CandidateRow & {
+  reason: 'fallback' | 'low_score' | 'random';
+  customId: string;
+  contextSnapshot: string;
+  inputHash: string;
+};
+
+type PendingBatchItem = {
+  customId: string;
+  messageId: string;
+  requestId: string | null;
+  intent: string | null;
+  reason: 'fallback' | 'low_score' | 'random';
+  createdAt: string;
+  inputHash: string;
+};
+
+type PendingBatchState = {
+  version: 1;
+  batchId: string;
+  model: string;
+  submittedAt: string;
+  items: PendingBatchItem[];
+};
+
+type OpenAiBatch = {
+  id: string;
+  status: string;
+  output_file_id?: string | null;
+};
+
+type OpenAiBatchOutputLine = {
+  custom_id?: string;
+  response?: {
+    status_code?: number;
+    body?: {
+      output_text?: string | null;
+      output?: Array<{ content?: Array<{ text?: string }> }>;
+    };
+  };
+  error?: {
+    message?: string;
+  } | null;
+};
+
 const PROMPT_PATH = resolve(
   process.cwd(),
   'prompts/eval/entelequia_response_quality_judge_v1.txt',
 );
+const BATCH_STATE_PATH = resolve(process.cwd(), 'docs/reports/local/wf1-eval-batch-state.json');
 
 const JUDGE_SCHEMA = {
   type: 'object',
@@ -88,6 +136,24 @@ async function main(): Promise<void> {
   const pool = createAnalyticsPool();
 
   try {
+    const collected = await collectPendingBatchIfAny({
+      apiKey,
+      timeoutMs,
+      pool,
+    });
+
+    if (collected.reportPath) {
+      // eslint-disable-next-line no-console
+      console.log(collected.reportPath);
+      if (collected.batchStatus === 'failed_parse_or_persist') {
+        process.exitCode = 1;
+        return;
+      }
+      if (collected.batchStatus === 'pending') {
+        return;
+      }
+    }
+
     const alreadyToday = await countEvaluationsToday(pool);
     const availableBudget = Math.max(0, dailyCap - alreadyToday);
     if (availableBudget === 0) {
@@ -99,7 +165,12 @@ async function main(): Promise<void> {
         alreadyToday,
         availableBudget,
         selected: 0,
-        evaluated: [],
+        queuedForBatch: 0,
+        cacheHits: 0,
+        batchStatus: 'completed',
+        inserted: 0,
+        failed: 0,
+        processed: 0,
       });
       // eslint-disable-next-line no-console
       console.log(reportPath);
@@ -113,6 +184,7 @@ async function main(): Promise<void> {
       lowScoreThreshold,
     });
 
+    const prepared: PreparedCandidate[] = [];
     const evaluated: EvaluatedItem[] = [];
     for (const item of selected) {
       const contextSnapshot = buildContextSnapshot(item);
@@ -132,47 +204,64 @@ async function main(): Promise<void> {
         continue;
       }
 
-      try {
-        const scores = await evaluateWithJudge({
-          apiKey,
-          model,
-          timeoutMs,
-          prompt: judgePrompt,
-          userQuery: item.user_query,
-          botResponse: item.bot_response,
-          contextSnapshot,
-        });
-
-        const inserted = await insertEvaluation(pool, {
-          messageId: item.message_id,
-          requestId: item.request_id,
-          intent: item.intent,
-          evaluatorModel: model,
-          scores,
-          inputHash,
-          evidence: {
-            candidateReason: item.reason,
-            createdAt: item.created_at,
-          },
-        });
-
-        evaluated.push({
-          messageId: item.message_id,
-          reason: item.reason,
-          inserted,
-          skippedByCache: false,
-          error: null,
-        });
-      } catch (error: unknown) {
-        evaluated.push({
-          messageId: item.message_id,
-          reason: item.reason,
-          inserted: false,
-          skippedByCache: false,
-          error: error instanceof Error ? error.message : 'unknown_error',
-        });
-      }
+      prepared.push({
+        ...item,
+        customId: item.message_id,
+        contextSnapshot,
+        inputHash,
+      });
     }
+
+    if (prepared.length === 0) {
+      const reportPath = await writeLocalReport('response-quality-eval-summary', {
+        generatedAt: new Date().toISOString(),
+        model,
+        enabled,
+        dailyCap,
+        alreadyToday,
+        availableBudget,
+        selected: selected.length,
+        queuedForBatch: 0,
+        cacheHits: evaluated.filter((row) => row.skippedByCache).length,
+        batchStatus: 'completed',
+        inserted: 0,
+        failed: 0,
+        processed: 0,
+        evaluated,
+      });
+      // eslint-disable-next-line no-console
+      console.log(reportPath);
+      return;
+    }
+
+    const inputFileId = await uploadBatchInputFile({
+      apiKey,
+      timeoutMs,
+      jsonl: buildBatchJsonl({ prepared, model, judgePrompt }),
+    });
+
+    const batch = await createBatch({
+      apiKey,
+      timeoutMs,
+      inputFileId,
+    });
+
+    const state: PendingBatchState = {
+      version: 1,
+      batchId: batch.id,
+      model,
+      submittedAt: new Date().toISOString(),
+      items: prepared.map((item) => ({
+        customId: item.customId,
+        messageId: item.message_id,
+        requestId: item.request_id,
+        intent: item.intent,
+        reason: item.reason,
+        createdAt: item.created_at,
+        inputHash: item.inputHash,
+      })),
+    };
+    await writeBatchState(state);
 
     const reportPath = await writeLocalReport('response-quality-eval-summary', {
       generatedAt: new Date().toISOString(),
@@ -182,9 +271,13 @@ async function main(): Promise<void> {
       alreadyToday,
       availableBudget,
       selected: selected.length,
-      inserted: evaluated.filter((row) => row.inserted).length,
+      queuedForBatch: prepared.length,
       cacheHits: evaluated.filter((row) => row.skippedByCache).length,
-      failed: evaluated.filter((row) => row.error !== null).length,
+      batchStatus: 'submitted',
+      batchId: batch.id,
+      inserted: 0,
+      failed: 0,
+      processed: 0,
       evaluated,
     });
 
@@ -192,6 +285,336 @@ async function main(): Promise<void> {
     console.log(reportPath);
   } finally {
     await pool.end();
+  }
+}
+
+async function collectPendingBatchIfAny(input: {
+  apiKey: string;
+  timeoutMs: number;
+  pool: Pool;
+}): Promise<{ batchStatus: BatchStatus | null; reportPath: string | null }> {
+  const state = await readBatchState();
+  if (!state) {
+    return { batchStatus: null, reportPath: null };
+  }
+
+  const batch = await fetchBatch({
+    apiKey: input.apiKey,
+    timeoutMs: input.timeoutMs,
+    batchId: state.batchId,
+  });
+
+  if (batch.status !== 'completed') {
+    const reportPath = await writeLocalReport('response-quality-eval-summary', {
+      generatedAt: new Date().toISOString(),
+      model: state.model,
+      batchStatus: 'pending',
+      batchId: state.batchId,
+      pendingItems: state.items.length,
+      providerStatus: batch.status,
+      inserted: 0,
+      failed: 0,
+      processed: 0,
+    });
+
+    return { batchStatus: 'pending', reportPath };
+  }
+
+  if (!batch.output_file_id) {
+    const reportPath = await writeLocalReport('response-quality-eval-summary', {
+      generatedAt: new Date().toISOString(),
+      model: state.model,
+      batchStatus: 'failed_parse_or_persist',
+      batchId: state.batchId,
+      error: 'missing_output_file',
+      inserted: 0,
+      failed: state.items.length,
+      processed: 0,
+    });
+    await clearBatchState();
+    return { batchStatus: 'failed_parse_or_persist', reportPath };
+  }
+
+  const outputJsonl = await fetchBatchOutputFileContent({
+    apiKey: input.apiKey,
+    timeoutMs: input.timeoutMs,
+    fileId: batch.output_file_id,
+  });
+
+  const parsed = parseJsonl<OpenAiBatchOutputLine>(outputJsonl);
+  const byCustomId = new Map(state.items.map((item) => [item.customId, item]));
+
+  let inserted = 0;
+  let failed = 0;
+  let processed = 0;
+  for (const line of parsed) {
+    const customId = typeof line.custom_id === 'string' ? line.custom_id : null;
+    if (!customId) {
+      continue;
+    }
+
+    const stateItem = byCustomId.get(customId);
+    if (!stateItem) {
+      continue;
+    }
+
+    processed += 1;
+
+    try {
+      const scores = extractJudgeScoresFromBatchLine(line);
+      const ok = await insertEvaluation(input.pool, {
+        messageId: stateItem.messageId,
+        requestId: stateItem.requestId,
+        intent: stateItem.intent,
+        evaluatorModel: state.model,
+        scores,
+        inputHash: stateItem.inputHash,
+        evidence: {
+          candidateReason: stateItem.reason,
+          createdAt: stateItem.createdAt,
+          collectedFromBatch: true,
+          batchId: state.batchId,
+        },
+      });
+
+      if (ok) {
+        inserted += 1;
+      }
+    } catch {
+      failed += 1;
+    }
+  }
+
+  await clearBatchState();
+
+  const batchStatus: BatchStatus = failed > 0 ? 'failed_parse_or_persist' : 'completed';
+  const reportPath = await writeLocalReport('response-quality-eval-summary', {
+    generatedAt: new Date().toISOString(),
+    model: state.model,
+    batchStatus,
+    batchId: state.batchId,
+    inserted,
+    failed,
+    processed,
+  });
+
+  return { batchStatus, reportPath };
+}
+
+async function uploadBatchInputFile(input: {
+  apiKey: string;
+  timeoutMs: number;
+  jsonl: string;
+}): Promise<string> {
+  const body = new FormData();
+  body.append('purpose', 'batch');
+  body.append('file', new Blob([input.jsonl], { type: 'application/jsonl' }), 'wf1-eval-input.jsonl');
+
+  const response = await fetchWithTimeout(
+    `${OPENAI_API_BASE_URL}/v1/files`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body,
+    },
+    input.timeoutMs,
+  );
+
+  if (!response.ok) {
+    throw new Error(`batch_file_upload_http_${response.status}`);
+  }
+
+  const parsed = (await response.json()) as { id?: string };
+  if (typeof parsed.id !== 'string' || parsed.id.length === 0) {
+    throw new Error('batch_file_upload_invalid_response');
+  }
+
+  return parsed.id;
+}
+
+async function createBatch(input: {
+  apiKey: string;
+  timeoutMs: number;
+  inputFileId: string;
+}): Promise<{ id: string }> {
+  const response = await fetchWithTimeout(
+    `${OPENAI_API_BASE_URL}/v1/batches`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+      body: JSON.stringify({
+        input_file_id: input.inputFileId,
+        endpoint: '/v1/responses',
+        completion_window: '24h',
+      }),
+    },
+    input.timeoutMs,
+  );
+
+  if (!response.ok) {
+    throw new Error(`batch_create_http_${response.status}`);
+  }
+
+  const parsed = (await response.json()) as { id?: string };
+  if (typeof parsed.id !== 'string' || parsed.id.length === 0) {
+    throw new Error('batch_create_invalid_response');
+  }
+
+  return { id: parsed.id };
+}
+
+async function fetchBatch(input: {
+  apiKey: string;
+  timeoutMs: number;
+  batchId: string;
+}): Promise<OpenAiBatch> {
+  const response = await fetchWithTimeout(
+    `${OPENAI_API_BASE_URL}/v1/batches/${encodeURIComponent(input.batchId)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+    },
+    input.timeoutMs,
+  );
+
+  if (!response.ok) {
+    throw new Error(`batch_fetch_http_${response.status}`);
+  }
+
+  return (await response.json()) as OpenAiBatch;
+}
+
+async function fetchBatchOutputFileContent(input: {
+  apiKey: string;
+  timeoutMs: number;
+  fileId: string;
+}): Promise<string> {
+  const response = await fetchWithTimeout(
+    `${OPENAI_API_BASE_URL}/v1/files/${encodeURIComponent(input.fileId)}/content`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+      },
+    },
+    input.timeoutMs,
+  );
+
+  if (!response.ok) {
+    throw new Error(`batch_output_file_http_${response.status}`);
+  }
+
+  return response.text();
+}
+
+function buildBatchJsonl(input: {
+  prepared: PreparedCandidate[];
+  model: string;
+  judgePrompt: string;
+}): string {
+  return input.prepared
+    .map((item) => {
+      const line = {
+        custom_id: item.customId,
+        method: 'POST',
+        url: '/v1/responses',
+        body: {
+          model: input.model,
+          input: [
+            {
+              role: 'system',
+              content: [{ type: 'input_text', text: input.judgePrompt }],
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: buildJudgePayload({
+                    userQuery: item.user_query,
+                    botResponse: item.bot_response,
+                    contextSnapshot: item.contextSnapshot,
+                  }),
+                },
+              ],
+            },
+          ],
+          max_output_tokens: 220,
+          temperature: 0,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'response_quality_judge_v1',
+              schema: JUDGE_SCHEMA,
+              strict: true,
+            },
+          },
+        },
+      };
+
+      return JSON.stringify(line);
+    })
+    .join('\n');
+}
+
+function extractJudgeScoresFromBatchLine(line: OpenAiBatchOutputLine): JudgeScores {
+  if (line.error && typeof line.error.message === 'string') {
+    throw new Error(`judge_error_${line.error.message}`);
+  }
+
+  const statusCode = line.response?.status_code;
+  if (typeof statusCode !== 'number' || statusCode < 200 || statusCode >= 300) {
+    throw new Error(`judge_http_${statusCode ?? 'unknown'}`);
+  }
+
+  const body = line.response?.body;
+  const raw =
+    body?.output_text ?? body?.output?.[0]?.content?.find((item) => typeof item.text === 'string')?.text;
+
+  if (!raw || raw.trim().length === 0) {
+    throw new Error('judge_empty_output');
+  }
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    throw new Error('judge_invalid_json');
+  }
+
+  return normalizeJudgeScores(decoded);
+}
+
+async function readBatchState(): Promise<PendingBatchState | null> {
+  try {
+    const raw = await readFile(BATCH_STATE_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as PendingBatchState;
+    if (parsed.version !== 1 || typeof parsed.batchId !== 'string' || !Array.isArray(parsed.items)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function writeBatchState(state: PendingBatchState): Promise<void> {
+  await mkdir(resolve(process.cwd(), 'docs/reports/local'), { recursive: true });
+  await writeFile(BATCH_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+async function clearBatchState(): Promise<void> {
+  try {
+    await unlink(BATCH_STATE_PATH);
+  } catch {
+    // ignore
   }
 }
 
@@ -308,85 +731,6 @@ async function hasRecentEvaluation(pool: Pool, inputHash: string): Promise<boole
   );
 
   return result.rows[0]?.exists ?? false;
-}
-
-async function evaluateWithJudge(input: {
-  apiKey: string;
-  model: string;
-  timeoutMs: number;
-  prompt: string;
-  userQuery: string;
-  botResponse: string;
-  contextSnapshot: string;
-}): Promise<JudgeScores> {
-  const response = await fetchWithTimeout(
-    openaiResponsesUrl(),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: input.model,
-        input: [
-          {
-            role: 'system',
-            content: [{ type: 'input_text', text: input.prompt }],
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'input_text',
-                text: buildJudgePayload({
-                  userQuery: input.userQuery,
-                  botResponse: input.botResponse,
-                  contextSnapshot: input.contextSnapshot,
-                }),
-              },
-            ],
-          },
-        ],
-        max_output_tokens: 220,
-        temperature: 0,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'response_quality_judge_v1',
-            schema: JUDGE_SCHEMA,
-            strict: true,
-          },
-        },
-      }),
-    },
-    input.timeoutMs,
-  );
-
-  if (!response.ok) {
-    throw new Error(`judge_http_${response.status}`);
-  }
-
-  const parsed = (await response.json()) as {
-    output_text?: string | null;
-    output?: Array<{ content?: Array<{ text?: string }> }>;
-  };
-
-  const raw =
-    parsed.output_text ??
-    parsed.output?.[0]?.content?.find((item) => typeof item.text === 'string')?.text;
-  if (!raw || raw.trim().length === 0) {
-    throw new Error('judge_empty_output');
-  }
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw new Error('judge_invalid_json');
-  }
-
-  return normalizeJudgeScores(decoded);
 }
 
 async function insertEvaluation(
@@ -536,6 +880,14 @@ function readMetadataNumber(
 function deterministicBucket(seed: string): number {
   const digest = createHash('sha256').update(seed).digest('hex').slice(0, 8);
   return parseInt(digest, 16) % 100;
+}
+
+function parseJsonl<T>(raw: string): T[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as T);
 }
 
 main().catch((error: unknown) => {

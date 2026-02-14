@@ -51,4 +51,20 @@ export interface MetricsPort {
   incrementLearningAutorollback(): void;
 
   incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void;
+
+  incrementOpenAiRequest(input: { model: string; intent: string; path: string }): void;
+
+  addOpenAiInputTokens(input: { model: string; tokens: number | null }): void;
+
+  addOpenAiOutputTokens(input: { model: string; tokens: number | null }): void;
+
+  addOpenAiCachedTokens(input: { model: string; tokens: number | null }): void;
+
+  addOpenAiEstimatedCostUsd(input: { model: string; amountUsd: number }): void;
+
+  incrementEvalBatchSubmitted(): void;
+
+  incrementEvalBatchCompleted(): void;
+
+  incrementEvalBatchFailed(): void;
 }

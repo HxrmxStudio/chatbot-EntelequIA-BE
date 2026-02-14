@@ -27,6 +27,14 @@ describe('OpenAiAdapter', () => {
     incrementLearningAutopromote: jest.fn(),
     incrementLearningAutorollback: jest.fn(),
     incrementExemplarsUsedInPrompt: jest.fn(),
+    incrementOpenAiRequest: jest.fn(),
+    addOpenAiInputTokens: jest.fn(),
+    addOpenAiOutputTokens: jest.fn(),
+    addOpenAiCachedTokens: jest.fn(),
+    addOpenAiEstimatedCostUsd: jest.fn(),
+    incrementEvalBatchSubmitted: jest.fn(),
+    incrementEvalBatchCompleted: jest.fn(),
+    incrementEvalBatchFailed: jest.fn(),
   };
 
   afterEach(() => {
@@ -55,6 +63,14 @@ describe('OpenAiAdapter', () => {
     metricsStub.incrementLearningAutopromote.mockReset();
     metricsStub.incrementLearningAutorollback.mockReset();
     metricsStub.incrementExemplarsUsedInPrompt.mockReset();
+    metricsStub.incrementOpenAiRequest.mockReset();
+    metricsStub.addOpenAiInputTokens.mockReset();
+    metricsStub.addOpenAiOutputTokens.mockReset();
+    metricsStub.addOpenAiCachedTokens.mockReset();
+    metricsStub.addOpenAiEstimatedCostUsd.mockReset();
+    metricsStub.incrementEvalBatchSubmitted.mockReset();
+    metricsStub.incrementEvalBatchCompleted.mockReset();
+    metricsStub.incrementEvalBatchFailed.mockReset();
   });
 
   it('returns fallback when OPENAI_API_KEY is missing', async () => {
@@ -211,6 +227,87 @@ describe('OpenAiAdapter', () => {
 
     expect(resolveMessage(result)).toContain('Perfecto');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes simple intents to economical model', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        output_text: 'estado de pedido',
+      }),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const adapter = new OpenAiAdapter({
+      get: (key: string) => {
+        if (key === 'OPENAI_API_KEY') return 'key';
+        if (key === 'OPENAI_TIMEOUT_MS') return 5000;
+        if (key === 'WF1_FINAL_REPLY_STRUCTURED_OUTPUT') return false;
+        if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 0;
+        if (key === 'OPENAI_MODEL') return 'gpt-4.1-mini';
+        return undefined;
+      },
+    } as ConfigService, metricsStub);
+
+    await adapter.buildAssistantReply(buildInput('orders'));
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>;
+    expect(body['model']).toBe('gpt-4.1-nano');
+  });
+
+  it('escalates from economical model to primary when structured confidence is low', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            reply: 'Necesito mas datos',
+            requires_clarification: true,
+            clarifying_question: 'me pasas mas contexto?',
+            confidence_label: 'low',
+            _schema_version: '1.0',
+          }),
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            reply: 'Respuesta final con modelo principal',
+            requires_clarification: false,
+            clarifying_question: null,
+            confidence_label: 'high',
+            _schema_version: '1.0',
+          }),
+        }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    const adapter = new OpenAiAdapter({
+      get: (key: string) => {
+        if (key === 'OPENAI_API_KEY') return 'key';
+        if (key === 'OPENAI_TIMEOUT_MS') return 5000;
+        if (key === 'WF1_FINAL_REPLY_STRUCTURED_OUTPUT') return true;
+        if (key === 'WF1_FINAL_REPLY_ROLLOUT_PERCENT') return 100;
+        if (key === 'OPENAI_MODEL') return 'gpt-4.1-mini';
+        return undefined;
+      },
+    } as ConfigService, metricsStub);
+
+    const result = await adapter.buildAssistantReply(buildInput('general'));
+
+    expect(resolveMessage(result)).toBe('Respuesta final con modelo principal');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    const firstBody = JSON.parse(String(firstRequest.body)) as Record<string, unknown>;
+    const secondBody = JSON.parse(String(secondRequest.body)) as Record<string, unknown>;
+
+    expect(firstBody['model']).toBe('gpt-4.1-nano');
+    expect(secondBody['model']).toBe('gpt-4.1-mini');
   });
 });
 

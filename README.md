@@ -176,6 +176,8 @@ scripts/run-entelequia-local-stack.sh logs entelequia
 scripts/run-entelequia-local-stack.sh down
 ```
 
+`status` now includes `chatbot widget csp: ok|mismatch` to quickly detect iframe CSP drift.
+
 Defaults (overridable by env vars):
 - FE repo: `/Users/user/Workspace/entelequia_tienda` (port `5173`)
 - Chatbot BE repo: `/Users/user/Workspace/chatbot-EntelequIA-BE` (port `3090`)
@@ -197,6 +199,32 @@ Switch chatbot upstream to local Entelequia BE for debugging:
 CHATBOT_ENTELEQUIA_BASE_URL=http://127.0.0.1:8010 \
 scripts/run-entelequia-local-stack.sh up
 ```
+
+### CORS debug quick runbook
+1. Confirm chatbot instance, logs and widget CSP status:
+```bash
+scripts/run-entelequia-local-stack.sh status
+scripts/run-entelequia-local-stack.sh logs chatbot
+```
+2. If `chatbot widget csp: mismatch`, rebuild/sync widget for local mode:
+```bash
+cd /Users/user/Workspace/chatbot-EntelequIA/chatbot-widget
+npm run build:skip-checks -- --mode development
+cd /Users/user/Workspace/entelequia_tienda
+npm run sync:chatbot-widget
+```
+3. Verify preflight from FE origin:
+```bash
+curl -si -X OPTIONS http://127.0.0.1:3090/wf1/chat/message \
+  -H 'Origin: http://127.0.0.1:5173' \
+  -H 'Access-Control-Request-Method: POST'
+```
+4. Confirm FE target URL:
+- `VITE_CHATBOT_WEBHOOK_URL` should point to `http://127.0.0.1:3090/wf1/chat/message` in local mode.
+
+Behavior:
+- Development/test: permissive CORS for local diagnostics.
+- Production: strict allowlist, `ALLOWED_ORIGINS` required at startup.
 
 ## Key env vars
 - `OPENAI_TIMEOUT_MS` (default `8000`): timeout in milliseconds for OpenAI requests.

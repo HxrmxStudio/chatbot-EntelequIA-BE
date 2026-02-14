@@ -5,9 +5,13 @@ import { createLogger } from '../../../../../common/utils/logger';
 import type { LlmPort, LlmReplyResult } from '../../../application/ports/llm.port';
 import type { MetricsPort } from '../../../application/ports/metrics.port';
 import type { ContextBlock } from '../../../domain/context-block';
+import { estimateCostUsd } from '../../../domain/llm-cost-policy';
+import { detectComplexSignals, routeModel } from '../../../domain/model-router';
 import { withRetry } from '../openai-retry';
 import { loadJsonFile, loadPromptFile } from '../shared';
 import {
+  ASSISTANT_CHEAP_MODEL,
+  ASSISTANT_PRIMARY_MODEL,
   ASSISTANT_PROMPT_VERSION,
   ASSISTANT_PROMPT_PATH,
   ASSISTANT_SCHEMA_PATH,
@@ -69,9 +73,17 @@ export class OpenAiAdapter implements LlmPort {
     contextBlocks: ContextBlock[];
   }): Promise<LlmReplyResult> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const model = this.configService.get<string>('OPENAI_MODEL') ?? 'gpt-4.1-mini';
+    const primaryModel = this.configService.get<string>('OPENAI_MODEL') ?? ASSISTANT_PRIMARY_MODEL;
+    const routeDecision = routeModel({
+      intent: input.intent,
+      messageLength: input.userText.length,
+      hasMultiTurnContext: input.history.length > 0,
+      containsComplexSignals: detectComplexSignals(input.userText),
+    });
+    const selectedModel =
+      routeDecision.selectedModel === ASSISTANT_PRIMARY_MODEL ? primaryModel : ASSISTANT_CHEAP_MODEL;
     const useStructuredPath = this.shouldUseStructuredPath(input.requestId);
-    const idempotencyKey = this.buildIdempotencyKey(input);
+    const idempotencyBase = this.buildIdempotencyKey(input);
 
     if (!apiKey) {
       return this.buildAndLogFallback({
@@ -79,79 +91,78 @@ export class OpenAiAdapter implements LlmPort {
         intent: input.intent,
         contextBlocks: input.contextBlocks,
         requestId: input.requestId,
-        model,
+        model: selectedModel,
         attempts: 0,
       });
     }
 
+    this.logger.info('model_routed', {
+      event: 'model_routed',
+      request_id: input.requestId,
+      intent: input.intent,
+      selected_model: selectedModel,
+      primary_model: primaryModel,
+      reason: routeDecision.reason,
+    });
+
     const startedAt = Date.now();
     let attempts = 0;
+    let modelUsed = selectedModel;
 
     try {
-      const result = await withRetry({
-        maxAttempts: MAX_ATTEMPTS,
-        baseBackoffMs: BASE_BACKOFF_MS,
-        fn: async () => {
+      let result = await this.requestWithRetry({
+        apiKey,
+        idempotencyKey: truncateIdempotencyKey(`${idempotencyBase}:${selectedModel}`),
+        model: selectedModel,
+        useStructuredPath,
+        input,
+        onAttempt: () => {
           attempts += 1;
-
-          if (useStructuredPath) {
-            return await requestOpenAiStructured({
-              apiKey,
-              idempotencyKey,
-              model,
-              timeoutMs: this.timeoutMs,
-              systemPrompt: this.systemPrompt,
-              schema: this.schema,
-              payload: {
-                userText: input.userText,
-                intent: input.intent,
-                history: input.history,
-                contextBlocks: input.contextBlocks,
-              },
-            });
-          }
-
-          return await requestOpenAiLegacy({
-            apiKey,
-            idempotencyKey,
-            model,
-            timeoutMs: this.timeoutMs,
-            systemPrompt: this.systemPrompt,
-            payload: {
-              userText: input.userText,
-              intent: input.intent,
-              history: input.history,
-              contextBlocks: input.contextBlocks,
-            },
-          });
-        },
-        shouldRetry: (err) => isRetryableHttpStatus(err) || isTimeoutOrNetwork(err),
-        onAttemptFailed: (err, attempt, retrying) => {
-          if (!retrying) {
-            return;
-          }
-
-          this.logger.warn('openai_assistant_reply_attempt_failed', {
-            event: 'openai_assistant_reply_attempt_failed',
-            request_id: input.requestId,
-            intent: input.intent,
-            model,
-            mode: useStructuredPath ? 'structured' : 'legacy',
-            attempt,
-            fallback_reason: this.resolveFallbackReason(err),
-            retrying,
-          });
         },
       });
 
+      if (
+        selectedModel !== primaryModel &&
+        this.shouldEscalateToPrimary(result, input.intent)
+      ) {
+        this.logger.info('openai_assistant_reply_model_escalation', {
+          event: 'openai_assistant_reply_model_escalation',
+          request_id: input.requestId,
+          intent: input.intent,
+          from_model: selectedModel,
+          to_model: primaryModel,
+          reason: 'low_confidence_or_clarification',
+        });
+
+        modelUsed = primaryModel;
+        result = await this.requestWithRetry({
+          apiKey,
+          idempotencyKey: truncateIdempotencyKey(`${idempotencyBase}:${primaryModel}`),
+          model: primaryModel,
+          useStructuredPath,
+          input,
+          onAttempt: () => {
+            attempts += 1;
+          },
+        });
+      }
+
       const message = resolveReplyMessage(result);
-      this.logPromptDiagnostics(input.requestId, input.intent, model, result);
+      this.logPromptDiagnostics(input.requestId, input.intent, modelUsed, result);
+      this.recordOpenAiUsageMetrics({
+        intent: input.intent,
+        model: modelUsed,
+        llmPath: useStructuredPath ? 'structured_success' : 'legacy_success',
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        cachedTokens: result.usage.cachedTokens,
+      });
 
       this.logger.info('openai_assistant_reply_success', {
         event: 'openai_assistant_reply_success',
         request_id: input.requestId,
         intent: input.intent,
-        model,
+        model: modelUsed,
         latency_ms: Date.now() - startedAt,
         attempts,
         path: useStructuredPath ? 'structured_success' : null,
@@ -178,11 +189,134 @@ export class OpenAiAdapter implements LlmPort {
         intent: input.intent,
         contextBlocks: input.contextBlocks,
         requestId: input.requestId,
-        model,
+        model: modelUsed,
         attempts,
         errorMessage: safeErrorMessage(error),
       });
     }
+  }
+
+  private async requestWithRetry(input: {
+    apiKey: string;
+    idempotencyKey: string;
+    model: string;
+    useStructuredPath: boolean;
+    onAttempt: () => void;
+    input: {
+      requestId: string;
+      userText: string;
+      intent: Parameters<LlmPort['buildAssistantReply']>[0]['intent'];
+      history: Array<{ sender: string; content: string; createdAt: string }>;
+      contextBlocks: ContextBlock[];
+    };
+  }): Promise<OpenAiLegacyResult | OpenAiStructuredResult> {
+    return withRetry({
+      maxAttempts: MAX_ATTEMPTS,
+      baseBackoffMs: BASE_BACKOFF_MS,
+      fn: async () => {
+        input.onAttempt();
+
+        if (input.useStructuredPath) {
+          return await requestOpenAiStructured({
+            apiKey: input.apiKey,
+            idempotencyKey: input.idempotencyKey,
+            model: input.model,
+            timeoutMs: this.timeoutMs,
+            systemPrompt: this.systemPrompt,
+            schema: this.schema,
+            payload: {
+              userText: input.input.userText,
+              intent: input.input.intent,
+              history: input.input.history,
+              contextBlocks: input.input.contextBlocks,
+            },
+          });
+        }
+
+        return await requestOpenAiLegacy({
+          apiKey: input.apiKey,
+          idempotencyKey: input.idempotencyKey,
+          model: input.model,
+          timeoutMs: this.timeoutMs,
+          systemPrompt: this.systemPrompt,
+          payload: {
+            userText: input.input.userText,
+            intent: input.input.intent,
+            history: input.input.history,
+            contextBlocks: input.input.contextBlocks,
+          },
+        });
+      },
+      shouldRetry: (err) => isRetryableHttpStatus(err) || isTimeoutOrNetwork(err),
+      onAttemptFailed: (err, attempt, retrying) => {
+        if (!retrying) {
+          return;
+        }
+
+        this.logger.warn('openai_assistant_reply_attempt_failed', {
+          event: 'openai_assistant_reply_attempt_failed',
+          request_id: input.input.requestId,
+          intent: input.input.intent,
+          model: input.model,
+          mode: input.useStructuredPath ? 'structured' : 'legacy',
+          attempt,
+          fallback_reason: this.resolveFallbackReason(err),
+          retrying,
+        });
+      },
+    });
+  }
+
+  private shouldEscalateToPrimary(
+    result: OpenAiLegacyResult | OpenAiStructuredResult,
+    intent: Parameters<LlmPort['buildAssistantReply']>[0]['intent'],
+  ): boolean {
+    if (!isStructuredResult(result)) {
+      return false;
+    }
+
+    if (result.payload.confidence_label === 'low') {
+      return true;
+    }
+
+    // Clarifications for non-general intents are treated as potentially costly quality misses.
+    return result.payload.requires_clarification && intent !== 'general';
+  }
+
+  private recordOpenAiUsageMetrics(input: {
+    intent: Parameters<LlmPort['buildAssistantReply']>[0]['intent'];
+    model: string;
+    llmPath: string;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    cachedTokens: number | null;
+  }): void {
+    this.metrics.incrementOpenAiRequest({
+      model: input.model,
+      intent: input.intent,
+      path: input.llmPath,
+    });
+    this.metrics.addOpenAiInputTokens({
+      model: input.model,
+      tokens: input.inputTokens,
+    });
+    this.metrics.addOpenAiOutputTokens({
+      model: input.model,
+      tokens: input.outputTokens,
+    });
+    this.metrics.addOpenAiCachedTokens({
+      model: input.model,
+      tokens: input.cachedTokens,
+    });
+    this.metrics.addOpenAiEstimatedCostUsd({
+      model: input.model,
+      amountUsd: estimateCostUsd({
+        model: input.model,
+        inputTokens: input.inputTokens,
+        outputTokens: input.outputTokens,
+        cachedTokens: input.cachedTokens,
+      }),
+    });
   }
 
   private buildAndLogFallback(input: {

@@ -10,6 +10,7 @@ RUNTIME_DIR="${RUNTIME_DIR:-/tmp/entelequia-local-stack}"
 ENTELEQUIA_FE_REPO="${ENTELEQUIA_FE_REPO:-/Users/user/Workspace/entelequia_tienda}"
 CHATBOT_BE_REPO="${CHATBOT_BE_REPO:-/Users/user/Workspace/chatbot-EntelequIA-BE}"
 ENTELEQUIA_BE_REPO="${ENTELEQUIA_BE_REPO:-/Users/user/Workspace/p-entelequia24}"
+CHAT_WIDGET_REPO="${CHAT_WIDGET_REPO:-/Users/user/Workspace/chatbot-EntelequIA/chatbot-widget}"
 
 FE_PORT="${FE_PORT:-5173}"
 CHATBOT_PORT="${CHATBOT_PORT:-3090}"
@@ -28,6 +29,8 @@ FE_LOG="$RUNTIME_DIR/fe.log"
 
 BOT_SECRET=""
 UP_IN_PROGRESS=0
+WIDGET_CSP_STATUS="unknown"
+WIDGET_CSP_NOTE=""
 
 log_info() {
   printf '[INFO] %s\n' "$1"
@@ -56,6 +59,7 @@ Configurable env vars:
   ENTELEQUIA_FE_REPO      Default: /Users/user/Workspace/entelequia_tienda
   CHATBOT_BE_REPO         Default: /Users/user/Workspace/chatbot-EntelequIA-BE
   ENTELEQUIA_BE_REPO      Default: /Users/user/Workspace/p-entelequia24
+  CHAT_WIDGET_REPO        Default: /Users/user/Workspace/chatbot-EntelequIA/chatbot-widget
   FE_PORT                 Default: 5173
   CHATBOT_PORT            Default: 3090
   ENTELEQUIA_PORT         Default: 8010
@@ -91,6 +95,178 @@ read_env_var() {
 normalize_pg_url_for_psql() {
   local db_url="$1"
   printf '%s' "$db_url" | sed 's/sslmode=no-verify/sslmode=require/g'
+}
+
+extract_origin_from_url() {
+  local url="$1"
+  printf '%s' "$url" | sed -nE 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*$#\1#p'
+}
+
+extract_connect_src_from_csp_file() {
+  local file_path="$1"
+  if [ ! -f "$file_path" ]; then
+    return 1
+  fi
+
+  local csp_meta csp_connect_src
+  csp_meta="$(
+    tr '\n' ' ' < "$file_path" |
+      sed -nE 's#.*<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"[^>]*>.*#\1#p'
+  )"
+
+  if [ -z "$csp_meta" ]; then
+    return 1
+  fi
+
+  csp_connect_src="$(printf '%s' "$csp_meta" | sed -nE 's#.*connect-src ([^;]*).*#\1#p')"
+  if [ -z "$csp_connect_src" ]; then
+    return 1
+  fi
+
+  printf '%s' "$csp_connect_src"
+}
+
+matches_csp_source() {
+  local origin="$1"
+  local source="$2"
+
+  if [ "$source" = "$origin" ]; then
+    return 0
+  fi
+
+  case "$source" in
+    http://localhost:\*|https://localhost:\*|http://127.0.0.1:\*|https://127.0.0.1:\*)
+      if [[ "$origin" == "${source%\*}"* ]]; then
+        return 0
+      fi
+      ;;
+  esac
+
+  if [[ "$source" == *"://*."* ]]; then
+    local source_scheme source_suffix origin_scheme origin_host_port origin_host
+    source_scheme="${source%%://*}"
+    source_suffix="${source#*://*.}"
+    origin_scheme="${origin%%://*}"
+    origin_host_port="${origin#*://}"
+    origin_host="${origin_host_port%%:*}"
+    if [ "$origin_scheme" = "$source_scheme" ] && [[ "$origin_host" == *".${source_suffix}" ]]; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+is_webhook_origin_allowed_by_widget_csp() {
+  local webhook_origin="$1"
+  local csp_connect_src="$2"
+  local source
+
+  for source in $csp_connect_src; do
+    if matches_csp_source "$webhook_origin" "$source"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+resolve_widget_webhook_url() {
+  local fe_env_file="$ENTELEQUIA_FE_REPO/.env"
+  local webhook_url
+  if [ -f "$fe_env_file" ]; then
+    webhook_url="$(read_env_var "$fe_env_file" "VITE_CHATBOT_WEBHOOK_URL")"
+  fi
+
+  if [ -z "${webhook_url:-}" ]; then
+    webhook_url="http://127.0.0.1:${CHATBOT_PORT}/wf1/chat/message"
+  fi
+
+  printf '%s' "$webhook_url"
+}
+
+build_and_sync_widget_for_local_dev() {
+  local widget_index="$ENTELEQUIA_FE_REPO/public/chatbot-widget/index.html"
+
+  if [ ! -d "$CHAT_WIDGET_REPO/node_modules" ]; then
+    log_error "Missing dependency folder: $CHAT_WIDGET_REPO/node_modules"
+    log_error "Run: (cd $CHAT_WIDGET_REPO && npm install)"
+    return 1
+  fi
+
+  log_warn "Widget CSP does not allow local webhook origin. Rebuilding widget with development CSP and syncing to FE."
+  if ! npm --prefix "$CHAT_WIDGET_REPO" run build:skip-checks -- --mode development >>"$FE_LOG" 2>&1; then
+    log_error "Widget build failed. See $FE_LOG"
+    return 1
+  fi
+
+  if ! npm --prefix "$ENTELEQUIA_FE_REPO" run sync:chatbot-widget >>"$FE_LOG" 2>&1; then
+    log_error "Widget sync failed. See $FE_LOG"
+    return 1
+  fi
+
+  if [ ! -f "$widget_index" ]; then
+    log_error "Widget sync completed but $widget_index was not generated."
+    return 1
+  fi
+
+  return 0
+}
+
+validate_widget_csp_matches_webhook() {
+  local mode="${1:-readonly}"
+  local widget_index="$ENTELEQUIA_FE_REPO/public/chatbot-widget/index.html"
+  local webhook_url webhook_origin csp_connect_src
+
+  WIDGET_CSP_STATUS="unknown"
+  WIDGET_CSP_NOTE=""
+
+  webhook_url="$(resolve_widget_webhook_url)"
+  if [[ ! "$webhook_url" =~ ^https?:// ]]; then
+    WIDGET_CSP_STATUS="ok"
+    WIDGET_CSP_NOTE="relative_webhook_url"
+    return 0
+  fi
+
+  webhook_origin="$(extract_origin_from_url "$webhook_url")"
+  if [ -z "$webhook_origin" ]; then
+    WIDGET_CSP_STATUS="mismatch"
+    WIDGET_CSP_NOTE="invalid_webhook_url"
+    return 1
+  fi
+
+  csp_connect_src="$(extract_connect_src_from_csp_file "$widget_index" || true)"
+  if [ -z "$csp_connect_src" ]; then
+    WIDGET_CSP_STATUS="mismatch"
+    WIDGET_CSP_NOTE="missing_widget_csp"
+  elif is_webhook_origin_allowed_by_widget_csp "$webhook_origin" "$csp_connect_src"; then
+    WIDGET_CSP_STATUS="ok"
+    return 0
+  else
+    WIDGET_CSP_STATUS="mismatch"
+    WIDGET_CSP_NOTE="origin_not_allowed"
+  fi
+
+  if [ "$mode" != "autofix" ]; then
+    return 1
+  fi
+
+  if ! build_and_sync_widget_for_local_dev; then
+    return 1
+  fi
+
+  csp_connect_src="$(extract_connect_src_from_csp_file "$widget_index" || true)"
+  if [ -n "$csp_connect_src" ] && is_webhook_origin_allowed_by_widget_csp "$webhook_origin" "$csp_connect_src"; then
+    WIDGET_CSP_STATUS="ok"
+    WIDGET_CSP_NOTE="autofixed"
+    return 0
+  fi
+
+  WIDGET_CSP_STATUS="mismatch"
+  WIDGET_CSP_NOTE="autofix_failed"
+  log_error "Widget CSP still blocks webhook origin ($webhook_origin) after rebuild/sync."
+  log_error "Run manually: (cd $CHAT_WIDGET_REPO && npm run build:skip-checks -- --mode development) && (cd $ENTELEQUIA_FE_REPO && npm run sync:chatbot-widget)"
+  return 1
 }
 
 is_port_in_use() {
@@ -144,6 +320,16 @@ wait_service_stable() {
 pid_is_running() {
   local pid="$1"
   kill -0 "$pid" >/dev/null 2>&1
+}
+
+resolve_chatbot_node_env() {
+  local npm_pid
+  npm_pid="$(cat "$CHATBOT_PID_FILE" 2>/dev/null || true)"
+  if [ -z "$npm_pid" ] || ! pid_is_running "$npm_pid"; then
+    return 0
+  fi
+
+  ps eww -p "$npm_pid" 2>/dev/null | tr ' ' '\n' | awk -F= '/^NODE_ENV=/{print $2; exit}'
 }
 
 stop_service() {
@@ -260,6 +446,7 @@ start_chatbot() {
     "$CHATBOT_PID_FILE" \
     "$CHATBOT_LOG" \
     env \
+    NODE_ENV=development \
     TURNSTILE_SECRET_KEY= \
     PORT="$CHATBOT_PORT" \
     ENTELEQUIA_BASE_URL="$CHATBOT_ENTELEQUIA_BASE_URL" \
@@ -300,6 +487,7 @@ validate_repo_artifacts() {
   [ -d "$CHATBOT_BE_REPO" ] || { log_error "Missing CHATBOT_BE_REPO: $CHATBOT_BE_REPO"; exit 1; }
   [ -d "$ENTELEQUIA_BE_REPO" ] || { log_error "Missing ENTELEQUIA_BE_REPO: $ENTELEQUIA_BE_REPO"; exit 1; }
   [ -d "$ENTELEQUIA_FE_REPO" ] || { log_error "Missing ENTELEQUIA_FE_REPO: $ENTELEQUIA_FE_REPO"; exit 1; }
+  [ -d "$CHAT_WIDGET_REPO" ] || { log_error "Missing CHAT_WIDGET_REPO: $CHAT_WIDGET_REPO"; exit 1; }
 
   [ -d "$CHATBOT_BE_REPO/node_modules" ] || {
     log_error "Missing dependency folder: $CHATBOT_BE_REPO/node_modules"
@@ -420,6 +608,10 @@ preflight() {
   validate_repo_artifacts
   validate_entelequia_be_env
   ensure_chatbot_feedback_schema
+  if ! validate_widget_csp_matches_webhook "autofix"; then
+    log_error "Widget CSP validation failed before startup."
+    exit 1
+  fi
 }
 
 print_summary() {
@@ -430,6 +622,7 @@ Stack ready:
   Chatbot BE:             http://127.0.0.1:${CHATBOT_PORT}
   Chatbot upstream API:   ${CHATBOT_ENTELEQUIA_BASE_URL}
   Entelequia FE:          http://127.0.0.1:${FE_PORT}
+  Widget CSP status:      ${WIDGET_CSP_STATUS}
 
 Logs:
   $ENTELEQUIA_BE_LOG
@@ -477,7 +670,17 @@ command_down() {
 
 command_status() {
   ensure_runtime_dir
+  validate_widget_csp_matches_webhook "readonly" >/dev/null 2>&1 || true
   service_status "chatbot" "$CHATBOT_PID_FILE" "http://127.0.0.1:${CHATBOT_PORT}/health" "$CHATBOT_PORT"
+  local chatbot_node_env
+  chatbot_node_env="$(resolve_chatbot_node_env)"
+  if [ -n "$chatbot_node_env" ]; then
+    printf 'chatbot runtime mode: NODE_ENV=%s\n' "$chatbot_node_env"
+  fi
+  printf 'chatbot widget csp: %s\n' "$WIDGET_CSP_STATUS"
+  if [ -n "$WIDGET_CSP_NOTE" ]; then
+    printf 'chatbot widget csp note: %s\n' "$WIDGET_CSP_NOTE"
+  fi
   service_status "entelequia-be" "$ENTELEQUIA_BE_PID_FILE" "http://127.0.0.1:${ENTELEQUIA_PORT}/up" "$ENTELEQUIA_PORT"
   service_status "fe" "$FE_PID_FILE" "http://127.0.0.1:${FE_PORT}/" "$FE_PORT"
 

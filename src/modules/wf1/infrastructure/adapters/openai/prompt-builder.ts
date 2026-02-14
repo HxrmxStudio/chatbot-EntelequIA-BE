@@ -38,10 +38,10 @@ export function buildPrompt(
   return {
     userPrompt: [
       `Intent detectado: ${intent}`,
-      `Mensaje usuario: ${userText}`,
-      `Historial reciente:\n${historySection}`,
       'Contexto negocio:',
       contextResult.context.length > 0 ? contextResult.context : CONTEXT_EMPTY,
+      `Historial reciente:\n${historySection}`,
+      `Mensaje usuario: ${userText}`,
     ].join('\n\n'),
     diagnostics: {
       contextBudget: PROMPT_CONTEXT_MAX_CHARS,
@@ -51,6 +51,7 @@ export function buildPrompt(
       truncationStrategy: contextResult.truncationStrategy,
       historyItemsIncluded: compactedHistory.length,
       historyChars,
+      sectionOrder: ['intent', 'business_context', 'history', 'user_message'],
     },
   };
 }

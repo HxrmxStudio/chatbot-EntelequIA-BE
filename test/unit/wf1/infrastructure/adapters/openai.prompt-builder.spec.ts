@@ -66,4 +66,27 @@ describe('openai/prompt-builder', () => {
 
     expect(first).toEqual(second);
   });
+
+  it('places user message after context and history to maximize stable prefix reuse', () => {
+    const result = buildPrompt(
+      'quiero saber stock',
+      'products',
+      [{ sender: 'user', content: 'hola', createdAt: '2026-01-01T00:00:00.000Z' }],
+      [{ contextType: 'products', contextPayload: { aiContext: 'contexto de productos' } }],
+    );
+
+    const contextIndex = result.userPrompt.indexOf('Contexto negocio:');
+    const historyIndex = result.userPrompt.indexOf('Historial reciente:');
+    const userMessageIndex = result.userPrompt.indexOf('Mensaje usuario: quiero saber stock');
+
+    expect(contextIndex).toBeGreaterThan(-1);
+    expect(historyIndex).toBeGreaterThan(contextIndex);
+    expect(userMessageIndex).toBeGreaterThan(historyIndex);
+    expect(result.diagnostics.sectionOrder).toEqual([
+      'intent',
+      'business_context',
+      'history',
+      'user_message',
+    ]);
+  });
 });

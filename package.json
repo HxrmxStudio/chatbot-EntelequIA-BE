@@ -15,6 +15,7 @@
     "test:integration": "jest --testPathPattern=test/integration --runInBand",
     "test:integration:pg": "jest --runInBand --testPathPattern=test/integration/.*pg-.*.repository.integration.spec",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "verify:premerge": "npm run lint && npm run test:unit && npm run test:integration -- --runInBand && npm run test:e2e -- --runInBand && npm run build && npm run wf1:learning:validate-seeds",
     "smoke:wf1:final-stage": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/smoke-wf1-final-stage.ts",
     "validate:prompts": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-prompts.ts",
     "db:migration:status": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/check-db-migration-state.ts",
@@ -25,6 +26,7 @@
     "wf1:learning:build": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/build-intent-exemplars.ts",
     "wf1:learning:promote": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/promote-intent-exemplars.ts",
     "wf1:learning:rollback": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/rollback-intent-exemplars.ts",
+    "wf1:eval:validate-batch": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-eval-batch-result.ts",
     "wf1:quality:weekly-report": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/generate-wf1-weekly-quality-report.ts"
   },
   "dependencies": {

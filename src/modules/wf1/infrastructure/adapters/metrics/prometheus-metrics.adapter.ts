@@ -8,6 +8,11 @@ import {
   WF1_METRIC_LEARNING_AUTOPROMOTE_TOTAL,
   WF1_METRIC_LEARNING_AUTOROLLBACK_TOTAL,
   WF1_METRIC_MESSAGES_TOTAL,
+  WF1_METRIC_OPENAI_CACHED_TOKENS_TOTAL,
+  WF1_METRIC_OPENAI_ESTIMATED_COST_USD_TOTAL,
+  WF1_METRIC_OPENAI_INPUT_TOKENS_TOTAL,
+  WF1_METRIC_OPENAI_OUTPUT_TOKENS_TOTAL,
+  WF1_METRIC_OPENAI_REQUESTS_TOTAL,
   WF1_METRIC_ORDER_FLOW_AMBIGUOUS_ACK_TOTAL,
   WF1_METRIC_ORDER_FLOW_HIJACK_PREVENTED_TOTAL,
   WF1_METRIC_ORDER_LOOKUP_RATE_LIMIT_DEGRADED_TOTAL,
@@ -25,6 +30,9 @@ import {
   WF1_METRIC_STOCK_EXACT_DISCLOSURE_TOTAL,
   WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL,
   WF1_METRIC_UI_PAYLOAD_SUPPRESSED_TOTAL,
+  WF1_METRIC_EVAL_BATCH_COMPLETED_TOTAL,
+  WF1_METRIC_EVAL_BATCH_FAILED_TOTAL,
+  WF1_METRIC_EVAL_BATCH_SUBMITTED_TOTAL,
   WF1_RESPONSE_LATENCY_BUCKETS,
 } from '@/common/metrics';
 
@@ -53,6 +61,14 @@ export class PrometheusMetricsAdapter implements MetricsPort {
   private learningAutopromote = 0;
   private learningAutorollback = 0;
   private readonly exemplarsUsedInPrompt = new Map<string, number>();
+  private readonly openAiRequests = new Map<string, number>();
+  private readonly openAiInputTokens = new Map<string, number>();
+  private readonly openAiOutputTokens = new Map<string, number>();
+  private readonly openAiCachedTokens = new Map<string, number>();
+  private readonly openAiEstimatedCostUsd = new Map<string, number>();
+  private evalBatchSubmitted = 0;
+  private evalBatchCompleted = 0;
+  private evalBatchFailed = 0;
 
   private readonly latencyBuckets = new Map<string, number>();
   private readonly latencySum = new Map<string, number>();
@@ -172,6 +188,44 @@ export class PrometheusMetricsAdapter implements MetricsPort {
   incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void {
     const key = `${sanitizeLabelValue(input.intent)}${EXEMPLAR_KEY_SEP}${sanitizeLabelValue(input.source)}`;
     this.exemplarsUsedInPrompt.set(key, (this.exemplarsUsedInPrompt.get(key) ?? 0) + 1);
+  }
+
+  incrementOpenAiRequest(input: { model: string; intent: string; path: string }): void {
+    const key = `${sanitizeLabelValue(input.model)}|${sanitizeLabelValue(input.intent)}|${sanitizeLabelValue(input.path)}`;
+    this.openAiRequests.set(key, (this.openAiRequests.get(key) ?? 0) + 1);
+  }
+
+  addOpenAiInputTokens(input: { model: string; tokens: number | null }): void {
+    this.addTokens(this.openAiInputTokens, input.model, input.tokens);
+  }
+
+  addOpenAiOutputTokens(input: { model: string; tokens: number | null }): void {
+    this.addTokens(this.openAiOutputTokens, input.model, input.tokens);
+  }
+
+  addOpenAiCachedTokens(input: { model: string; tokens: number | null }): void {
+    this.addTokens(this.openAiCachedTokens, input.model, input.tokens);
+  }
+
+  addOpenAiEstimatedCostUsd(input: { model: string; amountUsd: number }): void {
+    const model = sanitizeLabelValue(input.model);
+    const amount =
+      Number.isFinite(input.amountUsd) && input.amountUsd > 0
+        ? Number(input.amountUsd.toFixed(6))
+        : 0;
+    this.openAiEstimatedCostUsd.set(model, (this.openAiEstimatedCostUsd.get(model) ?? 0) + amount);
+  }
+
+  incrementEvalBatchSubmitted(): void {
+    this.evalBatchSubmitted += 1;
+  }
+
+  incrementEvalBatchCompleted(): void {
+    this.evalBatchCompleted += 1;
+  }
+
+  incrementEvalBatchFailed(): void {
+    this.evalBatchFailed += 1;
   }
 
   renderPrometheus(): string {
@@ -343,6 +397,67 @@ export class PrometheusMetricsAdapter implements MetricsPort {
       );
     }
 
+    lines.push(
+      `# HELP ${WF1_METRIC_OPENAI_REQUESTS_TOTAL} Total OpenAI requests by model, intent and path.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_OPENAI_REQUESTS_TOTAL} counter`);
+    for (const [key, value] of this.openAiRequests.entries()) {
+      const [model, intent, path] = key.split('|');
+      lines.push(
+        `${WF1_METRIC_OPENAI_REQUESTS_TOTAL}{model="${model}",intent="${intent}",path="${path}"} ${value}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_OPENAI_INPUT_TOKENS_TOTAL} Total OpenAI input tokens by model.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_OPENAI_INPUT_TOKENS_TOTAL} counter`);
+    for (const [model, value] of this.openAiInputTokens.entries()) {
+      lines.push(`${WF1_METRIC_OPENAI_INPUT_TOKENS_TOTAL}{model="${model}"} ${value}`);
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_OPENAI_OUTPUT_TOKENS_TOTAL} Total OpenAI output tokens by model.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_OPENAI_OUTPUT_TOKENS_TOTAL} counter`);
+    for (const [model, value] of this.openAiOutputTokens.entries()) {
+      lines.push(`${WF1_METRIC_OPENAI_OUTPUT_TOKENS_TOTAL}{model="${model}"} ${value}`);
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_OPENAI_CACHED_TOKENS_TOTAL} Total OpenAI cached input tokens by model.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_OPENAI_CACHED_TOKENS_TOTAL} counter`);
+    for (const [model, value] of this.openAiCachedTokens.entries()) {
+      lines.push(`${WF1_METRIC_OPENAI_CACHED_TOKENS_TOTAL}{model="${model}"} ${value}`);
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_OPENAI_ESTIMATED_COST_USD_TOTAL} Estimated OpenAI cost in USD accumulated by model.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_OPENAI_ESTIMATED_COST_USD_TOTAL} counter`);
+    for (const [model, value] of this.openAiEstimatedCostUsd.entries()) {
+      lines.push(
+        `${WF1_METRIC_OPENAI_ESTIMATED_COST_USD_TOTAL}{model="${model}"} ${Number(value.toFixed(6))}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_EVAL_BATCH_SUBMITTED_TOTAL} Total eval batches submitted.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_EVAL_BATCH_SUBMITTED_TOTAL} counter`);
+    lines.push(`${WF1_METRIC_EVAL_BATCH_SUBMITTED_TOTAL} ${this.evalBatchSubmitted}`);
+
+    lines.push(
+      `# HELP ${WF1_METRIC_EVAL_BATCH_COMPLETED_TOTAL} Total eval batches completed.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_EVAL_BATCH_COMPLETED_TOTAL} counter`);
+    lines.push(`${WF1_METRIC_EVAL_BATCH_COMPLETED_TOTAL} ${this.evalBatchCompleted}`);
+
+    lines.push(`# HELP ${WF1_METRIC_EVAL_BATCH_FAILED_TOTAL} Total eval batches failed.`);
+    lines.push(`# TYPE ${WF1_METRIC_EVAL_BATCH_FAILED_TOTAL} counter`);
+    lines.push(`${WF1_METRIC_EVAL_BATCH_FAILED_TOTAL} ${this.evalBatchFailed}`);
+
     lines.push(`# HELP ${WF1_METRIC_RESPONSE_LATENCY_SECONDS} WF1 response latency in seconds.`);
     lines.push(`# TYPE ${WF1_METRIC_RESPONSE_LATENCY_SECONDS} histogram`);
     for (const [key, value] of this.latencyBuckets.entries()) {
@@ -359,6 +474,15 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     }
 
     return `${lines.join('\n')}\n`;
+  }
+
+  private addTokens(target: Map<string, number>, model: string, tokens: number | null): void {
+    if (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens <= 0) {
+      return;
+    }
+
+    const key = sanitizeLabelValue(model);
+    target.set(key, (target.get(key) ?? 0) + tokens);
   }
 }
 

@@ -69,10 +69,12 @@ function parseOrigins(value: unknown): string[] {
     return [];
   }
 
-  return value
+  const parsed = value
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+
+  return [...new Set(parsed)];
 }
 
 function parseBoolean(value: unknown, fallback: boolean): boolean {
@@ -130,6 +132,7 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
   const TURNSTILE_SECRET_KEY =
     String(config.TURNSTILE_SECRET_KEY ?? '').trim() || undefined;
   const REDIS_URL = String(config.REDIS_URL ?? '').trim() || undefined;
+  const ALLOWED_ORIGINS = parseOrigins(config.ALLOWED_ORIGINS);
 
   if (CHATBOT_DB_URL.length === 0) {
     throw new Error('CHATBOT_DB_URL is required');
@@ -146,6 +149,10 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
   // Production hardening for web channel: require Turnstile anti-bot verification.
   if (NODE_ENV === 'production' && !TURNSTILE_SECRET_KEY) {
     throw new Error('TURNSTILE_SECRET_KEY is required in production');
+  }
+
+  if (NODE_ENV === 'production' && ALLOWED_ORIGINS.length === 0) {
+    throw new Error('ALLOWED_ORIGINS is required in production');
   }
 
   return {
@@ -276,7 +283,7 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     ),
     TURNSTILE_SECRET_KEY,
     WHATSAPP_SECRET: String(config.WHATSAPP_SECRET ?? '').trim() || undefined,
-    ALLOWED_ORIGINS: parseOrigins(config.ALLOWED_ORIGINS),
+    ALLOWED_ORIGINS,
     LOG_LEVEL: parseLogLevel(config.LOG_LEVEL),
     CHAT_HISTORY_LIMIT: parseNumber(config.CHAT_HISTORY_LIMIT, 10),
   };

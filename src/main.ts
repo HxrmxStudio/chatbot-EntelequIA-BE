@@ -8,6 +8,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware';
 import { validateEnv, type AppEnv } from './common/config/env.validation';
 import { createLogger, logger } from './common/utils/logger';
+import { buildCorsOriginHandler, resolveCorsMode } from './common/http/cors-policy';
 
 async function bootstrap(): Promise<void> {
   logger.boot();
@@ -50,18 +51,15 @@ async function bootstrap(): Promise<void> {
 }
 
 function configureCors(app: Awaited<ReturnType<typeof NestFactory.create>>, env: AppEnv): void {
-  app.enableCors({
-    origin: (
-      origin: string | undefined,
-      callback: (error: Error | null, allow?: boolean) => void,
-    ) => {
-      if (!origin || env.ALLOWED_ORIGINS.length === 0 || env.ALLOWED_ORIGINS.includes(origin)) {
-        callback(null, true);
-        return;
-      }
+  const corsMode = resolveCorsMode(env);
+  createLogger('Bootstrap').info('cors_configuration', {
+    event: 'cors_configuration',
+    cors_mode: corsMode,
+    allowedOriginsCount: env.ALLOWED_ORIGINS.length,
+  });
 
-      callback(new Error('Origin not allowed by CORS'));
-    },
+  app.enableCors({
+    origin: buildCorsOriginHandler(env),
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',

@@ -316,6 +316,14 @@ class InMemoryMetrics {
       source: input.source,
     });
   }
+  incrementOpenAiRequest(): void {}
+  addOpenAiInputTokens(): void {}
+  addOpenAiOutputTokens(): void {}
+  addOpenAiCachedTokens(): void {}
+  addOpenAiEstimatedCostUsd(): void {}
+  incrementEvalBatchSubmitted(): void {}
+  incrementEvalBatchCompleted(): void {}
+  incrementEvalBatchFailed(): void {}
 }
 
 class InMemoryOrderLookupRateLimiter {

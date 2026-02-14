@@ -1,10 +1,11 @@
 import type { ContextBlock } from '../../../domain/context-block';
+import type { IntentName } from '../../../domain/intent';
 import { fetchWithTimeout } from '../shared';
 import {
-  ASSISTANT_MAX_OUTPUT_TOKENS,
   ASSISTANT_SCHEMA_NAME,
   ASSISTANT_SCHEMA_VERSION,
   ASSISTANT_TEMPERATURE,
+  resolveMaxOutputTokens,
 } from './constants';
 import { OpenAiEmptyOutputError, OpenAiHttpError, OpenAiSchemaError } from './errors';
 import { openaiResponsesUrl } from './endpoints';
@@ -20,7 +21,7 @@ import type {
 
 type OpenAiInput = {
   userText: string;
-  intent: string;
+  intent: IntentName;
   history: Array<{ sender: string; content: string; createdAt: string }>;
   contextBlocks: ContextBlock[];
 };
@@ -49,7 +50,7 @@ export async function requestOpenAiLegacy(input: {
         model: input.model,
         input: `${input.systemPrompt}\n\n${promptResult.userPrompt}`,
         temperature: ASSISTANT_TEMPERATURE,
-        max_output_tokens: ASSISTANT_MAX_OUTPUT_TOKENS,
+        max_output_tokens: resolveMaxOutputTokens(input.payload.intent),
       }),
     },
     input.timeoutMs,
@@ -103,7 +104,7 @@ export async function requestOpenAiStructured(input: {
           },
         ],
         temperature: ASSISTANT_TEMPERATURE,
-        max_output_tokens: ASSISTANT_MAX_OUTPUT_TOKENS,
+        max_output_tokens: resolveMaxOutputTokens(input.payload.intent),
         text: {
           format: {
             type: 'json_schema',

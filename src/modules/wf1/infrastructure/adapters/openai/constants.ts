@@ -1,3 +1,5 @@
+import type { IntentName } from '../../../domain/intent';
+
 export const MAX_ATTEMPTS = 3;
 export const BASE_BACKOFF_MS = 250;
 export const ASSISTANT_PROMPT_PATH = 'prompts/system/entelequia_assistant_system_prompt_v1.txt';
@@ -6,10 +8,26 @@ export const ASSISTANT_SCHEMA_NAME = 'entelequia_assistant_reply';
 export const ASSISTANT_SCHEMA_VERSION = '1.0';
 export const ASSISTANT_PROMPT_VERSION = 'assistant_v2';
 export const ASSISTANT_TEMPERATURE = 0.2;
-export const ASSISTANT_MAX_OUTPUT_TOKENS = 240;
+export const ASSISTANT_DEFAULT_MAX_OUTPUT_TOKENS = 150;
 export const PROMPT_HISTORY_MAX_ITEMS = 6;
 export const PROMPT_HISTORY_ITEM_MAX_CHARS = 280;
 export const PROMPT_CONTEXT_MAX_CHARS = 5000;
+export const ASSISTANT_CHEAP_MODEL = 'gpt-4.1-nano';
+export const ASSISTANT_PRIMARY_MODEL = 'gpt-4.1-mini';
+
+const MAX_OUTPUT_TOKENS_BY_INTENT: Record<IntentName, number> = {
+  general: 90,
+  store_info: 100,
+  payment_shipping: 110,
+  orders: 130,
+  products: 170,
+  recommendations: 200,
+  tickets: 180,
+};
+
+export function resolveMaxOutputTokens(intent: IntentName): number {
+  return MAX_OUTPUT_TOKENS_BY_INTENT[intent] ?? ASSISTANT_DEFAULT_MAX_OUTPUT_TOKENS;
+}
 export const DEFAULT_SYSTEM_PROMPT = [
   '# Rol y objetivo',
   'Sos el asistente virtual de Entelequia.',

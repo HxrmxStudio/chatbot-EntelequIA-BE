@@ -51,6 +51,7 @@ export interface PromptBuildDiagnostics {
   truncationStrategy: PromptTruncationStrategy;
   historyItemsIncluded: number;
   historyChars: number;
+  sectionOrder?: string[];
 }
 
 export interface PromptBuildResult {

@@ -52,6 +52,7 @@ describe('openai/openai-client requests', () => {
         }),
       }),
     );
+    expect(body['max_output_tokens']).toBe(90);
   });
 
   it('sends legacy request without json_schema field', async () => {
@@ -80,5 +81,6 @@ describe('openai/openai-client requests', () => {
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as Record<string, unknown>;
     expect(body['text']).toBeUndefined();
+    expect(body['max_output_tokens']).toBe(90);
   });
 });

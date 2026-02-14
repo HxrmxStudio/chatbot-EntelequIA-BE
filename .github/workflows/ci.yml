@@ -28,6 +28,9 @@ jobs:
       - name: Unit tests
         run: npm run test:unit -- --coverage
 
+      - name: Integration tests
+        run: npm run test:integration -- --runInBand
+
       - name: Build
         run: npm run build
 

@@ -37,6 +37,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WF1_EVAL_ENABLED: 'true'
 
+      - name: Validate eval batch result
+        run: npm run wf1:eval:validate-batch
+
       - name: Enqueue HITL samples
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/enqueue-hitl-review-samples.ts
 
