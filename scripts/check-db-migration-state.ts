@@ -72,6 +72,50 @@ const MIGRATIONS: readonly MigrationDefinition[] = [
       return { applied: missing.length === 0, missing };
     },
   },
+  {
+    id: '12',
+    file: 'sql/12_learning_seed_support.sql',
+    verify: async (pool) => {
+      const missing: string[] = [];
+      if (!(await tableExists(pool, 'hitl_golden_examples'))) {
+        missing.push('table:hitl_golden_examples');
+      }
+      if (!(await columnExists(pool, 'hitl_golden_examples', 'source'))) {
+        missing.push('column:hitl_golden_examples.source');
+      }
+      if (!(await indexExists(pool, 'idx_hitl_golden_source_active'))) {
+        missing.push('index:idx_hitl_golden_source_active');
+      }
+      if (
+        !(await constraintContains(
+          pool,
+          'wf1_learning_runs',
+          'bootstrap_seeds',
+        ))
+      ) {
+        missing.push('constraint:wf1_learning_runs.run_type includes bootstrap_seeds');
+      }
+      if (
+        !(await constraintContains(
+          pool,
+          'wf1_intent_exemplars',
+          'qa_seed',
+        ))
+      ) {
+        missing.push('constraint:wf1_intent_exemplars.source includes qa_seed');
+      }
+      if (
+        !(await constraintContains(
+          pool,
+          'hitl_golden_examples',
+          'qa_seed',
+        ))
+      ) {
+        missing.push('constraint:hitl_golden_examples.source includes qa_seed');
+      }
+      return { applied: missing.length === 0, missing };
+    },
+  },
 ];
 
 async function main(): Promise<void> {
@@ -159,6 +203,27 @@ async function triggerExists(pool: Pool, triggerName: string): Promise<boolean> 
          AND trigger_name = $1
      ) AS exists`,
     [triggerName],
+  );
+  return result.rows[0]?.exists === true;
+}
+
+async function constraintContains(
+  pool: Pool,
+  tableName: string,
+  expectedFragment: string,
+): Promise<boolean> {
+  const result = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM pg_constraint con
+       JOIN pg_class rel ON rel.oid = con.conrelid
+       JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+       WHERE ns.nspname = 'public'
+         AND rel.relname = $1
+         AND con.contype = 'c'
+         AND pg_get_constraintdef(con.oid) ILIKE '%' || $2 || '%'
+     ) AS exists`,
+    [tableName, expectedFragment],
   );
   return result.rows[0]?.exists === true;
 }

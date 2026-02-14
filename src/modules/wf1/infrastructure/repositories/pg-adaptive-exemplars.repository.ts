@@ -25,8 +25,9 @@ export class PgAdaptiveExemplarsRepository implements AdaptiveExemplarsPort {
         intent: IntentName;
         prompt_hint: string;
         confidence_weight: number;
+        source: string;
       }>(
-        `SELECT intent, prompt_hint, confidence_weight
+        `SELECT intent, prompt_hint, confidence_weight, source
          FROM wf1_intent_exemplars
          WHERE enabled = TRUE
            AND intent = $1
@@ -39,6 +40,7 @@ export class PgAdaptiveExemplarsRepository implements AdaptiveExemplarsPort {
         intent: row.intent,
         promptHint: row.prompt_hint,
         confidenceWeight: Number(row.confidence_weight) || 0,
+        source: row.source,
       }));
     } catch {
       return [];

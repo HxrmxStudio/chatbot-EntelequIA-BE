@@ -90,6 +90,7 @@ Defined in `application/ports/tokens.ts`:
 - PgChatRepository: ChatPersistencePort
 - PgIdempotencyRepository: IdempotencyPort
 - PgAuditRepository: AuditPort
+- PgAdaptiveExemplarsRepository: AdaptiveExemplarsPort
 - All inject PG_POOL from PgPoolProvider
 
 ## Shared Utilities

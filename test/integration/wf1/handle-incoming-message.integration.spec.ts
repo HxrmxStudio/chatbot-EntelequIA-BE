@@ -265,16 +265,29 @@ class InMemoryAudit {
 }
 
 class InMemoryAdaptiveExemplars {
-  async getActiveExemplarsByIntent(): Promise<Array<{
+  public exemplars: Array<{
     intent: string;
     promptHint: string;
     confidenceWeight: number;
+    source: string;
+  }> = [];
+
+  async getActiveExemplarsByIntent(input: {
+    intent: string;
+    limit: number;
+  }): Promise<Array<{
+    intent: string;
+    promptHint: string;
+    confidenceWeight: number;
+    source: string;
   }>> {
-    return [];
+    return this.exemplars.filter((row) => row.intent === input.intent).slice(0, input.limit);
   }
 }
 
 class InMemoryMetrics {
+  public exemplarsUsedInPromptEvents: Array<{ intent: string; source: string }> = [];
+
   incrementMessage(): void {}
   observeResponseLatency(): void {}
   incrementFallback(): void {}
@@ -297,6 +310,12 @@ class InMemoryMetrics {
   incrementUiPayloadSuppressed(): void {}
   incrementLearningAutopromote(): void {}
   incrementLearningAutorollback(): void {}
+  incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void {
+    this.exemplarsUsedInPromptEvents.push({
+      intent: input.intent,
+      source: input.source,
+    });
+  }
 }
 
 class InMemoryOrderLookupRateLimiter {
@@ -2173,6 +2192,50 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
       (block) => block.contextType === 'general',
     );
     expect(generalBlock?.contextPayload).toHaveProperty('aiContext');
+  });
+
+  it('increments exemplars-used metric when adaptive hints are appended', async () => {
+    adaptiveExemplars.exemplars = [
+      {
+        intent: 'general',
+        promptHint: 'Responder con claridad y proponer siguiente paso concreto.',
+        confidenceWeight: 0.91,
+        source: 'qa_seed',
+      },
+    ];
+
+    const response = await useCase.execute({
+      requestId: 'req-10b',
+      externalEventId: 'event-general-exemplar',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'hola',
+        channel: null,
+        timestamp: '2026-02-10T00:00:01.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(metrics.exemplarsUsedInPromptEvents).toEqual([
+      { intent: 'general', source: 'qa_seed' },
+    ]);
+    const adaptiveContextBlock = llm.lastInput?.contextBlocks.find(
+      (block) =>
+        block.contextType === 'general' &&
+        typeof block.contextPayload.hint === 'string' &&
+        block.contextPayload.hint.includes('Guia de calidad validada'),
+    );
+    expect(adaptiveContextBlock).toBeDefined();
   });
 
   it('keeps append-order semantics for products flow (products -> product_detail -> static_context)', async () => {

@@ -26,6 +26,7 @@ describe('OpenAiAdapter', () => {
     incrementUiPayloadSuppressed: jest.fn(),
     incrementLearningAutopromote: jest.fn(),
     incrementLearningAutorollback: jest.fn(),
+    incrementExemplarsUsedInPrompt: jest.fn(),
   };
 
   afterEach(() => {
@@ -53,6 +54,7 @@ describe('OpenAiAdapter', () => {
     metricsStub.incrementUiPayloadSuppressed.mockReset();
     metricsStub.incrementLearningAutopromote.mockReset();
     metricsStub.incrementLearningAutorollback.mockReset();
+    metricsStub.incrementExemplarsUsedInPrompt.mockReset();
   });
 
   it('returns fallback when OPENAI_API_KEY is missing', async () => {

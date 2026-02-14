@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { MetricsPort } from '@/modules/wf1/application/ports/metrics.port';
 import {
+  WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL,
   WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL,
   WF1_METRIC_FEEDBACK_RECEIVED_TOTAL,
   WF1_METRIC_FALLBACK_TOTAL,
@@ -51,6 +52,7 @@ export class PrometheusMetricsAdapter implements MetricsPort {
   private readonly uiPayloadSuppressed = new Map<string, number>();
   private learningAutopromote = 0;
   private learningAutorollback = 0;
+  private readonly exemplarsUsedInPrompt = new Map<string, number>();
 
   private readonly latencyBuckets = new Map<string, number>();
   private readonly latencySum = new Map<string, number>();
@@ -165,6 +167,11 @@ export class PrometheusMetricsAdapter implements MetricsPort {
 
   incrementLearningAutorollback(): void {
     this.learningAutorollback += 1;
+  }
+
+  incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void {
+    const key = `${sanitizeLabelValue(input.intent)}${EXEMPLAR_KEY_SEP}${sanitizeLabelValue(input.source)}`;
+    this.exemplarsUsedInPrompt.set(key, (this.exemplarsUsedInPrompt.get(key) ?? 0) + 1);
   }
 
   renderPrometheus(): string {
@@ -325,6 +332,17 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     lines.push(`# TYPE ${WF1_METRIC_LEARNING_AUTOROLLBACK_TOTAL} counter`);
     lines.push(`${WF1_METRIC_LEARNING_AUTOROLLBACK_TOTAL} ${this.learningAutorollback}`);
 
+    lines.push(
+      `# HELP ${WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL} Total adaptive exemplars injected into prompts by intent and source.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL} counter`);
+    for (const [key, value] of this.exemplarsUsedInPrompt.entries()) {
+      const [intent, source] = key.split(EXEMPLAR_KEY_SEP);
+      lines.push(
+        `${WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL}{intent="${intent}",source="${source}"} ${value}`,
+      );
+    }
+
     lines.push(`# HELP ${WF1_METRIC_RESPONSE_LATENCY_SECONDS} WF1 response latency in seconds.`);
     lines.push(`# TYPE ${WF1_METRIC_RESPONSE_LATENCY_SECONDS} histogram`);
     for (const [key, value] of this.latencyBuckets.entries()) {
@@ -343,6 +361,8 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     return `${lines.join('\n')}\n`;
   }
 }
+
+const EXEMPLAR_KEY_SEP = '\u001f';
 
 function sanitizeLabelValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');

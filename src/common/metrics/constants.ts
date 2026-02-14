@@ -35,5 +35,6 @@ export const WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL = 'wf1_ui_payload_emitted_total
 export const WF1_METRIC_UI_PAYLOAD_SUPPRESSED_TOTAL = 'wf1_ui_payload_suppressed_total';
 export const WF1_METRIC_LEARNING_AUTOPROMOTE_TOTAL = 'wf1_learning_autopromote_total';
 export const WF1_METRIC_LEARNING_AUTOROLLBACK_TOTAL = 'wf1_learning_autorollback_total';
+export const WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL = 'wf1_exemplars_used_in_prompt_total';
 
 export const WF1_RESPONSE_LATENCY_BUCKETS = [0.25, 0.5, 1, 2, 3, 5, 8, 13] as const;

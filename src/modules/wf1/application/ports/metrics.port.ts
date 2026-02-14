@@ -49,4 +49,6 @@ export interface MetricsPort {
   incrementLearningAutopromote(): void;
 
   incrementLearningAutorollback(): void;
+
+  incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void;
 }

@@ -4,6 +4,7 @@ export interface AdaptiveExemplar {
   intent: IntentName;
   promptHint: string;
   confidenceWeight: number;
+  source: string;
 }
 
 export interface AdaptiveExemplarsPort {

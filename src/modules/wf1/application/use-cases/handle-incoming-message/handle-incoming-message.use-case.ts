@@ -1331,6 +1331,13 @@ export class HandleIncomingMessageUseCase {
       return contextBlocks;
     }
 
+    for (const exemplar of exemplars) {
+      this.metricsPort.incrementExemplarsUsedInPrompt({
+        intent: input.intent,
+        source: exemplar.source,
+      });
+    }
+
     const hints = exemplars
       .map((exemplar, index) => `${index + 1}. ${exemplar.promptHint}`)
       .join('\n');

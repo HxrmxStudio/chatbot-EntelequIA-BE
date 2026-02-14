@@ -213,12 +213,16 @@ scripts/run-entelequia-local-stack.sh up
 - `WF1_RECURSIVE_LEARNING_ENABLED` (default `true`): enables adaptive exemplar hints.
 - `WF1_RECURSIVE_AUTOPROMOTE_ENABLED` (default `false`): promotion remains manual by default.
 - `WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED` (default `false`): rollback remains manual by default.
+- `WF1_LEARNING_SEED_FILE` (default `docs/qa/learning-seed-cases.jsonl`): QA seed dataset used by bootstrap script.
 
 ## Operations checks
 ```bash
 npm run db:migration:status
 npm run wf1:conversations:close-stale
 npm run wf1:telemetry:verify
+npm run wf1:learning:bootstrap-seeds
+npm run wf1:learning:validate-seeds
+npm run wf1:learning:build
 ```
 
 ## GitHub Actions DB connectivity note

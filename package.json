@@ -20,6 +20,8 @@
     "db:migration:status": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/check-db-migration-state.ts",
     "wf1:conversations:close-stale": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/close-stale-conversations.ts",
     "wf1:telemetry:verify": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/verify-telemetry-persistence.ts",
+    "wf1:learning:bootstrap-seeds": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/bootstrap-learning-seeds.ts",
+    "wf1:learning:validate-seeds": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-learning-seeds.ts",
     "wf1:learning:build": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/build-intent-exemplars.ts",
     "wf1:learning:promote": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/promote-intent-exemplars.ts",
     "wf1:learning:rollback": "ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/rollback-intent-exemplars.ts",

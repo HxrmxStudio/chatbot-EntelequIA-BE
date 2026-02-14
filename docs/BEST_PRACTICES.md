@@ -172,6 +172,7 @@ Dependencies point **inward**: Domain has no dependencies. Use cases depend only
 - Follow conventional commits when applicable.
 - Keep commits focused and atomic.
 - Reference issue/ticket numbers in commit messages.
+- **Scripts and CI:** Reusable CI checks (e.g. DB URL validation) live in `scripts/` and are invoked from workflows to avoid duplication.
 
 ---
 
