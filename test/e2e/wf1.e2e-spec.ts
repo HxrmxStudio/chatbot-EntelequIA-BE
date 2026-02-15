@@ -611,6 +611,24 @@ describe('WF1 API (e2e)', () => {
       }),
     );
     app.useGlobalFilters(new HttpExceptionFilter());
+    app.enableCors({
+      origin: true,
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-webhook-secret',
+        'x-request-id',
+        'x-turnstile-token',
+        'x-user-id',
+        'x-shadow-mode',
+        'x-external-event-id',
+        'x-idempotency-key',
+        'x-hub-signature-256',
+      ],
+      exposedHeaders: ['x-request-id'],
+      credentials: true,
+    });
     await app.init();
     httpApp = app.getHttpAdapter().getInstance();
   });
@@ -687,6 +705,22 @@ describe('WF1 API (e2e)', () => {
       });
 
     expect(e2eFeedbackRepo.feedbackEvents).toBe(1);
+  });
+
+  it('allows feedback preflight with x-user-id header', async () => {
+    await request(httpApp as Parameters<typeof request>[0])
+      .options('/wf1/chat/feedback')
+      .set('Origin', 'http://127.0.0.1:5173')
+      .set('Access-Control-Request-Method', 'POST')
+      .set(
+        'Access-Control-Request-Headers',
+        'content-type,x-user-id,x-request-id,x-external-event-id',
+      )
+      .expect(204)
+      .expect(({ headers }) => {
+        const allowedHeaders = String(headers['access-control-allow-headers'] ?? '').toLowerCase();
+        expect(allowedHeaders).toContain('x-user-id');
+      });
   });
 
   it('accepts web requests without webhook secret header', async () => {

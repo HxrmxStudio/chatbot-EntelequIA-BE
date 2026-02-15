@@ -15,6 +15,15 @@ export interface EntelequiaContextPort {
   getProductAuthors(input?: { search?: string }): Promise<ContextBlock>;
   getPaymentInfo(): Promise<ContextBlock>;
   getAuthenticatedUserProfile(input: { accessToken: string }): Promise<AuthenticatedUserProfile>;
-  getOrders(input: { accessToken: string }): Promise<ContextBlock>;
-  getOrderDetail(input: { accessToken: string; orderId: string }): Promise<ContextBlock>;
+  getOrders(input: {
+    accessToken: string;
+    requestId?: string;
+    conversationId?: string;
+  }): Promise<ContextBlock>;
+  getOrderDetail(input: {
+    accessToken: string;
+    orderId: string;
+    requestId?: string;
+    conversationId?: string;
+  }): Promise<ContextBlock>;
 }

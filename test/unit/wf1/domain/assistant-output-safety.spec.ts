@@ -1,4 +1,7 @@
-import { sanitizeAssistantUserMessage } from '@/modules/wf1/domain/assistant-output-safety';
+import {
+  dedupeAssistantGreeting,
+  sanitizeAssistantUserMessage,
+} from '@/modules/wf1/domain/assistant-output-safety';
 
 describe('assistant-output-safety', () => {
   it('rewrites context wording to user-safe language', () => {
@@ -37,5 +40,16 @@ describe('assistant-output-safety', () => {
     expect(result.message).toBe(input);
     expect(result.rewritten).toBe(false);
     expect(result.reasons).toEqual([]);
+  });
+
+  it('dedupes repeated greeting when previous bot turn already greeted', () => {
+    const deduped = dedupeAssistantGreeting({
+      message: 'Hola! Tenemos mangas de Evangelion en stock.',
+      previousBotMessage: 'Hola, en que te puedo ayudar?',
+    });
+
+    expect(deduped.rewritten).toBe(true);
+    expect(deduped.message.startsWith('Hola')).toBe(false);
+    expect(deduped.message).toContain('Tenemos mangas de Evangelion');
   });
 });

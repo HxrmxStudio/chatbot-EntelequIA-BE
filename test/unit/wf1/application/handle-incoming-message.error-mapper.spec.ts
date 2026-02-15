@@ -1,5 +1,5 @@
 import { ExternalServiceError, MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
-import { mapContextOrBackendError } from '@/modules/wf1/application/use-cases/handle-incoming-message/error-mapper';
+import { mapContextOrBackendError } from '@/modules/wf1/application/use-cases/handle-incoming-message/support/error-mapper';
 
 describe('error-mapper', () => {
   it('maps missing auth to requiresAuth response', () => {

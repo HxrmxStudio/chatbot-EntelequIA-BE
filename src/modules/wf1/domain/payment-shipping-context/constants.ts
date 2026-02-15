@@ -1,6 +1,7 @@
 export const DEFAULT_PAYMENT_METHODS: string[] = [
   'Tarjetas de credito y debito',
   'Mercado Pago',
+  'Paypal',
   'Transferencia bancaria',
   'Efectivo en local',
 ];
@@ -9,6 +10,7 @@ export const DEFAULT_PAYMENT_CONTEXT = [
   'MEDIOS DE PAGO',
   '- Aceptamos tarjetas de credito y debito.',
   '- Tambien podes pagar con Mercado Pago.',
+  '- Tambien podes pagar con Paypal.',
   '- Transferencia bancaria disponible en checkout.',
   '- En local tambien podes pagar en efectivo.',
 ].join('\n');
@@ -30,7 +32,12 @@ export const DEFAULT_COST_CONTEXT = [
 
 export const DEFAULT_TIME_CONTEXT = [
   'TIEMPOS DE ENTREGA',
-  '- El tiempo depende de stock, destino y operador.',
+  '- CABA (moto): en el dia (pedido antes de las 13hs∫).',
+  '- Interior con Andreani: 3-5 dias habiles.',
+  '- Interior con Correo Argentino: 5-7 dias habiles.',
+  '- Envio internacional con DHL: menos de 4 dias habiles.',
+  '- Preparacion/despacho de productos en stock: 24-48hs habiles.',
+  '- Son estimados y pueden variar segun destino y operador.',
   '- Cuando se despacha, recibis seguimiento para ver el estado.',
   '- Si es preventa, la fecha estimada se informa en la ficha.',
 ].join('\n');

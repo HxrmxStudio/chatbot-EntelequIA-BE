@@ -43,6 +43,8 @@ export const TICKETS_HIGH_PRIORITY_NOTE_PATH =
   'prompts/tickets/entelequia_tickets_high_priority_note_v1.txt';
 export const TICKETS_CONTEXT_INSTRUCTIONS_PATH =
   'prompts/tickets/entelequia_tickets_context_instructions_v1.txt';
+export const TICKETS_RETURNS_POLICY_CONTEXT_PATH =
+  'prompts/tickets/entelequia_tickets_returns_policy_context_v1.txt';
 export const STORE_INFO_LOCATION_CONTEXT_PATH =
   'prompts/store-info/entelequia_store_info_location_context_v1.txt';
 export const STORE_INFO_HOURS_CONTEXT_PATH =
@@ -59,6 +61,8 @@ export const GENERAL_CONTEXT_HINT_PATH = 'prompts/general/entelequia_general_con
 export const GENERAL_CONTEXT_INSTRUCTIONS_PATH =
   'prompts/general/entelequia_general_context_instructions_v1.txt';
 export const STATIC_CONTEXT_PATH = 'prompts/static/entelequia_static_context_v1.txt';
+export const CRITICAL_POLICY_CONTEXT_PATH =
+  'prompts/static/entelequia_critical_policy_context_v1.txt';
 
 /**
  * Default prompt content fallbacks.
@@ -163,7 +167,12 @@ export const DEFAULT_PAYMENT_SHIPPING_COST_CONTEXT = [
 ].join('\n');
 export const DEFAULT_PAYMENT_SHIPPING_TIME_CONTEXT = [
   '# Tiempos de entrega',
-  '- Dependen de stock, destino y operador logistico.',
+  '- CABA (moto): 24-48hs.',
+  '- Interior con Andreani: 3-5 dias habiles.',
+  '- Interior con Correo Argentino: 5-7 dias habiles.',
+  '- Envio internacional con DHL: menos de 4 dias habiles.',
+  '- Preparacion/despacho de productos en stock: 24-48hs habiles.',
+  '- Son estimados y pueden variar segun destino y operador logistico.',
   '- Si es preventa, la fecha estimada figura en la ficha del producto.',
   '- Cuando se despacha, se habilita seguimiento.',
 ].join('\n');
@@ -171,6 +180,8 @@ export const DEFAULT_PAYMENT_SHIPPING_GENERAL_CONTEXT = [
   '# Pagos y envios',
   '- Puedo ayudarte con medios de pago, costos, tiempos y opciones de envio/retiro.',
   '- Para costo exacto de envio, usar checkout.',
+  '- Envios internacionales disponibles con DHL.',
+  '- Para devoluciones o cambios, aplica politica de 30 dias con evaluacion previa.',
   '- Si queres, te guio segun tu caso puntual.',
 ].join('\n');
 export const DEFAULT_PAYMENT_SHIPPING_INSTRUCTIONS = [
@@ -182,9 +193,11 @@ export const DEFAULT_PAYMENT_SHIPPING_INSTRUCTIONS = [
   '- Si preguntan costo exacto, indicar que se ve en checkout.',
   '- Destacar retiro sin cargo cuando sea relevante.',
   '- Si preguntan por exterior, confirmar envio internacional con DHL.',
+  '- Para tiempos de envio, usar solo rangos presentes en el contexto.',
   '',
   '# Que hacer si falta info',
   '- Si falta un dato puntual, pedir una sola aclaracion breve.',
+  '- Si no hay destino claro (ciudad/codigo postal), pedir una sola aclaracion corta.',
   '',
   '# Que NO hacer',
   '- No inventar montos exactos ni tiempos exactos no confirmados.',
@@ -237,12 +250,22 @@ export const DEFAULT_TICKETS_HIGH_PRIORITY_NOTE = [
   '- Recomendar contacto humano inmediato por canal oficial.',
   '- Enfatizar seguimiento cercano hasta cierre del caso.',
 ].join('\n');
+export const DEFAULT_TICKETS_RETURNS_POLICY_CONTEXT = [
+  '# Politica de cambios y devoluciones',
+  '- Plazo general: 30 dias corridos desde la fecha de compra.',
+  '- Producto en condicion original: sin uso y con embalaje original.',
+  '- Presentar comprobante y numero de pedido para iniciar gestion.',
+  '- Evaluacion de la devolucion antes de confirmar cambio o reintegro.',
+  '- Reintegro o cambio: 7-10 dias habiles desde la aprobacion.',
+  '- Danos por envio: reportar dentro de 48 horas con evidencia.',
+].join('\n');
 export const DEFAULT_TICKETS_CONTEXT_INSTRUCTIONS = [
   '# Rol y objetivo',
   'Contener al usuario y derivar correctamente casos de soporte.',
   '',
   '# Reglas de respuesta',
   '- Mostrar empatia y contencion.',
+  '- Si hay politica aplicable (ejemplo: devoluciones), responder esa politica primero.',
   '- Ofrecer canales oficiales de contacto.',
   '- Si la prioridad es alta, enfatizar contacto humano inmediato.',
   '',
@@ -325,6 +348,15 @@ export const DEFAULT_GENERAL_CONTEXT_INSTRUCTIONS = [
   '# Formato de salida',
   '- Cerrar con un siguiente paso de ayuda.',
 ].join('\n');
+export const DEFAULT_POLICY_FACTS_SHORT_CONTEXT = [
+  '# Hechos criticos de negocio',
+  '- Cambios y devoluciones: 30 dias corridos desde la compra, con producto sin uso y embalaje original.',
+  '- Reservas: hasta 48 hs con sena del 30%.',
+  '- Importados o bajo pedido especial: demora estimada de 30 a 60 dias y sena del 50%.',
+  '- Editoriales destacadas: Ivrea, Panini y Editorial Mil Suenos; tambien hay importadas.',
+  '- Envios internacionales: disponibles con DHL.',
+  '- Promociones: varian segun vigencia en web y canales oficiales.',
+].join('\n');
 export const DEFAULT_STATIC_CONTEXT = [
   '# Locales',
   '- Uruguay 341 (Centro)',
@@ -347,4 +379,18 @@ export const DEFAULT_STATIC_CONTEXT = [
   '- Email: info@entelequia.com.ar / belgrano@entelequia.com.ar',
   '- Tiempo de respuesta estimado: 24-48 hs habiles',
   '- Para urgencias: contacto telefonico directo en locales',
+].join('\n');
+export const DEFAULT_CRITICAL_POLICY_CONTEXT = [
+  '# Politicas criticas de postventa',
+  '- Cambios y devoluciones: hasta 30 dias corridos desde la compra.',
+  '- Condicion: producto sin abrir, sin usar y con embalaje original.',
+  '- Requisito: comprobante de compra y numero de pedido.',
+  '- Resolucion: cambio o reintegro entre 7 y 10 dias habiles despues de aprobacion.',
+  '- Danos de envio: reclamo dentro de 48 horas con fotos de paquete y producto.',
+  '- Cancelaciones: sin cargo antes del despacho; luego aplica politica de devoluciones.',
+  '',
+  '# Envios y cobertura',
+  '- Envios a todo Argentina.',
+  '- Envios internacionales con DHL.',
+  '- Retiro en local sin cargo.',
 ].join('\n');

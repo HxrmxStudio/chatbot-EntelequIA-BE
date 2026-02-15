@@ -1,4 +1,4 @@
-import type { Wf1Response } from '../../../domain/wf1-response';
+import type { Wf1Response } from '../../../../../domain/wf1-response';
 
 export function buildCancelledOrderEscalationActionResponse(input?: {
   orderId?: string | null;

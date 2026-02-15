@@ -1,6 +1,6 @@
 ---
 description: Refactored Clean Architecture layer boundaries and patterns
-globs: ["src/**/*.ts"]
+globs: ['src/**/*.ts']
 alwaysApply: false
 ---
 
@@ -36,7 +36,7 @@ wf1/
   application/
     ports/          # Interfaces only, Symbol tokens
     use-cases/      # Orchestrate ports, inject via tokens
-      handle-incoming-message/  # handle-incoming-message.use-case.ts, error-mapper.ts, check-if-authenticated.ts, orders-unauthenticated-response.ts, orders-order-lookup-response.ts, resolve-order-lookup-request.ts, resolve-order-lookup-flow-state.ts, index.ts; User resolution: resolveUserContext uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser. Conversation, history, persistTurn, and audit use effectiveUserId.
+      handle-incoming-message/  # handle-incoming-message.use-case.ts (thin orchestrator), index.ts, orchestration/, flows/{orders,recommendations,pricing,policy}/, responses/{orders,recommendations,pricing}/, support/; User resolution: resolveUserContext lives in orchestration/prepare-request-context.ts, uses EntelequiaContextPort.getAuthenticatedUserProfile and ChatPersistencePort.upsertAuthenticatedUserProfile when Bearer token is present and valid; otherwise guest via upsertUser (401 profile response degrades to guest). Conversation, history, persistTurn, and audit use effectiveUserId. Shared turn metadata is built once (buildSharedTurnMetadata) and passed to both persistTurn and writeAudit to avoid drift.
       enrich-context-by-intent/  # enrich-context-by-intent.use-case.ts, query-resolvers/ (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index); ResolvedProductsQuery includes categorySlug for Entelequia filtering; product-parsers.ts, order-parsers.ts, payment-info-parsers.ts, recommendation-parsers.ts, index.ts
       # Each use case in its own folder with index.ts as public API
   infrastructure/
@@ -75,9 +75,23 @@ wf1/
 - Adapters: implement ports, import domain
 - Controllers: import use cases, DTOs, guards
 
+## Use-case Guardrails
+
+- A use-case orchestrator file must stay orchestration-only; flow policy and response templates belong in dedicated modules.
+- `src/modules/wf1/application/use-cases/handle-incoming-message/` is mandatory split by boundary:
+  - `orchestration/` for phase orchestration and side-effect ordering.
+  - `flows/` for flow state transitions and routing policies.
+  - `responses/` for deterministic response builders.
+  - `support/` for shared helpers/constants/metadata builders.
+- File-size guardrails are enforced:
+  - Global `src/**/*.ts`: `max-lines` 1200 and `max-lines-per-function` 650.
+  - `handle-incoming-message/**/*.ts`: `max-lines` 500 and `max-lines-per-function` 200.
+- New logic for `handle-incoming-message` must not be added to a single file if it crosses a boundary that already has a folder above.
+
 ## Port Tokens
 
 Defined in `application/ports/tokens.ts`:
+
 - INTENT_EXTRACTOR_PORT, ENTELEQUIA_CONTEXT_PORT, LLM_PORT
 - PROMPT_TEMPLATES_PORT (for centralized prompt access)
 - METRICS_PORT (for Prometheus metrics)
@@ -121,6 +135,7 @@ Defined in `application/ports/tokens.ts`:
 All prompts and instructions are externalized to `prompts/` for versioning and maintainability. Prompts are organized in subfolders by domain: `prompts/system/` (intent, assistant), `prompts/products/`, `prompts/orders/`, `prompts/payment-shipping/`, `prompts/recommendations/`, `prompts/tickets/`, `prompts/store-info/`, `prompts/general/`, `prompts/static/`, `prompts/eval/`. Full paths are centralized in `adapters/prompt-templates/constants.ts`.
 
 **Prompt Loading Pattern**:
+
 - Use `PromptTemplatesPort` (via `PROMPT_TEMPLATES_PORT` token) in use cases to access prompts
 - `PromptTemplatesAdapter` loads all prompts synchronously in constructor
 - All prompt paths and DEFAULT fallbacks are centralized in `adapters/prompt-templates/constants.ts`

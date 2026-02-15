@@ -31,4 +31,21 @@ describe('tickets-context', () => {
     expect(result.contextText).toContain('Prioridad: Normal');
     expect(result.contextText).not.toContain('Prioridad alta detectada');
   });
+
+  it('prioritizes returns policy details before contact options on returns issues', () => {
+    const result = buildTicketsAiContext({
+      signals: {
+        issueType: 'returns',
+        priority: 'normal',
+        sentiment: 'neutral',
+        requiresHumanEscalation: false,
+      },
+    });
+
+    expect(result.contextText).toContain('Politica de cambios y devoluciones');
+    expect(result.contextText).toContain('30 dias corridos');
+    expect(result.contextText).toContain('48 horas');
+    expect(result.contextText).toContain('canal oficial');
+    expect(result.contextText).not.toContain('Tipo detectado: Devolución o cambio');
+  });
 });

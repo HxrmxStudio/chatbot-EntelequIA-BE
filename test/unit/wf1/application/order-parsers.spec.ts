@@ -1,4 +1,5 @@
 import {
+  canonicalizeOrderState,
   extractOrderDetail,
   extractOrdersList,
   extractOrdersTotal,
@@ -52,11 +53,38 @@ describe('order-parsers', () => {
     expect(detail).not.toBeNull();
     expect(detail?.id).toBe('A100');
     expect(detail?.orderItems[0].quantity).toBe(2);
+    expect(detail?.stateRaw).toBe('pending');
+    expect(detail?.stateCanonical).toBe('pending');
+  });
+
+  it('extracts state using explicit precedence state -> status -> order_status -> shipping_status', () => {
+    const detail = extractOrderDetail({
+      order: {
+        id: 77,
+        status: 'processing',
+        order_status: 'cancelled',
+        shipping_status: 'shipped',
+      },
+    });
+
+    expect(detail?.stateRaw).toBe('processing');
+    expect(detail?.stateCanonical).toBe('processing');
+  });
+
+  it('marks ambiguous mixed state text as unknown canonical state', () => {
+    expect(canonicalizeOrderState('cancelado y en preparacion')).toBe('unknown');
   });
 
   it('detects legacy unauthenticated payload shape', () => {
     expect(isUnauthenticatedOrdersPayload({ message: 'Unauthenticated.' })).toBe(true);
     expect(isUnauthenticatedOrdersPayload({ error: 'Unauthenticated.' })).toBe(true);
     expect(isUnauthenticatedOrdersPayload({ message: 'ok' })).toBe(false);
+  });
+
+  it('detects token/session unauthorized variants', () => {
+    expect(isUnauthenticatedOrdersPayload({ message: 'Unauthorized' })).toBe(true);
+    expect(isUnauthenticatedOrdersPayload({ error: 'Token expired' })).toBe(true);
+    expect(isUnauthenticatedOrdersPayload({ error: 'jwt expired' })).toBe(true);
+    expect(isUnauthenticatedOrdersPayload({ message: 'session expired' })).toBe(true);
   });
 });

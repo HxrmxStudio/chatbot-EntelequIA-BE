@@ -3,7 +3,7 @@ import {
   resolveLatestCatalogSnapshotFromHistory,
   resolvePriceComparisonItem,
   resolvePriceComparisonRequestIntent,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/resolve-price-comparison-followup';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/pricing/resolve-price-comparison-followup';
 
 describe('resolve-price-comparison-followup', () => {
   it('detects cheapest intents in rioplatense phrasing', () => {

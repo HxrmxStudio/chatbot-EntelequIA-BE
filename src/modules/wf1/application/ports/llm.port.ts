@@ -8,6 +8,13 @@ export interface LlmReplyMetadata {
   outputTokenCount?: number | null;
   cachedTokenCount?: number | null;
   promptVersion?: string;
+  promptContextBudget?: number | null;
+  contextCharsBefore?: number | null;
+  contextCharsAfter?: number | null;
+  contextTruncationStrategy?: string | null;
+  policyFactsIncluded?: boolean;
+  criticalPolicyIncluded?: boolean;
+  criticalPolicyTrimmed?: boolean;
 }
 
 export interface LlmReplyResult {

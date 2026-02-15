@@ -1,4 +1,9 @@
 # Tiempos de entrega
-- Dependen de stock, destino y operador logistico.
+- CABA (moto): 24-48hs.
+- Interior con Andreani: 3-5 dias habiles.
+- Interior con Correo Argentino: 5-7 dias habiles.
+- Envio internacional con DHL: menos de 4 dias habiles.
+- Preparacion/despacho de productos en stock: 24-48hs habiles.
+- Son estimados y pueden variar segun destino y operador logistico.
 - Si es preventa, la fecha estimada figura en la ficha del producto.
 - Cuando se despacha, se habilita seguimiento.

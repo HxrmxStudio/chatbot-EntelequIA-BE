@@ -1,7 +1,7 @@
 import {
   buildRecommendationsFranchiseDisambiguationResponse,
   buildRecommendationsUnknownFollowupResponse,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/recommendations-disambiguation-response';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/responses/recommendations/recommendations-disambiguation-response';
 
 describe('recommendations-disambiguation-response', () => {
   it('shows candidate count when count is available', () => {

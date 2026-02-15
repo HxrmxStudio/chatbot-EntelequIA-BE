@@ -19,12 +19,14 @@ import type { PersistTurnInput } from '@/modules/wf1/application/ports/chat-pers
 import { TextSanitizer } from '@/modules/wf1/infrastructure/security/services/text-sanitizer';
 import { EnrichContextByIntentUseCase } from '@/modules/wf1/application/use-cases/enrich-context-by-intent';
 import { HandleIncomingMessageUseCase } from '@/modules/wf1/application/use-cases/handle-incoming-message';
+import { BACKEND_ERROR_MESSAGE } from '@/modules/wf1/application/use-cases/handle-incoming-message/support/error-mapper';
 import { EntelequiaOrderLookupClient } from '@/modules/wf1/infrastructure/adapters/entelequia-http';
 
 class InMemoryPersistence {
   constructor(private readonly onEvent?: (event: string) => void) {}
 
   public turns: PersistTurnInput[] = [];
+  public persistTurnError: Error | null = null;
   public authenticatedProfiles: Array<{
     id: string;
     email: string;
@@ -162,6 +164,9 @@ class InMemoryPersistence {
 
   async persistTurn(input: PersistTurnInput): Promise<{ botMessageId: string }> {
     this.onEvent?.('persist_turn');
+    if (this.persistTurnError) {
+      throw this.persistTurnError;
+    }
     this.turns.push(input);
 
     const userRow = this.buildHistoryRow({
@@ -232,6 +237,11 @@ class InMemoryIdempotency {
   constructor(private readonly onEvent?: (event: string) => void) {}
 
   private readonly seen = new Set<string>();
+  public markFailedCalls: Array<{
+    source: 'web' | 'whatsapp';
+    externalEventId: string;
+    errorMessage: string;
+  }> = [];
 
   async startProcessing(input: {
     source: 'web' | 'whatsapp';
@@ -250,7 +260,14 @@ class InMemoryIdempotency {
     this.onEvent?.('mark_processed');
   }
 
-  async markFailed(): Promise<void> {}
+  async markFailed(input: {
+    source: 'web' | 'whatsapp';
+    externalEventId: string;
+    errorMessage: string;
+  }): Promise<void> {
+    this.onEvent?.('mark_failed');
+    this.markFailedCalls.push(input);
+  }
 }
 
 class InMemoryAudit {
@@ -287,10 +304,14 @@ class InMemoryAdaptiveExemplars {
 
 class InMemoryMetrics {
   public exemplarsUsedInPromptEvents: Array<{ intent: string; source: string }> = [];
+  public uiPayloadSuppressedReasons: Array<'flag_off' | 'no_cards' | 'duplicate'> = [];
+  public fallbackReasons: string[] = [];
 
   incrementMessage(): void {}
   observeResponseLatency(): void {}
-  incrementFallback(): void {}
+  incrementFallback(reason: string): void {
+    this.fallbackReasons.push(reason);
+  }
   incrementStockExactDisclosure(): void {}
   incrementOrderLookupRateLimited(): void {}
   incrementOrderLookupRateLimitDegraded(): void {}
@@ -305,9 +326,18 @@ class InMemoryMetrics {
   incrementOrderFlowAmbiguousAck(): void {}
   incrementOrderFlowHijackPrevented(): void {}
   incrementOutputTechnicalTermsSanitized(): void {}
+  incrementCriticalPolicyContextInjected(): void {}
+  incrementCriticalPolicyContextTrimmed(): void {}
+  incrementPromptContextTruncated(): void {}
+  incrementReturnsPolicyDirectAnswer(): void {}
+  incrementPolicyDirectAnswer(): void {}
+  incrementScopeRedirect(): void {}
   incrementFeedbackReceived(): void {}
+  incrementFeedbackWithCategory(): void {}
   incrementUiPayloadEmitted(): void {}
-  incrementUiPayloadSuppressed(): void {}
+  incrementUiPayloadSuppressed(reason: 'flag_off' | 'no_cards' | 'duplicate'): void {
+    this.uiPayloadSuppressedReasons.push(reason);
+  }
   incrementLearningAutopromote(): void {}
   incrementLearningAutorollback(): void {}
   incrementExemplarsUsedInPrompt(input: { intent: string; source: string }): void {
@@ -356,7 +386,17 @@ class InMemoryOrderLookupRateLimiter {
   }
 }
 
-const RECOMMENDATION_FRANCHISE_HINTS = ['one piece', 'naruto', 'evangelion', 'dragon ball'];
+const RECOMMENDATION_FRANCHISE_HINTS = [
+  'one piece',
+  'naruto',
+  'evangelion',
+  'dragon ball',
+  'yugioh',
+  'yu gi oh',
+  'k pop',
+  'k-pop',
+  'kpop',
+];
 
 class StubIntentExtractor {
   async extractIntent(input: { text: string }): Promise<{
@@ -438,6 +478,14 @@ class StubIntentExtractor {
       };
     }
 
+    if (normalized.includes('911') || normalized.includes('inside job')) {
+      return {
+        intent: 'general',
+        entities: [],
+        confidence: 0.75,
+      };
+    }
+
     return {
       intent: 'products',
       entities: [input.text],
@@ -478,7 +526,12 @@ class StubLlm implements LlmPort {
 
 class StubEntelequia {
   public mode: 'ok' | 'order-not-owned' = 'ok';
+  public profileMode: 'ok' | 'unauthorized' | 'invalid' = 'ok';
   public paymentInfoCalls = 0;
+  public ordersCalls = 0;
+  public orderDetailCalls = 0;
+  public ordersPayload: Record<string, unknown> = { data: [] };
+  public orderDetailPayload: Record<string, unknown> = { order: {} };
 
   async getProducts(): Promise<{ contextType: 'products'; contextPayload: Record<string, unknown> }> {
     return {
@@ -540,6 +593,18 @@ class StubEntelequia {
     phone: string;
     name: string;
   }> {
+    if (this.profileMode === 'unauthorized') {
+      throw new ExternalServiceError('Unauthorized', 401, 'http');
+    }
+
+    if (this.profileMode === 'invalid') {
+      return {
+        email: '',
+        phone: '',
+        name: '',
+      };
+    }
+
     return {
       email: 'user-1@example.com',
       phone: '',
@@ -548,20 +613,22 @@ class StubEntelequia {
   }
 
   async getOrders(): Promise<{ contextType: 'orders'; contextPayload: Record<string, unknown> }> {
+    this.ordersCalls += 1;
     if (this.mode === 'order-not-owned') {
       throw new ExternalServiceError('Order mismatch', 442, 'http');
     }
 
     return {
       contextType: 'orders',
-      contextPayload: { data: [] },
+      contextPayload: this.ordersPayload,
     };
   }
 
   async getOrderDetail(): Promise<{ contextType: 'order_detail'; contextPayload: Record<string, unknown> }> {
+    this.orderDetailCalls += 1;
     return {
       contextType: 'order_detail',
-      contextPayload: { order: {} },
+      contextPayload: this.orderDetailPayload,
     };
   }
 }
@@ -668,7 +735,14 @@ class StubPromptTemplates {
   }
 
   getPaymentShippingTimeContext(): string {
-    return 'TIEMPOS DE ENTREGA';
+    return [
+      'TIEMPOS DE ENTREGA',
+      '- CABA (moto): 24-48hs.',
+      '- Interior con Andreani: 3-5 dias habiles.',
+      '- Interior con Correo Argentino: 5-7 dias habiles.',
+      '- Envio internacional con DHL: menos de 4 dias habiles.',
+      '- Son estimados y pueden variar segun destino y operador logistico.',
+    ].join('\n');
   }
 
   getPaymentShippingGeneralContext(): string {
@@ -755,6 +829,18 @@ class StubPromptTemplates {
 
   getStaticContext(): string {
     return 'Contexto estatico';
+  }
+
+  getPolicyFactsShortContext(): string {
+    return 'Hechos criticos de negocio';
+  }
+
+  getCriticalPolicyContext(): string {
+    return 'Politica critica';
+  }
+
+  getTicketsReturnsPolicyContext(): string {
+    return 'Politica de devoluciones';
   }
 }
 
@@ -1439,6 +1525,76 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(persistence.turns).toHaveLength(1);
   });
 
+  it('increments duplicate ui suppression metric when duplicate references catalog ui metadata', async () => {
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        items: [
+          {
+            id: 'ev-dup-1',
+            slug: 'evangelion-01',
+            title: 'Evangelion 01',
+            categoryName: 'Mangas',
+            stock: 2,
+            url: 'https://entelequia.com.ar/producto/evangelion-01',
+            imageUrl: 'https://entelequia.com.ar/images/ev-1.jpg',
+            price: { amount: 12000, currency: 'ARS' },
+          },
+        ],
+      },
+    });
+
+    const first = await useCase.execute({
+      requestId: 'req-dup-ui-1',
+      externalEventId: 'event-dup-ui',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-dup-ui',
+        text: 'tienen evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-dup-ui',
+        text: 'tienen evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const second = await useCase.execute({
+      requestId: 'req-dup-ui-2',
+      externalEventId: 'event-dup-ui',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-dup-ui',
+        text: 'tienen evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-dup-ui',
+        text: 'tienen evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.001Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(metrics.uiPayloadSuppressedReasons).toContain('duplicate');
+    const duplicateSuppressions = metrics.uiPayloadSuppressedReasons.filter(
+      (reason) => reason === 'duplicate',
+    );
+    expect(duplicateSuppressions).toHaveLength(1);
+  });
+
   it('maps 442 backend error to safe message', async () => {
     entelequia.mode = 'order-not-owned';
 
@@ -1466,6 +1622,143 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect(response.message).toContain('No encontramos ese pedido en tu cuenta');
+  });
+
+  it('uses deterministic backend response for authenticated order detail without LLM', async () => {
+    entelequia.orderDetailPayload = {
+      order: {
+        id: 78399,
+        state: 'processing',
+        shipTrackingCode: 'TRK-78399',
+        orderItems: [],
+      },
+    };
+    entelequia.ordersPayload = {
+      data: [
+        {
+          id: 78399,
+          state: 'processing',
+        },
+      ],
+    };
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+
+    const response = await useCase.execute({
+      requestId: 'req-orders-deterministic',
+      externalEventId: 'event-orders-deterministic',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-deterministic',
+        text: 'pedido 78399',
+        accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-deterministic',
+        text: 'pedido 78399',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect('intent' in response && response.intent).toBe('orders');
+    expect(response.message.toLowerCase()).toContain('pedido #78399');
+    expect(entelequia.orderDetailCalls).toBe(1);
+    expect(entelequia.ordersCalls).toBe(1);
+    expect(llmSpy).not.toHaveBeenCalled();
+
+    const turn = persistence.turns[persistence.turns.length - 1];
+    const metadata = (turn.metadata ?? {}) as Record<string, unknown>;
+    expect(metadata.ordersDeterministicReply).toBe(true);
+    expect(metadata.ordersDataSource).toBe('detail');
+    expect(metadata.ordersStateConflict).toBe(false);
+  });
+
+  it('returns conservative conflict message when list and detail states disagree', async () => {
+    entelequia.orderDetailPayload = {
+      order: {
+        id: 78399,
+        state: 'processing',
+        orderItems: [],
+      },
+    };
+    entelequia.ordersPayload = {
+      data: [
+        {
+          id: 78399,
+          state: 'cancelled',
+        },
+      ],
+    };
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+
+    const response = await useCase.execute({
+      requestId: 'req-orders-conflict',
+      externalEventId: 'event-orders-conflict',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-conflict',
+        text: 'estado del pedido 78399',
+        accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-conflict',
+        text: 'estado del pedido 78399',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message.toLowerCase()).toContain('inconsistencia temporal');
+    expect(response.message.toLowerCase()).toContain('estado incorrecto');
+    expect(llmSpy).not.toHaveBeenCalled();
+
+    const turn = persistence.turns[persistence.turns.length - 1];
+    const metadata = (turn.metadata ?? {}) as Record<string, unknown>;
+    expect(metadata.ordersDeterministicReply).toBe(true);
+    expect(metadata.ordersDataSource).toBe('conflict');
+    expect(metadata.ordersStateConflict).toBe(true);
+  });
+
+  it('guides re-authentication when user says session signal without token', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+
+    const response = await useCase.execute({
+      requestId: 'req-orders-reauth',
+      externalEventId: 'event-orders-reauth',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-reauth',
+        text: 'ya me logue y quiero ver mis pedidos',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-reauth',
+        text: 'ya me logue y quiero ver mis pedidos',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toContain('NO DETECTO TU SESION EN ESTE CHAT');
+    expect(response.message).not.toContain('Te ayudo con consultas de Entelequia');
+    expect(llmSpy).not.toHaveBeenCalled();
   });
 
   it('persists real user profile when request is authenticated', async () => {
@@ -1500,6 +1793,78 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     });
   });
 
+  it('falls back to guest user when profile lookup returns 401', async () => {
+    entelequia.profileMode = 'unauthorized';
+
+    const response = await useCase.execute({
+      requestId: 'req-auth-401',
+      externalEventId: 'event-auth-401',
+      payload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-auth-401',
+        text: 'busco un manga',
+        accessToken: 'expired-token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-auth-401',
+        text: 'busco un manga',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(persistence.authenticatedProfiles).toHaveLength(0);
+    expect(persistence.turns[persistence.turns.length - 1].userId).toBe('1962');
+  });
+
+  it('fails safely when authenticated profile payload is invalid', async () => {
+    entelequia.profileMode = 'invalid';
+
+    const response = await useCase.execute({
+      requestId: 'req-auth-invalid',
+      externalEventId: 'event-auth-invalid',
+      payload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-auth-invalid',
+        text: 'hola',
+        accessToken: 'valid-token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: '1962',
+        conversationId: 'conv-auth-invalid',
+        text: 'hola',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      message: BACKEND_ERROR_MESSAGE,
+    });
+    expect(persistence.authenticatedProfiles).toHaveLength(0);
+    expect(idempotency.markFailedCalls).toHaveLength(1);
+    expect(idempotency.markFailedCalls[0]).toMatchObject({
+      source: 'web',
+      externalEventId: 'event-auth-invalid',
+    });
+    const lastAudit = audit.entries[audit.entries.length - 1];
+    expect(lastAudit.status).toBe('failure');
+    expect(lastAudit.intent).toBe('error');
+    expect(lastAudit.errorCode).toBe('Error');
+    expect(metrics.fallbackReasons).toContain('unknown');
+  });
+
   it('enriches payment_shipping context and keeps success response', async () => {
     const response = await useCase.execute({
       requestId: 'req-6',
@@ -1508,13 +1873,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: '¿Cuanto sale el envio?',
+        text: '¿Que opciones de envio tienen para provincia?',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: '¿Cuanto sale el envio?',
+        text: '¿Que opciones de envio tienen para provincia?',
         channel: null,
         timestamp: '2026-02-10T00:00:00.000Z',
         validated: null,
@@ -1525,6 +1890,44 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.ok).toBe(true);
     expect(response.message).toBe('Respuesta de prueba');
     expect(entelequia.paymentInfoCalls).toBe(1);
+  });
+
+  it('keeps canonical shipping time ranges in payment_shipping aiContext', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-6-time',
+      externalEventId: 'event-payment-shipping-time',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '¿Cuanto tarda un envio a Cordoba?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: '¿Cuanto tarda un envio a Cordoba?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(llm.lastInput).toBeDefined();
+    const paymentBlock = llm.lastInput?.contextBlocks.find(
+      (block) => block.contextType === 'payment_info',
+    );
+    expect(paymentBlock).toBeDefined();
+    expect(paymentBlock?.contextPayload).toHaveProperty('aiContext');
+    const aiContext = String(paymentBlock?.contextPayload.aiContext ?? '');
+    expect(aiContext).toContain('24-48');
+    expect(aiContext).toContain('3-5');
+    expect(aiContext).toContain('5-7');
+    expect(aiContext).toContain('DHL');
+    expect(aiContext).not.toContain('1-3');
+    expect(aiContext).not.toContain('2-5');
   });
 
   it('enriches recommendations context with aiContext (without raw JSON fallback)', async () => {
@@ -1863,13 +2266,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-rec-flow-nh-1',
-        text: 'gracias',
+        text: 'gracias por la ayuda',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-rec-flow-nh-1',
-        text: 'gracias',
+        text: 'gracias por la ayuda',
         channel: null,
         timestamp: '2026-02-10T00:00:00.000Z',
         validated: null,
@@ -1883,6 +2286,164 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     const metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
       {}) as Record<string, unknown>;
     expect(metadata).not.toHaveProperty('recommendationsFlowState');
+  });
+
+  it('keeps franchise continuity for budget follow-up in catalog turns', async () => {
+    const getProductsSpy = jest
+      .spyOn(entelequia, 'getProducts')
+      .mockResolvedValueOnce({
+        contextType: 'products',
+        contextPayload: {
+          total: 2,
+          items: [
+            {
+              id: 'kpop-1',
+              slug: 'kpop-album-blackpink',
+              title: 'Album K-pop Blackpink',
+              stock: 8,
+              categoryName: 'Musica',
+              categorySlug: 'musica',
+              url: 'https://entelequia.com.ar/producto/kpop-album-blackpink',
+              price: { amount: 18000, currency: 'ARS' },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        contextType: 'products',
+        contextPayload: {
+          total: 1,
+          items: [
+            {
+              id: 'kpop-2',
+              slug: 'kpop-poster-budget',
+              title: 'Poster K-pop',
+              stock: 12,
+              categoryName: 'Posters',
+              categorySlug: 'posters',
+              url: 'https://entelequia.com.ar/producto/kpop-poster-budget',
+              price: { amount: 5000, currency: 'ARS' },
+            },
+          ],
+        },
+      });
+
+    await useCase.execute({
+      requestId: 'req-rec-memory-1',
+      externalEventId: 'event-rec-memory-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-memory-1',
+        text: 'tenes algo de k pop?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-memory-1',
+        text: 'tenes algo de k pop?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const response = await useCase.execute({
+      requestId: 'req-rec-memory-2',
+      externalEventId: 'event-rec-memory-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-memory-1',
+        text: 'tengo poco presupuesto',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-memory-1',
+        text: 'tengo poco presupuesto',
+        channel: null,
+        timestamp: '2026-02-10T00:00:10.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(llm.lastInput?.userText.toLowerCase()).toContain('k pop');
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.ui?.cards[0]?.title.toLowerCase()).toContain('k-pop');
+    expect(getProductsSpy).toHaveBeenCalledTimes(2);
+
+    const metadata = (persistence.turns[persistence.turns.length - 1]?.metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.recommendationsLastFranchise).toBe('k_pop');
+  });
+
+  it('compacts duplicated catalog narrative when cards are present', async () => {
+    jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
+      contextType: 'products',
+      contextPayload: {
+        total: 2,
+        items: [
+          {
+            id: 'ev-1',
+            slug: 'evangelion-01',
+            title: 'Evangelion 01',
+            stock: 4,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+            url: 'https://entelequia.com.ar/producto/evangelion-01',
+          },
+          {
+            id: 'ev-2',
+            slug: 'evangelion-02',
+            title: 'Evangelion 02',
+            stock: 2,
+            categoryName: 'Mangas',
+            categorySlug: 'mangas',
+            url: 'https://entelequia.com.ar/producto/evangelion-02',
+          },
+        ],
+      },
+    });
+    jest
+      .spyOn(llm, 'buildAssistantReply')
+      .mockResolvedValueOnce(
+        'No hay stock ahora mismo.\n1. Evangelion 01 - https://entelequia.com.ar/producto/evangelion-01\n2. Evangelion 02 - https://entelequia.com.ar/producto/evangelion-02',
+      );
+
+    const response = await useCase.execute({
+      requestId: 'req-rec-narrative-1',
+      externalEventId: 'event-rec-narrative-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-narrative-1',
+        text: 'tenes evangelion?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-rec-narrative-1',
+        text: 'tenes evangelion?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.ui?.cards.length).toBeGreaterThan(0);
+    expect(response.message.toLowerCase()).toContain('tarjetas de abajo');
+    expect(response.message.toLowerCase()).not.toContain('http');
   });
 
   it('attaches optional ui payload for catalog intents and persists ui metadata', async () => {
@@ -2106,13 +2667,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'Cual es la direccion del local?',
+        text: 'Cual es la direccion?',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'Cual es la direccion del local?',
+        text: 'Cual es la direccion?',
         channel: null,
         timestamp: '2026-02-10T00:00:00.000Z',
         validated: null,
@@ -2129,6 +2690,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
   });
 
   it('returns exact weekly schedule and holiday guidance for store_info hours', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
     const response = await useCase.execute({
       requestId: 'req-9b',
       externalEventId: 'event-store-info-hours',
@@ -2151,28 +2713,34 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     });
 
     expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.intent).toBe('store_info');
     expect(response.message).toContain('Lunes a viernes 10:00 a 19:00 hs');
     expect(response.message).toContain('Sabados 11:00 a 18:00 hs');
     expect(response.message).toContain('feriados');
+    expect(llmSpy).not.toHaveBeenCalled();
 
     const persistedTurn = persistence.turns[persistence.turns.length - 1];
     const persistedMetadata = (persistedTurn.metadata ?? {}) as Record<string, unknown>;
-    expect(persistedMetadata.storeInfoSubtype).toBe('hours');
-    expect(persistedMetadata.storeInfoPolicyVersion).toBe(
-      'v2-exact-weekly-hours',
-    );
+    expect(persistedMetadata.storeInfoSubtype).toBeNull();
+    expect(persistedMetadata.storeInfoPolicyVersion).toBeNull();
 
     const lastAudit = audit.entries[audit.entries.length - 1];
     const auditMetadata = (lastAudit.metadata ?? {}) as Record<string, unknown>;
-    expect(auditMetadata.storeInfoSubtype).toBe('hours');
-    expect(auditMetadata.storeInfoPolicyVersion).toBe(
-      'v2-exact-weekly-hours',
-    );
+    expect(auditMetadata.storeInfoSubtype).toBeNull();
+    expect(auditMetadata.storeInfoPolicyVersion).toBeNull();
     expect(auditMetadata.llmPath).toBe('fallback_default');
     expect(auditMetadata.fallbackReason).toBeNull();
   });
 
   it('handles general intent with minimal ai context', async () => {
+    jest.spyOn(StubIntentExtractor.prototype, 'extractIntent').mockResolvedValueOnce({
+      intent: 'general',
+      entities: [],
+      confidence: 0.9,
+    });
     const response = await useCase.execute({
       requestId: 'req-10',
       externalEventId: 'event-general',
@@ -2180,13 +2748,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'hola',
+        text: 'que productos tienen?',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'hola',
+        text: 'que productos tienen?',
         channel: null,
         timestamp: '2026-02-10T00:00:00.000Z',
         validated: null,
@@ -2202,6 +2770,83 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(generalBlock?.contextPayload).toHaveProperty('aiContext');
   });
 
+  it('returns deterministic out-of-scope redirection without calling llm', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+    const extractorSpy = jest
+      .spyOn(StubIntentExtractor.prototype, 'extractIntent')
+      .mockResolvedValueOnce({
+        intent: 'general',
+        entities: [],
+        confidence: 0.95,
+      });
+
+    const response = await useCase.execute({
+      requestId: 'req-general-scope-1',
+      externalEventId: 'event-general-scope-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-general-scope-1',
+        text: 'was 911 an inside job?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-general-scope-1',
+        text: 'was 911 an inside job?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.intent).toBe('general');
+    expect(response.message).toBe(
+      'Te ayudo con consultas de Entelequia (productos, pedidos, envios, pagos, locales y soporte). Si queres, arrancamos por ahi.',
+    );
+    expect(llmSpy).not.toHaveBeenCalled();
+    extractorSpy.mockRestore();
+  });
+
+  it('answers returns policy directly without sending policy questions to llm', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+
+    const response = await useCase.execute({
+      requestId: 'req-policy-direct-1',
+      externalEventId: 'event-policy-direct-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-policy-direct-1',
+        text: 'Cuanto tiempo tengo para devolver un producto?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-policy-direct-1',
+        text: 'Cuanto tiempo tengo para devolver un producto?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.intent).toBe('tickets');
+    expect(response.message).toContain('30 dias corridos');
+    expect(response.message).toContain('7 y 10 dias habiles');
+    expect(llmSpy).not.toHaveBeenCalled();
+  });
+
   it('increments exemplars-used metric when adaptive hints are appended', async () => {
     adaptiveExemplars.exemplars = [
       {
@@ -2211,7 +2856,11 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'qa_seed',
       },
     ];
-
+    jest.spyOn(StubIntentExtractor.prototype, 'extractIntent').mockResolvedValueOnce({
+      intent: 'general',
+      entities: [],
+      confidence: 0.9,
+    });
     const response = await useCase.execute({
       requestId: 'req-10b',
       externalEventId: 'event-general-exemplar',
@@ -2219,13 +2868,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'hola',
+        text: 'que productos tienen?',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'hola',
+        text: 'que productos tienen?',
         channel: null,
         timestamp: '2026-02-10T00:00:01.000Z',
         validated: null,
@@ -2246,7 +2895,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(adaptiveContextBlock).toBeDefined();
   });
 
-  it('keeps append-order semantics for products flow (products -> product_detail -> static_context)', async () => {
+  it('keeps append-order semantics for products flow (products -> product_detail -> static_context -> policy_facts -> critical_policy)', async () => {
     jest.spyOn(entelequia, 'getProducts').mockResolvedValueOnce({
       contextType: 'products',
       contextPayload: {
@@ -2291,10 +2940,12 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
       'products',
       'product_detail',
       'static_context',
+      'policy_facts',
+      'critical_policy',
     ]);
   });
 
-  it('keeps append-order semantics for store_info flow (store_info -> static_context)', async () => {
+  it('keeps append-order semantics for store_info flow (store_info -> static_context -> policy_facts -> critical_policy)', async () => {
     const response = await useCase.execute({
       requestId: 'req-12',
       externalEventId: 'event-store-merge-append',
@@ -2302,13 +2953,13 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'horario del local',
+        text: 'direccion?',
       },
       idempotencyPayload: {
         source: 'web',
         userId: 'user-1',
         conversationId: 'conv-1',
-        text: 'horario del local',
+        text: 'direccion?',
         channel: null,
         timestamp: '2026-02-10T00:00:00.000Z',
         validated: null,
@@ -2319,7 +2970,152 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.ok).toBe(true);
     const contextTypes =
       llm.lastInput?.contextBlocks.map((block) => block.contextType) ?? [];
-    expect(contextTypes).toEqual(['store_info', 'static_context']);
+    expect(contextTypes).toEqual([
+      'store_info',
+      'static_context',
+      'policy_facts',
+      'critical_policy',
+    ]);
+  });
+
+  it.each([
+    {
+      text: 'que promociones tienen vigentes?',
+      intent: 'payment_shipping',
+      expectedMessage: 'Tenemos promociones',
+    },
+    {
+      text: 'se puede reservar un producto?',
+      intent: 'products',
+      expectedMessage: '48 horas',
+    },
+    {
+      text: 'traen productos importados del exterior?',
+      intent: 'products',
+      expectedMessage: '30 a 60 dias',
+    },
+    {
+      text: 'hacen envios internacionales por dhl?',
+      intent: 'payment_shipping',
+      expectedMessage: 'envios internacionales con DHL',
+    },
+  ])(
+    'answers deterministic business policy for "$text" without LLM',
+    async ({ text, intent, expectedMessage }) => {
+      const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+      const response = await useCase.execute({
+        requestId: `req-policy-${intent}`,
+        externalEventId: `event-policy-${intent}-${text.length}`,
+        payload: {
+          source: 'web',
+          userId: 'user-1',
+          conversationId: `conv-policy-${intent}-${text.length}`,
+          text,
+        },
+        idempotencyPayload: {
+          source: 'web',
+          userId: 'user-1',
+          conversationId: `conv-policy-${intent}-${text.length}`,
+          text,
+          channel: null,
+          timestamp: '2026-02-10T00:00:00.000Z',
+          validated: null,
+          validSignature: 'true',
+        },
+      });
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) {
+        throw new Error('Expected successful response');
+      }
+      expect(response.intent).toBe(intent);
+      expect(response.message).toContain(expectedMessage);
+      expect(llmSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it('redirects clearly for out-of-scope general questions', async () => {
+    const llmSpy = jest.spyOn(llm, 'buildAssistantReply');
+    const response = await useCase.execute({
+      requestId: 'req-scope-1',
+      externalEventId: 'event-scope-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-scope-1',
+        text: 'was 911 an inside job?',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-scope-1',
+        text: 'was 911 an inside job?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) {
+      throw new Error('Expected successful response');
+    }
+    expect(response.intent).toBe('general');
+    expect(response.message).toContain('Te ayudo con consultas de Entelequia');
+    expect(llmSpy).not.toHaveBeenCalled();
+  });
+
+  it('marks failed and audits failure when persistence throws after response resolution', async () => {
+    persistence.persistTurnError = new Error('forced_persist_failure');
+
+    const response = await useCase.execute({
+      requestId: 'req-final-stage-failure',
+      externalEventId: 'event-final-stage-failure',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-final-stage-failure',
+        text: 'hola',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-final-stage-failure',
+        text: 'hola',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      message: BACKEND_ERROR_MESSAGE,
+    });
+    expect(persistence.turns).toHaveLength(0);
+    expect(idempotency.markFailedCalls).toHaveLength(1);
+    expect(idempotency.markFailedCalls[0]).toMatchObject({
+      source: 'web',
+      externalEventId: 'event-final-stage-failure',
+      errorMessage: 'forced_persist_failure',
+    });
+    const failureAudit = audit.entries[audit.entries.length - 1];
+    expect(failureAudit.status).toBe('failure');
+    expect(failureAudit.intent).toBe('error');
+    expect(failureAudit.errorCode).toBe('Error');
+    expect(metrics.fallbackReasons).toContain('unknown');
+
+    const persistIndex = finalStageEvents.indexOf('persist_turn');
+    const markFailedIndex = finalStageEvents.indexOf('mark_failed');
+    const auditIndex = finalStageEvents.lastIndexOf('write_audit');
+    const markProcessedIndex = finalStageEvents.indexOf('mark_processed');
+
+    expect(persistIndex).toBeGreaterThan(-1);
+    expect(markFailedIndex).toBeGreaterThan(persistIndex);
+    expect(auditIndex).toBeGreaterThan(markFailedIndex);
+    expect(markProcessedIndex).toBe(-1);
   });
 
   it('executes final stage in order (persist -> mark_processed -> audit)', async () => {

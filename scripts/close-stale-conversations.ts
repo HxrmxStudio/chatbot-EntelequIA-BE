@@ -1,4 +1,9 @@
-import { createAnalyticsPool, readBooleanEnv, readNumberEnv } from './_helpers/analytics';
+import {
+  createAnalyticsPool,
+  readBooleanEnv,
+  readNumberEnv,
+  writeLocalReport,
+} from './_helpers/analytics';
 
 const DEFAULT_TTL_MINUTES = 1_440;
 const DEFAULT_BATCH_SIZE = 1_000;
@@ -70,22 +75,20 @@ async function main(): Promise<void> {
       }
     }
 
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      enabled,
+      ttlMinutes,
+      batchSize,
+      closedCount: totalClosed,
+      loops,
+      skipped: false,
+    };
+
+    await writeLocalReport('close-stale-conversations', payload);
+
     // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify(
-        {
-          generatedAt: new Date().toISOString(),
-          enabled,
-          ttlMinutes,
-          batchSize,
-          closedCount: totalClosed,
-          loops,
-          skipped: false,
-        },
-        null,
-        2,
-      ),
-    );
+    console.log(JSON.stringify(payload, null, 2));
   } finally {
     await pool.end();
   }

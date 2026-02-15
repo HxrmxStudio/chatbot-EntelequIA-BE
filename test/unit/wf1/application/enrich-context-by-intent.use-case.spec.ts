@@ -57,7 +57,10 @@ describe('EnrichContextByIntentUseCase', () => {
       getStoreInfoContextInstructions: () => 'Instrucciones de store_info',
       getGeneralContextHint: () => 'Hint general',
       getGeneralContextInstructions: () => 'Instrucciones de general',
+      getPolicyFactsShortContext: () => 'Hechos criticos',
       getStaticContext: () => 'Contexto estatico',
+      getCriticalPolicyContext: () => 'Politica critica',
+      getTicketsReturnsPolicyContext: () => 'Politica de devoluciones',
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -242,7 +245,7 @@ describe('EnrichContextByIntentUseCase', () => {
     expect(result[0].contextPayload).toHaveProperty('requiresHumanEscalation', true);
   });
 
-  it('calls getOrderDetail when orderId is extracted from entities', async () => {
+  it('calls getOrderDetail and getOrders when orderId is extracted from entities', async () => {
     entelequiaPort.getOrderDetail.mockResolvedValueOnce({
       contextType: 'order_detail',
       contextPayload: {
@@ -258,6 +261,17 @@ describe('EnrichContextByIntentUseCase', () => {
         },
       },
     });
+    entelequiaPort.getOrders.mockResolvedValueOnce({
+      contextType: 'orders',
+      contextPayload: {
+        data: [
+          {
+            id: 123456,
+            state: 'processing',
+          },
+        ],
+      },
+    });
 
     const result = await useCase.execute({
       intentResult: { intent: 'orders', confidence: 0.9, entities: ['pedido 123456'] },
@@ -271,9 +285,47 @@ describe('EnrichContextByIntentUseCase', () => {
       accessToken: 'token',
       orderId: '123456',
     });
-    expect(entelequiaPort.getOrders).not.toHaveBeenCalled();
+    expect(entelequiaPort.getOrders).toHaveBeenCalledWith({
+      accessToken: 'token',
+    });
     expect(result[0].contextPayload).toHaveProperty('aiContext');
     expect(result[0].contextPayload).toHaveProperty('orderId', 123456);
+    expect(result[0].contextPayload).toHaveProperty('ordersStateConflict', false);
+  });
+
+  it('flags ordersStateConflict when detail and list states differ', async () => {
+    entelequiaPort.getOrderDetail.mockResolvedValueOnce({
+      contextType: 'order_detail',
+      contextPayload: {
+        order: {
+          id: 78399,
+          state: 'processing',
+          orderItems: [],
+        },
+      },
+    });
+    entelequiaPort.getOrders.mockResolvedValueOnce({
+      contextType: 'orders',
+      contextPayload: {
+        data: [
+          {
+            id: 78399,
+            state: 'cancelled',
+          },
+        ],
+      },
+    });
+
+    const result = await useCase.execute({
+      intentResult: { intent: 'orders', confidence: 0.9, entities: ['pedido 78399'] },
+      text: 'pedido 78399',
+      accessToken: 'token',
+    });
+
+    expect(result[0].contextType).toBe('order_detail');
+    expect(result[0].contextPayload).toHaveProperty('ordersStateConflict', true);
+    expect(result[0].contextPayload).toHaveProperty('orderStateCanonical', 'processing');
+    expect(result[0].contextPayload).toHaveProperty('orderListStateCanonical', 'cancelled');
   });
 
   it('adds aiContext and counters for orders list', async () => {

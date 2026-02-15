@@ -21,6 +21,7 @@ export interface TicketsTemplates {
   header: string;
   contactOptions: string;
   highPriorityNote: string;
+  returnsPolicy: string;
   instructions: string;
 }
 

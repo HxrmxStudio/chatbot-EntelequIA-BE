@@ -15,6 +15,15 @@ describe('recommendation franchise keywords', () => {
     expect(result).toContain('evangelion');
   });
 
+  it('fuzzy matches typo evngelion to evangelion', () => {
+    const result = resolveRecommendationFranchiseKeywords({
+      text: 'algo de evngelion',
+      entities: [],
+    });
+
+    expect(result).toContain('evangelion');
+  });
+
   it('detects naruto based on text and entities', () => {
     const result = resolveRecommendationFranchiseKeywords({
       text: 'algo de anime',
@@ -22,6 +31,15 @@ describe('recommendation franchise keywords', () => {
     });
 
     expect(result).toEqual(['naruto']);
+  });
+
+  it('detects yugioh alias variants', () => {
+    const result = resolveRecommendationFranchiseKeywords({
+      text: 'tenes algo de yu-gi-oh?',
+      entities: [],
+    });
+
+    expect(result).toContain('yugioh');
   });
 
   it('resolves canonical query by franchise key', () => {

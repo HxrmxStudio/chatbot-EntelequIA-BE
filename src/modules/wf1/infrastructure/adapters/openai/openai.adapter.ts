@@ -181,6 +181,13 @@ export class OpenAiAdapter implements LlmPort {
           outputTokenCount: result.usage.outputTokens,
           cachedTokenCount: result.usage.cachedTokens,
           promptVersion: ASSISTANT_PROMPT_VERSION,
+          promptContextBudget: result.promptDiagnostics.contextBudget,
+          contextCharsBefore: result.promptDiagnostics.contextCharsBefore,
+          contextCharsAfter: result.promptDiagnostics.contextCharsAfter,
+          contextTruncationStrategy: result.promptDiagnostics.truncationStrategy,
+          policyFactsIncluded: result.promptDiagnostics.policyFactsIncluded,
+          criticalPolicyIncluded: result.promptDiagnostics.criticalPolicyIncluded,
+          criticalPolicyTrimmed: result.promptDiagnostics.criticalPolicyTrimmed,
         },
       };
     } catch (error: unknown) {
@@ -378,6 +385,13 @@ export class OpenAiAdapter implements LlmPort {
           : null,
       truncation_strategy: diagnostics.truncationStrategy,
       history_items_included: diagnostics.historyItemsIncluded,
+      policy_facts_included: diagnostics.policyFactsIncluded,
+      critical_policy_included: diagnostics.criticalPolicyIncluded,
+      critical_policy_trimmed: diagnostics.criticalPolicyTrimmed,
+    });
+    this.metrics.incrementPromptContextTruncated({
+      intent,
+      strategy: diagnostics.truncationStrategy,
     });
   }
 

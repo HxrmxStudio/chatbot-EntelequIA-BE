@@ -15,6 +15,8 @@ export interface OrderPaymentInfo {
 export interface OrderSummaryItem {
   id: string | number;
   state: string;
+  stateRaw?: string;
+  stateCanonical?: CanonicalOrderState;
   createdAt?: string;
   total?: Money;
   shipMethod?: string;

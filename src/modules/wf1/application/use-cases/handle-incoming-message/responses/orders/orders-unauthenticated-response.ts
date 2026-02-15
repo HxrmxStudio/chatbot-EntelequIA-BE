@@ -1,4 +1,4 @@
-import type { Wf1Response } from '../../../domain/wf1-response';
+import type { Wf1Response } from '../../../../../domain/wf1-response';
 
 const LOGIN_REQUIRED_TITLE = 'NECESITAS INICIAR SESION';
 const SESSION_EXPIRED_TITLE = 'TU SESION EXPIRO O ES INVALIDA';
@@ -29,6 +29,22 @@ export function buildOrdersSessionExpiredResponse(): Wf1Response {
     ok: false,
     requiresAuth: true,
     message: buildOrdersAuthMessage(SESSION_EXPIRED_TITLE),
+  };
+}
+
+export function buildOrdersReauthenticationGuidanceResponse(): Wf1Response {
+  return {
+    ok: false,
+    requiresAuth: true,
+    message: [
+      '[NO DETECTO TU SESION EN ESTE CHAT]',
+      '',
+      'Para consultar pedidos ahora, hace esta re-autenticacion rapida:',
+      '1. Inicia sesion nuevamente en entelequia.com.ar',
+      '2. Volve a este chat y escribi: mis pedidos',
+      '',
+      'No compartas credenciales ni codigos en el chat.',
+    ].join('\n'),
   };
 }
 

@@ -1,4 +1,4 @@
-import type { Wf1Response } from '../../../domain/wf1-response';
+import type { Wf1Response } from '../../../../../domain/wf1-response';
 
 const DEFAULT_TYPE_OPTIONS = ['mangas/comics', 'figuras y coleccionables', 'ropa/accesorios'];
 

@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createLogger } from '@/common/utils/logger';
 import type { EntelequiaContextPort } from '@/modules/wf1/application/ports/entelequia-context.port';
+import type { MetricsPort } from '@/modules/wf1/application/ports/metrics.port';
+import { METRICS_PORT } from '@/modules/wf1/application/ports/tokens';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
+import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import {
   accountProfileEndpoint,
   accountOrderDetailEndpoint,
@@ -26,11 +30,17 @@ import {
 
 @Injectable()
 export class EntelequiaHttpAdapter implements EntelequiaContextPort {
+  private readonly logger = createLogger(EntelequiaHttpAdapter.name);
   private readonly baseUrl: string;
   private readonly webBaseUrl: string;
   private readonly timeoutMs: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional()
+    @Inject(METRICS_PORT)
+    private readonly metricsPort?: MetricsPort,
+  ) {
     this.baseUrl = resolveEntelequiaApiBaseUrl(this.configService);
     const configuredWebBaseUrl = this.configService.get<string>('ENTELEQUIA_WEB_BASE_URL');
     this.webBaseUrl = (configuredWebBaseUrl ?? 'https://entelequia.com.ar').replace(/\/$/, '');
@@ -158,38 +168,128 @@ export class EntelequiaHttpAdapter implements EntelequiaContextPort {
     return normalizeAuthenticatedUserProfile(data);
   }
 
-  async getOrders(input: { accessToken: string }): Promise<ContextBlock> {
-    const endpoint = accountOrdersEndpoint();
-    const data = await fetchEntelequiaJson(
-      this.baseUrl,
-      endpoint,
-      this.timeoutMs,
-      {
-        Authorization: `Bearer ${input.accessToken}`,
-      },
-    );
+  async getOrders(input: {
+    accessToken: string;
+    requestId?: string;
+    conversationId?: string;
+  }): Promise<ContextBlock> {
+    return this.withOrdersBackendObservability({
+      endpoint: '/account/orders',
+      requestId: input.requestId,
+      conversationId: input.conversationId,
+      execute: async () => {
+        const endpoint = accountOrdersEndpoint();
+        const data = await fetchEntelequiaJson(
+          this.baseUrl,
+          endpoint,
+          this.timeoutMs,
+          {
+            Authorization: `Bearer ${input.accessToken}`,
+          },
+        );
 
-    return {
-      contextType: 'orders',
-      contextPayload: data,
-    };
+        return {
+          contextType: 'orders',
+          contextPayload: data,
+        };
+      },
+    });
   }
 
-  async getOrderDetail(input: { accessToken: string; orderId: string }): Promise<ContextBlock> {
-    const endpoint = accountOrderDetailEndpoint(input.orderId);
-    const data = await fetchEntelequiaJson(
-      this.baseUrl,
-      endpoint,
-      this.timeoutMs,
-      {
-        Authorization: `Bearer ${input.accessToken}`,
-      },
-    );
+  async getOrderDetail(input: {
+    accessToken: string;
+    orderId: string;
+    requestId?: string;
+    conversationId?: string;
+  }): Promise<ContextBlock> {
+    return this.withOrdersBackendObservability({
+      endpoint: '/account/orders/{id}',
+      requestId: input.requestId,
+      conversationId: input.conversationId,
+      orderId: input.orderId,
+      execute: async () => {
+        const endpoint = accountOrderDetailEndpoint(input.orderId);
+        const data = await fetchEntelequiaJson(
+          this.baseUrl,
+          endpoint,
+          this.timeoutMs,
+          {
+            Authorization: `Bearer ${input.accessToken}`,
+          },
+        );
 
-    return {
-      contextType: 'order_detail',
-      contextPayload: data,
-    };
+        return {
+          contextType: 'order_detail',
+          contextPayload: data,
+        };
+      },
+    });
+  }
+
+  private async withOrdersBackendObservability<T>(input: {
+    endpoint: '/account/orders' | '/account/orders/{id}';
+    requestId?: string;
+    conversationId?: string;
+    orderId?: string;
+    execute: () => Promise<T>;
+  }): Promise<T> {
+    const startedAt = Date.now();
+
+    this.logger.chat('orders_backend_call_started', {
+      event: 'orders_backend_call_started',
+      request_id: input.requestId ?? null,
+      conversation_id: input.conversationId ?? null,
+      endpoint: input.endpoint,
+      status_code: null,
+      latency_ms: null,
+      order_id: input.orderId ?? null,
+    });
+
+    try {
+      const result = await input.execute();
+      const latencyMs = Date.now() - startedAt;
+      this.metricsPort?.incrementOrdersBackendCall?.({
+        endpoint: input.endpoint,
+        outcome: 'succeeded',
+        statusCode: 200,
+      });
+      this.metricsPort?.observeOrdersBackendLatency?.({
+        endpoint: input.endpoint,
+        seconds: latencyMs / 1000,
+      });
+      this.logger.chat('orders_backend_call_succeeded', {
+        event: 'orders_backend_call_succeeded',
+        request_id: input.requestId ?? null,
+        conversation_id: input.conversationId ?? null,
+        endpoint: input.endpoint,
+        status_code: 200,
+        latency_ms: latencyMs,
+        order_id: input.orderId ?? null,
+      });
+      return result;
+    } catch (error: unknown) {
+      const latencyMs = Date.now() - startedAt;
+      const statusCode = error instanceof ExternalServiceError ? error.statusCode : 0;
+      this.metricsPort?.incrementOrdersBackendCall?.({
+        endpoint: input.endpoint,
+        outcome: 'failed',
+        statusCode,
+      });
+      this.metricsPort?.observeOrdersBackendLatency?.({
+        endpoint: input.endpoint,
+        seconds: latencyMs / 1000,
+      });
+      this.logger.warn('orders_backend_call_failed', {
+        event: 'orders_backend_call_failed',
+        request_id: input.requestId ?? null,
+        conversation_id: input.conversationId ?? null,
+        endpoint: input.endpoint,
+        status_code: statusCode,
+        latency_ms: latencyMs,
+        order_id: input.orderId ?? null,
+      });
+      throw error;
+    }
   }
 }
 

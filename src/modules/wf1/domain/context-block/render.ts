@@ -12,7 +12,10 @@ const BLOCK_TITLE_TICKETS = 'Soporte';
 const BLOCK_TITLE_CATALOG_TAXONOMY = 'Taxonomia de catalogo';
 const BLOCK_TITLE_STORE_INFO = 'Informacion de locales';
 const BLOCK_TITLE_STATIC_CONTEXT = 'Contexto estatico';
+const BLOCK_TITLE_POLICY_FACTS = 'Hechos criticos de negocio';
+const BLOCK_TITLE_CRITICAL_POLICY = 'Politica critica';
 const BLOCK_TITLE_GENERAL = 'Contexto general';
+const BLOCK_TITLE_INSTRUCTION_HINT = 'Instruccion importante';
 const CONTEXT_SEPARATOR = '\n\n---\n\n';
 const GENERAL_CONTEXT_PREFIX = 'Contexto general:\n';
 const FALLBACK_NON_SERIALIZABLE = '(payload no serializable)';
@@ -84,12 +87,30 @@ function renderContextBlock(block: ContextBlock): string | null {
       return safeJsonBlock(BLOCK_TITLE_STATIC_CONTEXT, block.contextPayload);
     }
 
+    case 'policy_facts': {
+      const policyFacts = readString(block.contextPayload, 'context');
+      if (policyFacts) return policyFacts;
+      return safeJsonBlock(BLOCK_TITLE_POLICY_FACTS, block.contextPayload);
+    }
+
+    case 'critical_policy': {
+      const policyContext = readString(block.contextPayload, 'context');
+      if (policyContext) return policyContext;
+      return safeJsonBlock(BLOCK_TITLE_CRITICAL_POLICY, block.contextPayload);
+    }
+
     case 'general': {
       const aiContext = readString(block.contextPayload, 'aiContext');
       if (aiContext) return aiContext;
       const hint = readString(block.contextPayload, 'hint');
       if (hint) return `${GENERAL_CONTEXT_PREFIX}${hint}`;
       return safeJsonBlock(BLOCK_TITLE_GENERAL, block.contextPayload);
+    }
+
+    case 'instruction_hint': {
+      const hint = readString(block.contextPayload, 'hint');
+      if (hint) return `${BLOCK_TITLE_INSTRUCTION_HINT}:\n${hint}`;
+      return null;
     }
 
     default: {

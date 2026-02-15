@@ -4,6 +4,12 @@ export interface AssistantOutputSanitizationResult {
   reasons: string[];
 }
 
+export interface AssistantGreetingDedupResult {
+  message: string;
+  rewritten: boolean;
+  reason?: string;
+}
+
 interface OutputReplacementRule {
   reason: string;
   pattern: RegExp;
@@ -114,10 +120,57 @@ export function sanitizeAssistantUserMessage(message: string): AssistantOutputSa
   };
 }
 
+export function dedupeAssistantGreeting(input: {
+  message: string;
+  previousBotMessage: string | null;
+}): AssistantGreetingDedupResult {
+  const current = input.message.trim();
+  if (current.length === 0 || !input.previousBotMessage) {
+    return {
+      message: input.message,
+      rewritten: false,
+    };
+  }
+
+  const previous = input.previousBotMessage.trim();
+  if (!startsWithGreeting(current) || !startsWithGreeting(previous)) {
+    return {
+      message: input.message,
+      rewritten: false,
+    };
+  }
+
+  const deduped = removeLeadingGreeting(current);
+  if (deduped.length === 0 || deduped === current) {
+    return {
+      message: input.message,
+      rewritten: false,
+    };
+  }
+
+  return {
+    message: deduped,
+    rewritten: true,
+    reason: 'repeated_greeting_removed',
+  };
+}
+
 function normalizeWhitespace(value: string): string {
   return value
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function startsWithGreeting(value: string): boolean {
+  return /^hola\b/i.test(value.trim());
+}
+
+function removeLeadingGreeting(value: string): string {
+  const withoutGreeting = value
+    .replace(/^hola(?:\s+(?:buenas|que tal|como va))?[\s,:.!-]*/i, '')
+    .trim();
+
+  return withoutGreeting;
 }

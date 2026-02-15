@@ -41,6 +41,7 @@ export type PromptTruncationStrategy =
   | 'static_context_trimmed'
   | 'secondary_blocks_trimmed'
   | 'active_blocks_trimmed'
+  | 'critical_policy_trimmed'
   | 'hard_cut';
 
 export interface PromptBuildDiagnostics {
@@ -51,6 +52,9 @@ export interface PromptBuildDiagnostics {
   truncationStrategy: PromptTruncationStrategy;
   historyItemsIncluded: number;
   historyChars: number;
+  policyFactsIncluded: boolean;
+  criticalPolicyIncluded: boolean;
+  criticalPolicyTrimmed: boolean;
   sectionOrder?: string[];
 }
 

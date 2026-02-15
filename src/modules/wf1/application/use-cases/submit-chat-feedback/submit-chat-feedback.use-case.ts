@@ -46,6 +46,11 @@ export class SubmitChatFeedbackUseCase {
       });
 
       this.metricsPort.incrementFeedbackReceived(input.payload.rating);
+      if (typeof input.payload.category === 'string' && input.payload.category.length > 0) {
+        this.metricsPort.incrementFeedbackWithCategory({
+          category: input.payload.category,
+        });
+      }
 
       await this.auditPort.writeAudit({
         requestId: input.requestId,

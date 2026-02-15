@@ -19,5 +19,25 @@ export default [
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'max-lines': ['error', { max: 1200, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 650, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
+    files: ['src/modules/wf1/application/use-cases/handle-incoming-message/**/*.ts'],
+    rules: {
+      'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'error',
+        { max: 200, skipBlankLines: true, skipComments: true },
+      ],
+    },
   }
 ];

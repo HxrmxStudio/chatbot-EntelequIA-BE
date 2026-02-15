@@ -1,7 +1,7 @@
 import {
   buildOrdersRequiresAuthResponse,
   buildOrdersSessionExpiredResponse,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/orders-unauthenticated-response';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/responses/orders/orders-unauthenticated-response';
 
 describe('orders-unauthenticated-response', () => {
   it('builds requires-auth response with enriched guidance for missing login', () => {

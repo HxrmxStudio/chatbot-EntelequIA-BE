@@ -11,6 +11,7 @@ import {
 import {
   buildOrderDetailAiContext,
   buildOrdersListAiContext,
+  type OrderSummaryItem,
 } from '@/modules/wf1/domain/orders-context';
 import { buildPaymentShippingAiContext } from '@/modules/wf1/domain/payment-shipping-context';
 import {
@@ -98,6 +99,8 @@ export class EnrichContextByIntentUseCase {
     sentiment?: Sentiment;
     currency?: 'ARS' | 'USD';
     accessToken?: string;
+    requestId?: string;
+    conversationId?: string;
   }): Promise<ContextBlock[]> {
     const { intentResult } = input;
 
@@ -202,11 +205,27 @@ export class EnrichContextByIntentUseCase {
           const orderDetail = await this.entelequiaContextPort.getOrderDetail({
             accessToken: input.accessToken,
             orderId,
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            ...(input.conversationId ? { conversationId: input.conversationId } : {}),
           });
 
           throwIfUnauthenticatedOrdersPayload(orderDetail.contextPayload);
 
+          const ordersList = await this.entelequiaContextPort.getOrders({
+            accessToken: input.accessToken,
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            ...(input.conversationId ? { conversationId: input.conversationId } : {}),
+          });
+          throwIfUnauthenticatedOrdersPayload(ordersList.contextPayload);
+
           const parsedOrder = extractOrderDetail(orderDetail.contextPayload);
+          const parsedOrders = extractOrdersList(ordersList.contextPayload);
+          const matchedListOrder = findOrderSummaryById(parsedOrders, orderId);
+          const ordersStateConflict = Boolean(
+            parsedOrder &&
+              matchedListOrder &&
+              parsedOrder.stateCanonical !== matchedListOrder.stateCanonical,
+          );
           const aiContext = buildOrderDetailAiContext({
             order: parsedOrder,
             templates: ordersTemplates,
@@ -217,6 +236,13 @@ export class EnrichContextByIntentUseCase {
             contextPayload: {
               ...orderDetail.contextPayload,
               ...(parsedOrder ? { orderId: parsedOrder.id } : { orderId }),
+              ...(parsedOrder ? { parsedOrder } : {}),
+              ...(matchedListOrder ? { matchedListOrder } : {}),
+              orderStateRaw: parsedOrder?.stateRaw ?? null,
+              orderStateCanonical: parsedOrder?.stateCanonical ?? null,
+              orderListStateRaw: matchedListOrder?.stateRaw ?? null,
+              orderListStateCanonical: matchedListOrder?.stateCanonical ?? null,
+              ordersStateConflict,
               aiContext: aiContext.contextText,
             },
           };
@@ -226,6 +252,8 @@ export class EnrichContextByIntentUseCase {
 
         const orders = await this.entelequiaContextPort.getOrders({
           accessToken: input.accessToken,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          ...(input.conversationId ? { conversationId: input.conversationId } : {}),
         });
 
         throwIfUnauthenticatedOrdersPayload(orders.contextPayload);
@@ -245,6 +273,7 @@ export class EnrichContextByIntentUseCase {
             aiContext: aiContext.contextText,
             ordersShown: aiContext.ordersShown,
             totalOrders: aiContext.totalOrders,
+            parsedOrders,
           },
         };
 
@@ -328,6 +357,7 @@ export class EnrichContextByIntentUseCase {
             header: this.promptTemplates.getTicketsContextHeader(),
             contactOptions: this.promptTemplates.getTicketsContactOptions(),
             highPriorityNote: this.promptTemplates.getTicketsHighPriorityNote(),
+            returnsPolicy: this.promptTemplates.getTicketsReturnsPolicyContext(),
             instructions: this.promptTemplates.getTicketsContextInstructions(),
           },
         });
@@ -363,6 +393,7 @@ export class EnrichContextByIntentUseCase {
             text: input.text,
             entities: intentResult.entities,
           });
+          const hasExplicitFranchiseRequest = requestedFranchises.length > 0;
           const preferredCategorySlug = resolvePreferredRecommendationCategorySlug(
             preferences.type,
           );
@@ -506,24 +537,27 @@ export class EnrichContextByIntentUseCase {
               });
 
           const stockFiltered = recommendedItems.filter((item) => item.stock > 0);
-          const hasFranchiseRequest = matchedFranchises.length > 0;
+          const hasMatchedFranchise = matchedFranchises.length > 0;
           const franchiseFiltered = filterRecommendationsByFranchise({
             items: stockFiltered,
             franchises: matchedFranchises,
             dynamicAliases: dynamicFranchiseAliases,
           });
           const baseForTypeFilter =
-            hasFranchiseRequest && franchiseFiltered.length > 0
+            hasExplicitFranchiseRequest || hasMatchedFranchise
               ? franchiseFiltered
               : stockFiltered;
           const typeFiltered = filterRecommendationsByType(baseForTypeFilter, preferences.type);
-          const finalFiltered =
-            hasFranchiseRequest && franchiseFiltered.length > 0 && typeFiltered.length === 0
+          const finalFiltered = hasExplicitFranchiseRequest
+            ? typeFiltered
+            : hasMatchedFranchise && franchiseFiltered.length > 0 && typeFiltered.length === 0
               ? franchiseFiltered
               : typeFiltered;
-          const suggestedTypes = resolveSuggestionTypesFromItems(baseForTypeFilter);
+          const suggestedTypes = resolveSuggestionTypesFromItems(
+            hasExplicitFranchiseRequest ? stockFiltered : baseForTypeFilter,
+          );
 
-          if (!hasFranchiseRequest || finalFiltered.length === 0) {
+          if (!hasMatchedFranchise || finalFiltered.length === 0) {
             taxonomyContext = await fetchCatalogTaxonomyContext(
               this.entelequiaContextPort,
               input.text,
@@ -571,7 +605,7 @@ export class EnrichContextByIntentUseCase {
                   apiFallback: false,
                   fallbackReason: null,
                   afterStockFilter: stockFiltered.length,
-                  afterFranchiseFilter: hasFranchiseRequest
+                  afterFranchiseFilter: hasMatchedFranchise
                     ? franchiseFiltered.length
                     : stockFiltered.length,
                   afterTypeFilter: typeFiltered.length,
@@ -615,7 +649,7 @@ export class EnrichContextByIntentUseCase {
                   apiFallback: emptyAiContext.apiFallback,
                   fallbackReason: 'no_matches',
                   afterStockFilter: stockFiltered.length,
-                  afterFranchiseFilter: hasFranchiseRequest
+                  afterFranchiseFilter: hasMatchedFranchise
                     ? franchiseFiltered.length
                     : stockFiltered.length,
                   afterTypeFilter: typeFiltered.length,
@@ -659,7 +693,7 @@ export class EnrichContextByIntentUseCase {
                 totalRecommendations: aiContext.totalRecommendations,
                 apiFallback: aiContext.apiFallback,
                 afterStockFilter: stockFiltered.length,
-                afterFranchiseFilter: hasFranchiseRequest
+                afterFranchiseFilter: hasMatchedFranchise
                   ? franchiseFiltered.length
                   : stockFiltered.length,
                 afterTypeFilter: typeFiltered.length,
@@ -764,6 +798,28 @@ export class EnrichContextByIntentUseCase {
       }
     }
   }
+}
+
+function findOrderSummaryById(
+  orders: OrderSummaryItem[],
+  orderId: string,
+): OrderSummaryItem | null {
+  const normalizedOrderId = normalizeOrderId(orderId);
+  if (normalizedOrderId.length === 0) {
+    return null;
+  }
+
+  for (const order of orders) {
+    if (normalizeOrderId(order.id) === normalizedOrderId) {
+      return order;
+    }
+  }
+
+  return null;
+}
+
+function normalizeOrderId(value: string | number): string {
+  return String(value).trim().toLowerCase();
 }
 
 function isRecommendationsPayloadValid(payload: Record<string, unknown> | unknown[]): boolean {

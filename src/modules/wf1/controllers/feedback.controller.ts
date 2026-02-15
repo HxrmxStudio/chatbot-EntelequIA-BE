@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
+import { createLogger } from '../../../common/utils/logger';
 import { resolveOptionalString } from '../../../common/utils/string.utils';
 import { ChatFeedbackRequestDto } from '../dto/chat-feedback-request.dto';
 import {
@@ -11,6 +12,8 @@ import {
 
 @Controller()
 export class FeedbackController {
+  private readonly logger = createLogger(FeedbackController.name);
+
   constructor(private readonly submitChatFeedback: SubmitChatFeedbackUseCase) {}
 
   @Post('wf1/chat/feedback')
@@ -23,14 +26,40 @@ export class FeedbackController {
     const requestId = request.requestId ?? randomUUID();
     const externalEventId = this.resolveExternalEventId(request, payload);
     const clientIp = resolveClientIp(request);
+    const userId = resolveOptionalString(request.header('x-user-id'));
 
-    return this.submitChatFeedback.execute({
-      requestId,
-      externalEventId,
-      payload,
-      userId: resolveOptionalString(request.header('x-user-id')),
-      clientIp,
+    this.logger.chat('feedback_received', {
+      event: 'feedback_received',
+      request_id: requestId,
+      external_event_id: externalEventId,
+      conversation_id: payload.conversationId,
+      response_id: payload.responseId,
+      source: payload.source,
+      rating: payload.rating,
+      has_user_id: typeof userId === 'string' && userId.length > 0,
+      has_client_ip: typeof clientIp === 'string' && clientIp.length > 0,
     });
+
+    try {
+      return await this.submitChatFeedback.execute({
+        requestId,
+        externalEventId,
+        payload,
+        userId,
+        clientIp,
+      });
+    } catch (error: unknown) {
+      this.logger.warn('feedback_rejected', {
+        event: 'feedback_rejected',
+        request_id: requestId,
+        external_event_id: externalEventId,
+        conversation_id: payload.conversationId,
+        response_id: payload.responseId,
+        source: payload.source,
+        error_type: error instanceof Error ? error.name : 'UnknownError',
+      });
+      throw error;
+    }
   }
 
   private resolveExternalEventId(

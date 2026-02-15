@@ -1,4 +1,4 @@
-import { resolveOrderLookupRequest } from '@/modules/wf1/application/use-cases/handle-incoming-message/resolve-order-lookup-request';
+import { resolveOrderLookupRequest } from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/orders/resolve-order-lookup-request';
 
 describe('resolveOrderLookupRequest', () => {
   it('extracts order_id and identity factors from labeled message', () => {

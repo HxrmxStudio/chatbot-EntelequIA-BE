@@ -1,5 +1,5 @@
 import { formatMoney } from '@/modules/wf1/domain/money';
-import type { Wf1Response } from '../../../domain/wf1-response';
+import type { Wf1Response } from '../../../../../domain/wf1-response';
 
 interface OrderLookupResponseOrder {
   id: string | number;

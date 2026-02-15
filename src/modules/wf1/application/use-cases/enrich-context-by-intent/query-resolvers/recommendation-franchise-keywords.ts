@@ -53,6 +53,51 @@ const STATIC_FRANCHISE_TERMS: RecommendationFranchiseAliases = Object.freeze(
   }, {}),
 );
 
+const FUZZY_THRESHOLD = 2;
+
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array.from({ length: n + 1 }, () => 0),
+  );
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+const FUZZY_MIN_TOKEN_LENGTH = 5;
+
+function tryFuzzyMatch(
+  candidate: string,
+  aliasesIndex: RecommendationFranchiseAliases,
+): string | null {
+  if (candidate.length < FUZZY_MIN_TOKEN_LENGTH) return null;
+  let best: { key: string; distance: number } | null = null;
+  for (const [key, terms] of Object.entries(aliasesIndex)) {
+    for (const term of terms) {
+      if (term.length < FUZZY_MIN_TOKEN_LENGTH || Math.abs(term.length - candidate.length) > FUZZY_THRESHOLD) {
+        continue;
+      }
+      const distance = levenshteinDistance(candidate, term);
+      if (distance <= FUZZY_THRESHOLD && (best === null || distance < best.distance)) {
+        best = { key, distance };
+      }
+    }
+  }
+  return best?.key ?? null;
+}
+
 export function resolveRecommendationFranchiseKeywords(input: {
   text: string;
   entities: string[];
@@ -80,9 +125,25 @@ export function resolveRecommendationFranchiseKeywords(input: {
     }
   }
 
-  return scored
-    .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
-    .map((entry) => entry.key);
+  if (scored.length > 0) {
+    return scored
+      .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
+      .map((entry) => entry.key);
+  }
+
+  const tokensToTry = new Set<string>();
+  for (const candidate of candidates) {
+    for (const token of candidate.split(/\s+/).filter((t) => t.length >= FUZZY_MIN_TOKEN_LENGTH)) {
+      tokensToTry.add(token);
+    }
+    if (candidate.length >= FUZZY_MIN_TOKEN_LENGTH) tokensToTry.add(candidate);
+  }
+  for (const token of tokensToTry) {
+    const fuzzyKey = tryFuzzyMatch(token, aliasesIndex);
+    if (fuzzyKey) return [fuzzyKey];
+  }
+
+  return [];
 }
 
 export function getRecommendationFranchiseTerms(

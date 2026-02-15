@@ -1,8 +1,9 @@
 import {
+  isPoliteClosing,
   resolveRecommendationFollowup,
   resolveRecommendationFlowStateFromHistory,
   shouldContinueRecommendationsFlow,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/resolve-recommendations-flow-state';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/recommendations/resolve-recommendations-flow-state';
 
 describe('resolve-recommendations-flow-state', () => {
   it('resolves latest recommendations flow state from bot metadata', () => {
@@ -62,6 +63,15 @@ describe('resolve-recommendations-flow-state', () => {
     expect(followup.volumeNumber).toBe(3);
     expect(followup.wantsLatest).toBe(false);
     expect(followup.wantsStart).toBe(false);
+  });
+
+  it('treats polite closings as not continuing the flow', () => {
+    expect(isPoliteClosing('gracias')).toBe(true);
+    expect(isPoliteClosing('gracias por la ayuda')).toBe(true);
+    expect(isPoliteClosing('muchas gracias')).toBe(true);
+    expect(isPoliteClosing('  gracias por la ayuda  ')).toBe(true);
+    expect(isPoliteClosing('quiero naruto')).toBe(false);
+    expect(isPoliteClosing('no gracias')).toBe(false);
   });
 
   it('continues flow only when pending state has recommendation signals', () => {

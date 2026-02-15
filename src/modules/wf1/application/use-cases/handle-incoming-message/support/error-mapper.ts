@@ -1,9 +1,9 @@
-import { ExternalServiceError, MissingAuthForOrdersError } from '../../../domain/errors';
-import type { Wf1Response } from '../../../domain/wf1-response';
+import { ExternalServiceError, MissingAuthForOrdersError } from '../../../../domain/errors';
+import type { Wf1Response } from '../../../../domain/wf1-response';
 import {
   buildOrdersRequiresAuthResponse,
   buildOrdersSessionExpiredResponse,
-} from './orders-unauthenticated-response';
+} from '../responses/orders/orders-unauthenticated-response';
 
 const FORBIDDEN_MESSAGE = 'No tenes permisos para acceder a esa informacion.';
 const ORDER_NOT_FOUND_MESSAGE = 'No encontramos ese pedido en tu cuenta.';

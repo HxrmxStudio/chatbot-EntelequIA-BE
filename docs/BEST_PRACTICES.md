@@ -98,6 +98,11 @@ Dependencies point **inward**: Domain has no dependencies. Use cases depend only
 - Single source of truth for limits (e.g. `WF1_MAX_TEXT_CHARS` in `domain/text-policy/constants.ts`).
 - Do not duplicate magic numbers. Use named constants.
 
+### Turn metadata (persist and audit)
+
+- When the same metadata is written to both persistence and audit (e.g. turn metadata with many shared fields), build it **once** (e.g. via a pure `buildSharedTurnMetadata` helper or private method) and pass the result to both consumers, adding only the consumer-specific fields (e.g. `requiresAuth` and `catalogSnapshot` for persist; `responseType` for audit). This avoids drift when adding or renaming fields.
+- For very long `execute()` methods, consider extracting phases into **private methods** of the same use case (e.g. response resolution, output sanitization, persist-and-audit) so behaviour stays unchanged and the use case remains the single entry point.
+
 ### Domain Errors
 
 - Define in `domain/errors/`.
@@ -236,6 +241,7 @@ Cada concepto de domain vive en su **propia carpeta** para mantener el orden y u
 - **Imports**: los consumidores importan `from '.../domain/nombre-concepto'` (el path no cambia al migrar de archivo plano a carpeta porque se resuelve al `index.ts`).
 
 Ejemplos:
+
 - `domain/products-context/` — `types.ts`, `constants.ts`, `summary.ts`, `match.ts`, `index.ts`
 - `domain/money/` — `types.ts`, `parse.ts`, `format.ts`, `index.ts` (concepto compartido entre productos y órdenes)
 - `domain/intent/` — `types.ts`, `constants.ts`, `index.ts`
@@ -252,19 +258,34 @@ Cada use case vive en su **propia carpeta** siguiendo Clean Code principles (Sin
 - **Imports**: los consumidores importan `from '.../application/use-cases/nombre-use-case'` (resuelve al `index.ts`).
 
 Ejemplos:
-- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts`, `error-mapper.ts`, `check-if-authenticated.ts`, `orders-unauthenticated-response.ts`, `orders-order-lookup-response.ts`, `resolve-order-lookup-request.ts`, `resolve-order-lookup-flow-state.ts`, `index.ts`
+
+- `use-cases/handle-incoming-message/` — `handle-incoming-message.use-case.ts` (thin orchestrator), `index.ts`, `orchestration/` (phase orchestration), `flows/orders|recommendations|pricing|policy/` (flow logic and state transitions), `responses/orders|recommendations|pricing/` (deterministic response builders), `support/` (constants/helpers/metadata builders)
 - `use-cases/enrich-context-by-intent/` — `enrich-context-by-intent.use-case.ts`, `query-resolvers/` (types, patterns, normalize, clean-entities, detect-category, resolve-products, resolve-order, resolve-payment-shipping-query-type, resolve-recommendations-preferences, recommendation-type-slugs, resolve-store-info-query-type, resolve-ticket-signals, resolve-stock-disclosure, category-slugs, index), `product-parsers.ts`, `order-parsers.ts`, `payment-info-parsers.ts`, `recommendation-parsers.ts`, `index.ts`
 
 Los helpers se extraen como funciones puras (sin dependencias de framework) para mantener la separación de responsabilidades: el use case orquesta, los helpers procesan datos. Cuando los mensajes de respuesta contienen formato complejo o contenido compartido, se extraen como módulos helper separados (p. ej. `orders-unauthenticated-response.ts` para respuestas de autenticación de órdenes con guía enriquecida). Cuando se extrae información de payloads de API, se usan módulos parser dedicados (p. ej. `order-parsers.ts`, `payment-info-parsers.ts`) que proporcionan funciones puras para extracción y validación de datos. Access token is resolved in the controller via `resolve-access-token.ts` using `Authorization: Bearer <token>` as the only accepted source. Requests that include `accessToken` in body are rejected in input validation with `400 Bad Request`. The orders branch runs only when a token is present, using `checkIfAuthenticated`; that gate does not validate or decode the token, only checks presence.
 
 #### 9.2.2 User resolution and effective user ID
 
-The effective user for each request is resolved by `resolveUserContext(payload)` in `handle-incoming-message.use-case.ts`:
+The effective user for each request is resolved by `resolveUserContext(payload)` in `use-cases/handle-incoming-message/orchestration/prepare-request-context.ts`:
+
 - If not authenticated (no valid Bearer token): guest user via `chatPersistence.upsertUser(payload.userId)`
 - If authenticated (valid Bearer token): `entelequiaContextPort.getAuthenticatedUserProfile({ accessToken })` followed by `chatPersistence.upsertAuthenticatedUserProfile(...)` with profile data (id, email, phone, name)
 - On 401 from profile endpoint: falls back to guest user (token present but invalid/expired)
+- If profile payload is invalid (e.g. empty email/name): fail fast and route through the global failure finalizer.
 
 All persistence operations (conversation upsert, history retrieval, persistTurn, audit) use `effectiveUserId` (from resolved `UserContext.id`) instead of `payload.userId`, ensuring all data is keyed by the resolved user identity (guest or authenticated).
+
+#### 9.2.3 Use-case growth guardrails
+
+- Large use-cases must be split by responsibility boundaries:
+  - `orchestration/` for phase orchestration and IO boundaries.
+  - `flows/` for business/flow state transitions (prefer pure logic).
+  - `responses/` for deterministic message builders.
+  - `support/` for reusable helpers/constants.
+- `handle-incoming-message.use-case.ts` must remain a thin orchestrator and should not absorb flow-specific policy logic.
+- Enforced lint limits:
+  - Global `src/**/*.ts`: `max-lines` 1200 and `max-lines-per-function` 650.
+  - `src/modules/wf1/application/use-cases/handle-incoming-message/**/*.ts`: `max-lines` 500 and `max-lines-per-function` 200.
 
 #### 9.2.1 Query resolvers: category detection and categorySlug
 
@@ -284,6 +305,7 @@ Cada adapter vive en su **propia carpeta** siguiendo Clean Code principles y DRY
 - **Imports**: los consumidores importan `from '.../infrastructure/adapters/nombre-adapter'` (resuelve al `index.ts`).
 
 Ejemplos:
+
 - `adapters/openai/` — `openai.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `prompt-builder.ts`, `fallback-builder.ts`, `constants.ts`, `errors.ts`, `retry-helpers.ts`, `types.ts`, `index.ts`
 - `adapters/intent-extractor/` — `intent-extractor.adapter.ts`, `endpoints.ts`, `openai-client.ts`, `text-helpers.ts`, `response-helpers.ts`, `constants.ts`, `index.ts`
 - `adapters/entelequia-http/` — `entelequia-http.adapter.ts`, `endpoints.ts`, `entelequia-client.ts`, `payload-normalizers.ts`, `product-helpers.ts`, `entelequia-order-lookup.client.ts`, `bot-hmac-signer.ts`, `base-url.ts`, `index.ts`
@@ -303,9 +325,11 @@ El adapter `prompt-templates/` centraliza la carga y acceso a todos los prompts 
 - **Imports**: los use cases inyectan `PROMPT_TEMPLATES_PORT` para acceder a prompts
 
 Ejemplo:
+
 - `adapters/prompt-templates/` — `prompt-templates.adapter.ts`, `constants.ts`, `index.ts`
 
 **Beneficios**:
+
 - Centralización: todos los prompts accesibles desde un solo port
 - Testabilidad: fácil mockear prompts en tests
 - Mantenibilidad: cambios en prompts no requieren modificar use cases
@@ -324,6 +348,7 @@ Todos los servicios de seguridad están agrupados bajo `services/` siguiendo las
 - **Imports**: los consumidores importan `from '.../infrastructure/security/services/nombre-servicio'` (resuelve al `index.ts`).
 
 Ejemplos:
+
 - `security/services/signature-validation/` — `signature-validation.service.ts`, `web-signature-validator.ts`, `whatsapp-signature-validator.ts`, `types.ts`, `constants.ts`, `index.ts`
 - `security/services/turnstile-verification/` — `turnstile-verification.service.ts`, `turnstile-client.ts`, `types.ts`, `constants.ts`, `index.ts`
 - `security/services/input-validation/` — `input-validation.service.ts`, `field-validators.ts`, `types.ts`, `constants.ts`, `index.ts`
@@ -343,6 +368,7 @@ El dominio `context-block/` proporciona funciones puras para manipular y renderi
 - **Imports**: los consumidores importan `from '@/modules/wf1/domain/context-block'` (resuelve al `index.ts`)
 
 Ejemplos:
+
 - `domain/context-block/` — `types.ts`, `render.ts`, `append-static-context.ts`, `index.ts`
 
 Las funciones de dominio son puras (sin side effects) y siguen principios de Clean Code (SRP, funciones pequeñas, bien documentadas con JSDoc).
@@ -355,6 +381,7 @@ Los repositorios comparten helpers comunes para operaciones JSON y conversión d
 - **Imports**: los repositorios importan `from './shared'` para usar helpers compartidos.
 
 Ejemplos:
+
 - `repositories/shared/` — `json-helpers.ts` con `toJsonb` (convierte valores a JSON string para columnas jsonb)
 - `repositories/pg-chat.repository.ts` — usa `toJsonb` y `coerceTimestamp` (desde `common/utils/date.utils.ts`). Para WhatsApp, el outbox incluye `conversation_id` y `message_id` con `ON CONFLICT (message_id, channel, to_ref) DO NOTHING` para idempotencia.
 

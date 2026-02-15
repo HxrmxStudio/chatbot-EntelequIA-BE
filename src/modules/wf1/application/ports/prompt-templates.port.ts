@@ -28,5 +28,8 @@ export interface PromptTemplatesPort {
   getStoreInfoContextInstructions(): string;
   getGeneralContextHint(): string;
   getGeneralContextInstructions(): string;
+  getPolicyFactsShortContext(): string;
   getStaticContext(): string;
+  getCriticalPolicyContext(): string;
+  getTicketsReturnsPolicyContext(): string;
 }

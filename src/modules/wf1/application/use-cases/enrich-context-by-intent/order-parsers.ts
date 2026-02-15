@@ -1,7 +1,60 @@
 import { isRecord } from '@/common/utils/object.utils';
 import { parseMoney } from '@/modules/wf1/domain/money';
 import { ExternalServiceError } from '@/modules/wf1/domain/errors';
-import type { OrderDetailItem, OrderLineItem, OrderSummaryItem } from '@/modules/wf1/domain/orders-context';
+import type {
+  CanonicalOrderState,
+  OrderDetailItem,
+  OrderLineItem,
+  OrderSummaryItem,
+} from '@/modules/wf1/domain/orders-context';
+
+type OrderStateSourceField = 'state' | 'status' | 'order_status' | 'shipping_status';
+
+const ORDER_STATE_FIELDS: readonly OrderStateSourceField[] = [
+  'state',
+  'status',
+  'order_status',
+  'shipping_status',
+];
+
+const ORDER_STATE_CANONICAL_TERMS: ReadonlyArray<{
+  canonical: CanonicalOrderState;
+  terms: readonly string[];
+}> = [
+  {
+    canonical: 'pending',
+    terms: [
+      'pending',
+      'pendiente',
+      'en espera',
+      'awaiting payment',
+      'pago pendiente',
+      'payment pending',
+    ],
+  },
+  {
+    canonical: 'processing',
+    terms: ['processing', 'en preparacion', 'preparando', 'packing', 'armado'],
+  },
+  {
+    canonical: 'shipped',
+    terms: ['shipped', 'enviado', 'despachado', 'en transito', 'in transit'],
+  },
+  {
+    canonical: 'delivered',
+    terms: ['delivered', 'entregado', 'completado', 'finalizado'],
+  },
+  {
+    canonical: 'cancelled',
+    terms: ['cancelled', 'canceled', 'cancelado', 'anulado', 'rechazado'],
+  },
+];
+
+export interface ParsedOrderState {
+  stateRaw: string;
+  stateCanonical: CanonicalOrderState;
+  sourceField: OrderStateSourceField;
+}
 
 export function extractOrdersList(payload: Record<string, unknown>): OrderSummaryItem[] {
   const rawList = extractOrdersArray(payload);
@@ -52,7 +105,15 @@ export function isUnauthenticatedOrdersPayload(payload: Record<string, unknown>)
       return false;
     }
 
-    return /unauthenticated/.test(candidate.trim().toLowerCase());
+    const normalized = candidate.trim().toLowerCase();
+    return (
+      normalized.includes('unauthenticated') ||
+      normalized.includes('unauthorized') ||
+      normalized.includes('invalid token') ||
+      normalized.includes('token expired') ||
+      normalized.includes('jwt expired') ||
+      normalized.includes('session expired')
+    );
   });
 }
 
@@ -76,7 +137,9 @@ function parseOrder(raw: unknown): OrderSummaryItem | null {
     return null;
   }
 
-  const state = readString(raw.state) ?? '';
+  const parsedState = parseOrderState(raw);
+  const stateRaw = parsedState?.stateRaw ?? '';
+  const stateCanonical = parsedState?.stateCanonical ?? 'unknown';
   const createdAt = readString(raw.created_at);
   const total = parseMoney(raw.total);
   const shipMethod = readString(raw.shipMethod);
@@ -86,7 +149,9 @@ function parseOrder(raw: unknown): OrderSummaryItem | null {
 
   return {
     id,
-    state,
+    state: stateRaw,
+    ...(stateRaw ? { stateRaw } : {}),
+    stateCanonical,
     ...(createdAt ? { createdAt } : {}),
     ...(total ? { total } : {}),
     ...(shipMethod ? { shipMethod } : {}),
@@ -109,6 +174,39 @@ function extractOrdersArray(payload: Record<string, unknown>): unknown[] | null 
   return null;
 }
 
+export function parseOrderState(raw: Record<string, unknown>): ParsedOrderState | null {
+  const rawState = resolveOrderStateRaw(raw);
+  if (!rawState) {
+    return null;
+  }
+
+  return {
+    stateRaw: rawState.value,
+    stateCanonical: canonicalizeOrderState(rawState.value),
+    sourceField: rawState.sourceField,
+  };
+}
+
+export function canonicalizeOrderState(rawState: string): CanonicalOrderState {
+  const normalized = normalizeState(rawState);
+  if (normalized.length === 0) {
+    return 'unknown';
+  }
+
+  const matches = new Set<CanonicalOrderState>();
+  for (const candidate of ORDER_STATE_CANONICAL_TERMS) {
+    if (candidate.terms.some((term) => hasStateTerm(normalized, term))) {
+      matches.add(candidate.canonical);
+    }
+  }
+
+  if (matches.size !== 1) {
+    return 'unknown';
+  }
+
+  return [...matches][0] ?? 'unknown';
+}
+
 function parseId(value: unknown): string | number | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -120,6 +218,23 @@ function parseId(value: unknown): string | number | undefined {
   }
 
   return undefined;
+}
+
+function resolveOrderStateRaw(raw: Record<string, unknown>): {
+  value: string;
+  sourceField: OrderStateSourceField;
+} | null {
+  for (const field of ORDER_STATE_FIELDS) {
+    const value = readString(raw[field]);
+    if (value) {
+      return {
+        value,
+        sourceField: field,
+      };
+    }
+  }
+
+  return null;
 }
 
 function parseOrderItems(value: unknown): OrderLineItem[] {
@@ -193,4 +308,27 @@ function readString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hasStateTerm(normalizedState: string, term: string): boolean {
+  const normalizedTerm = normalizeState(term);
+  if (normalizedTerm.length === 0) {
+    return false;
+  }
+
+  if (normalizedState === normalizedTerm) {
+    return true;
+  }
+
+  return normalizedState.includes(` ${normalizedTerm} `);
+}
+
+function normalizeState(value: string): string {
+  return ` ${value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]/g, ' ')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')} `;
 }

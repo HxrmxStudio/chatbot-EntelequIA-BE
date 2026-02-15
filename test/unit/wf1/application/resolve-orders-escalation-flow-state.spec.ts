@@ -4,7 +4,7 @@ import {
   resolveRecentCancelledOrderId,
   shouldContinueOrdersEscalationFlow,
   shouldSuggestCancelledOrderEscalation,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/resolve-orders-escalation-flow-state';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/orders/resolve-orders-escalation-flow-state';
 
 describe('resolve-orders-escalation-flow-state', () => {
   it('resolves latest escalation state from bot metadata', () => {

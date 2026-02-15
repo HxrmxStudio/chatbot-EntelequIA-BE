@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate generated business prompts
+        run: npm run prompts:validate:entelequia
+
       - name: Validate DB URL network mode
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-ci-db-url.ts
 
@@ -52,6 +55,12 @@ jobs:
           WF1_CONVERSATION_CLOSER_ENABLED: 'true'
           WF1_CONVERSATION_ACTIVE_TTL_MINUTES: '1440'
 
+      - name: Generate job summary
+        if: always()
+        run: |
+          npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/emit-quality-loop-summary.ts daily >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
   weekly-quality-loop:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 4 * * 1'
     runs-on: ubuntu-latest
@@ -72,6 +81,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate generated business prompts
+        run: npm run prompts:validate:entelequia
 
       - name: Validate DB URL network mode
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/validate-ci-db-url.ts
@@ -99,3 +111,9 @@ jobs:
           name: wf1-quality-reports
           path: docs/reports/local/*
           if-no-files-found: ignore
+
+      - name: Generate job summary
+        if: always()
+        run: |
+          npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/emit-quality-loop-summary.ts weekly >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true

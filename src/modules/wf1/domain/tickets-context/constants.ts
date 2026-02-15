@@ -15,9 +15,19 @@ export const DEFAULT_TICKETS_HIGH_PRIORITY_NOTE = [
   '- Evitar demoras y confirmar que el caso será escalado y seguido.',
 ].join('\n');
 
+export const DEFAULT_TICKETS_RETURNS_POLICY = [
+  'Politica de cambios y devoluciones:',
+  '- Plazo: 30 dias corridos desde la compra.',
+  '- Condicion: producto sin uso y con embalaje original.',
+  '- Requisito: comprobante y numero de pedido.',
+  '- Resolucion: cambio o reintegro en 7-10 dias habiles tras aprobacion.',
+  '- Danos de envio: reportar en 48 horas con evidencia.',
+].join('\n');
+
 export const DEFAULT_TICKETS_CONTEXT_INSTRUCTIONS = [
   'Instrucciones para tu respuesta:',
   '- Mostrar empatía y usar un tono claro y profesional.',
+  '- Si el caso es de devolucion/cambio, responder primero la politica aplicable.',
   '- Ofrecer derivación por los canales oficiales.',
   '- No prometer resoluciones específicas desde el chat.',
   '- No pedir credenciales, claves, datos de tarjeta ni fotos de documentos.',

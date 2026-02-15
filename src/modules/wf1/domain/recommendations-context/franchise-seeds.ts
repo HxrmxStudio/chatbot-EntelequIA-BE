@@ -116,6 +116,16 @@ export const RECOMMENDATION_FRANCHISE_SEEDS: readonly RecommendationFranchiseSee
     aliases: ['evangelion', 'envangelion', 'eva', 'neon genesis evangelion', 'shinji', 'asuka'],
   },
   {
+    key: 'yugioh',
+    query: 'yu gi oh',
+    aliases: ['yu gi oh', 'yu-gi-oh', 'yugioh', 'yugi oh', 'duel monsters', 'kaiba'],
+  },
+  {
+    key: 'k_pop',
+    query: 'k pop',
+    aliases: ['k pop', 'k-pop', 'kpop', 'bts', 'blackpink', 'stray kids', 'newjeans'],
+  },
+  {
     key: 'fullmetal_alchemist',
     query: 'fullmetal alchemist',
     aliases: ['fullmetal alchemist', 'fma', 'edward', 'alphonse'],

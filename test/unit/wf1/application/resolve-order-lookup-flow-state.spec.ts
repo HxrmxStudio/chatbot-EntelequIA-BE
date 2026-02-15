@@ -4,7 +4,7 @@ import {
   resolveOrderDataAnswerStrength,
   resolveHasOrderDataAnswer,
   shouldContinueGuestOrderLookupFlow,
-} from '@/modules/wf1/application/use-cases/handle-incoming-message/resolve-order-lookup-flow-state';
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/orders/resolve-order-lookup-flow-state';
 
 describe('resolve-order-lookup-flow-state', () => {
   it('resolves latest guest flow state from bot metadata', () => {

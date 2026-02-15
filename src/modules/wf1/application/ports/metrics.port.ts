@@ -38,9 +38,34 @@ export interface MetricsPort {
 
   incrementOrderFlowHijackPrevented(): void;
 
+  incrementOrdersBackendCall?(input: {
+    endpoint: '/account/orders' | '/account/orders/{id}';
+    outcome: 'succeeded' | 'failed';
+    statusCode: number;
+  }): void;
+
+  observeOrdersBackendLatency?(input: {
+    endpoint: '/account/orders' | '/account/orders/{id}';
+    seconds: number;
+  }): void;
+
   incrementOutputTechnicalTermsSanitized(): void;
 
+  incrementCriticalPolicyContextInjected(input: { intent: string }): void;
+
+  incrementCriticalPolicyContextTrimmed(input: { intent: string }): void;
+
+  incrementPromptContextTruncated(input: { intent: string; strategy: string }): void;
+
+  incrementReturnsPolicyDirectAnswer(): void;
+
+  incrementPolicyDirectAnswer(input: { policyType: string }): void;
+
+  incrementScopeRedirect(input: { reason: string }): void;
+
   incrementFeedbackReceived(rating: 'up' | 'down'): void;
+
+  incrementFeedbackWithCategory(input: { category: string }): void;
 
   incrementUiPayloadEmitted(): void;
 

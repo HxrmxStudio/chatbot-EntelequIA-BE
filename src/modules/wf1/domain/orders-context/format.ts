@@ -87,7 +87,7 @@ export function buildOrderDetailAiContext(input: {
   const contextLines: string[] = [
     `PEDIDO #${String(order.id)}`,
     '',
-    `Estado: ${formatOrderState(order.state)}`,
+    `Estado: ${formatOrderState(order.state, order.stateCanonical)}`,
     `Fecha: ${formatOrderDateEsAr(order.createdAt)}`,
     `Total: ${formatOrderTotal(order)}`,
     '',
@@ -201,15 +201,15 @@ export function formatPaymentStatus(order: Pick<OrderSummaryItem, 'payment'>): s
 function formatOrderSummaryItem(order: OrderSummaryItem, index: number): string {
   return [
     `${index + 1}. Pedido #${String(order.id)}`,
-    `- Estado: ${formatOrderState(order.state)}`,
+    `- Estado: ${formatOrderState(order.state, order.stateCanonical)}`,
     `- Fecha: ${formatOrderDateEsAr(order.createdAt)}`,
     `- Total: ${formatOrderTotal(order)}`,
     `- Tracking: ${formatTracking(order.shipTrackingCode)}`,
   ].join('\n');
 }
 
-function formatOrderState(rawState: string): string {
-  const canonicalState = normalizeOrderState(rawState);
+function formatOrderState(rawState: string, stateCanonical?: CanonicalOrderState): string {
+  const canonicalState = stateCanonical ?? normalizeOrderState(rawState);
   return CANONICAL_ORDER_STATE_LABELS[canonicalState];
 }
 

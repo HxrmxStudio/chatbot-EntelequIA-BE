@@ -54,13 +54,17 @@ describe('PaymentShippingContext', () => {
     expect(result.contextText).not.toContain('info@entelequia.com.ar');
   });
 
-  it('keeps rioplatense tone in instructions', () => {
+  it('uses canonical shipping ranges for time queries', () => {
     const result = buildPaymentShippingAiContext({
       queryType: 'time',
       apiFallback: false,
     });
 
-    expect(result.contextText).toContain('recibis seguimiento');
-    expect(result.contextText).toContain('Si queres');
+    expect(result.contextText).toContain('24-48');
+    expect(result.contextText).toContain('3-5');
+    expect(result.contextText).toContain('5-7');
+    expect(result.contextText).toContain('DHL');
+    expect(result.contextText).not.toContain('1-3');
+    expect(result.contextText).not.toContain('2-5');
   });
 });

@@ -7,6 +7,7 @@ import {
   PROMPT_CONTEXT_MAX_CHARS,
   PROMPT_HISTORY_ITEM_MAX_CHARS,
   PROMPT_HISTORY_MAX_ITEMS,
+  PROMPT_POLICY_RESERVED_CHARS,
 } from './constants';
 import type { PromptBuildResult, PromptTruncationStrategy } from './types';
 
@@ -20,6 +21,8 @@ type ContextEntry = {
   rendered: string;
   active: boolean;
   static: boolean;
+  policyFacts: boolean;
+  criticalPolicy: boolean;
 };
 
 export function buildPrompt(
@@ -51,6 +54,9 @@ export function buildPrompt(
       truncationStrategy: contextResult.truncationStrategy,
       historyItemsIncluded: compactedHistory.length,
       historyChars,
+      policyFactsIncluded: contextResult.policyFactsIncluded,
+      criticalPolicyIncluded: contextResult.criticalPolicyIncluded,
+      criticalPolicyTrimmed: contextResult.criticalPolicyTrimmed,
       sectionOrder: ['intent', 'business_context', 'history', 'user_message'],
     },
   };
@@ -75,6 +81,9 @@ function buildContextWithinBudget(
   contextCharsAfter: number;
   contextTruncated: boolean;
   truncationStrategy: PromptTruncationStrategy;
+  policyFactsIncluded: boolean;
+  criticalPolicyIncluded: boolean;
+  criticalPolicyTrimmed: boolean;
 } {
   if (!Array.isArray(contextBlocks) || contextBlocks.length === 0 || budget <= 0) {
     return {
@@ -83,6 +92,9 @@ function buildContextWithinBudget(
       contextCharsAfter: 0,
       contextTruncated: false,
       truncationStrategy: 'none',
+      policyFactsIncluded: false,
+      criticalPolicyIncluded: false,
+      criticalPolicyTrimmed: false,
     };
   }
 
@@ -94,51 +106,120 @@ function buildContextWithinBudget(
         rendered,
         active: isActiveContextType(intent, block.contextType),
         static: block.contextType === 'static_context',
+        policyFacts: block.contextType === 'policy_facts',
+        criticalPolicy: block.contextType === 'critical_policy',
       };
     })
     .filter((entry) => entry.rendered.length > 0);
 
-  const before = joinEntries(entries).length;
-  if (before <= budget) {
-    return {
-      context: joinEntries(entries),
-      contextCharsBefore: before,
-      contextCharsAfter: before,
-      contextTruncated: false,
-      truncationStrategy: 'none',
-    };
-  }
+  const policyFactsIncluded = entries.some((entry) => entry.policyFacts);
+  const criticalPolicyIncluded = entries.some((entry) => entry.criticalPolicy);
+  const mandatoryEntries = entries.filter(
+    (entry) => entry.policyFacts || entry.criticalPolicy,
+  );
+  const optionalEntries = entries.filter(
+    (entry) => !entry.policyFacts && !entry.criticalPolicy,
+  );
 
-  let overflow = before - budget;
+  const before = joinEntries(entries).length;
+  const mandatoryChars = joinEntries(mandatoryEntries).length;
+  const optionalChars = joinEntries(optionalEntries).length;
+  const reservedForPolicy = mandatoryChars > 0 ? Math.min(PROMPT_POLICY_RESERVED_CHARS, budget) : 0;
+  const optionalBudget = mandatoryChars > 0 ? Math.max(0, budget - reservedForPolicy) : budget;
+
+  let overflow = Math.max(0, optionalChars - optionalBudget);
   let strategy: PromptTruncationStrategy = 'none';
+  let criticalPolicyTrimmed = false;
   const mutable = entries.map((entry) => ({ ...entry }));
 
-  overflow = trimEntriesInPriorityOrder(mutable, overflow, (entry) => entry.static, 'static_context_trimmed', (next) => {
-    strategy = strategy === 'none' ? next : strategy;
-  });
   overflow = trimEntriesInPriorityOrder(
     mutable,
     overflow,
-    (entry) => !entry.active && !entry.static,
-    'secondary_blocks_trimmed',
-    (next) => {
+    (entry) => entry.static && !entry.criticalPolicy && !entry.policyFacts,
+    'static_context_trimmed',
+    (entry, next) => {
       strategy = strategy === 'none' ? next : strategy;
+      if (entry.criticalPolicy) {
+        criticalPolicyTrimmed = true;
+      }
+    },
+  );
+  overflow = trimEntriesInPriorityOrder(
+    mutable,
+    overflow,
+    (entry) => !entry.active && !entry.static && !entry.criticalPolicy && !entry.policyFacts,
+    'secondary_blocks_trimmed',
+    (entry, next) => {
+      strategy = strategy === 'none' ? next : strategy;
+      if (entry.criticalPolicy) {
+        criticalPolicyTrimmed = true;
+      }
     },
   );
   trimEntriesInPriorityOrder(
     mutable,
     overflow,
-    (entry) => entry.active,
+    (entry) => entry.active && !entry.static && !entry.criticalPolicy && !entry.policyFacts,
     'active_blocks_trimmed',
-    (next) => {
+    (entry, next) => {
       strategy = strategy === 'none' ? next : strategy;
+      if (entry.criticalPolicy) {
+        criticalPolicyTrimmed = true;
+      }
     },
   );
 
   let context = joinEntries(mutable.filter((entry) => entry.rendered.length > 0));
+  let totalOverflow = Math.max(0, context.length - budget);
+  if (totalOverflow > 0) {
+    totalOverflow = trimEntriesInPriorityOrder(
+      mutable,
+      totalOverflow,
+      (entry) => entry.static && !entry.criticalPolicy && !entry.policyFacts,
+      'static_context_trimmed',
+      (entry, next) => {
+        strategy = strategy === 'none' ? next : strategy;
+      },
+    );
+    totalOverflow = trimEntriesInPriorityOrder(
+      mutable,
+      totalOverflow,
+      (entry) => !entry.active && !entry.static && !entry.criticalPolicy && !entry.policyFacts,
+      'secondary_blocks_trimmed',
+      (entry, next) => {
+        strategy = strategy === 'none' ? next : strategy;
+      },
+    );
+    trimEntriesInPriorityOrder(
+      mutable,
+      totalOverflow,
+      (entry) => entry.active && !entry.static && !entry.criticalPolicy && !entry.policyFacts,
+      'active_blocks_trimmed',
+      (entry, next) => {
+        strategy = strategy === 'none' ? next : strategy;
+      },
+    );
+    context = joinEntries(mutable.filter((entry) => entry.rendered.length > 0));
+  }
+
   if (context.length > budget) {
     context = truncateWithEllipsis(context, budget);
     strategy = 'hard_cut';
+    criticalPolicyTrimmed = criticalPolicyIncluded;
+  }
+
+  const truncated = context.length < before || strategy !== 'none';
+  if (!truncated) {
+    return {
+      context,
+      contextCharsBefore: before,
+      contextCharsAfter: context.length,
+      contextTruncated: false,
+      truncationStrategy: 'none',
+      policyFactsIncluded,
+      criticalPolicyIncluded,
+      criticalPolicyTrimmed: false,
+    };
   }
 
   return {
@@ -147,6 +228,9 @@ function buildContextWithinBudget(
     contextCharsAfter: context.length,
     contextTruncated: true,
     truncationStrategy: strategy === 'none' ? 'hard_cut' : strategy,
+    policyFactsIncluded,
+    criticalPolicyIncluded,
+    criticalPolicyTrimmed,
   };
 }
 
@@ -155,7 +239,7 @@ function trimEntriesInPriorityOrder(
   overflow: number,
   predicate: (entry: ContextEntry) => boolean,
   strategy: PromptTruncationStrategy,
-  onTrim: (strategy: PromptTruncationStrategy) => void,
+  onTrim: (entry: ContextEntry, strategy: PromptTruncationStrategy) => void,
 ): number {
   if (overflow <= 0) {
     return overflow;
@@ -170,7 +254,7 @@ function trimEntriesInPriorityOrder(
     const { text, removed } = trimEntryForOverflow(entry.rendered, overflow);
     if (removed > 0) {
       entry.rendered = text;
-      onTrim(strategy);
+      onTrim(entry, strategy);
       overflow = Math.max(0, overflow - removed);
     }
   }

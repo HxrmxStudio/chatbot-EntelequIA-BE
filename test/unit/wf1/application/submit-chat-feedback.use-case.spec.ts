@@ -25,6 +25,7 @@ describe('SubmitChatFeedbackUseCase', () => {
     };
     const metricsPort = {
       incrementFeedbackReceived: jest.fn(),
+      incrementFeedbackWithCategory: jest.fn(),
     } as unknown as MetricsPort;
 
     Object.assign(metricsPort, deps?.metricsPort ?? {});
@@ -63,6 +64,9 @@ describe('SubmitChatFeedbackUseCase', () => {
 
     expect(chatFeedbackPort.persistFeedback).toHaveBeenCalledTimes(1);
     expect(metricsPort.incrementFeedbackReceived).toHaveBeenCalledWith('down');
+    expect(metricsPort.incrementFeedbackWithCategory).toHaveBeenCalledWith({
+      category: 'accuracy',
+    });
     expect(auditPort.writeAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: 'feedback',

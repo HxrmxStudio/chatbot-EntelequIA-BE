@@ -8,8 +8,7 @@ import {
 
 export const RECOMMENDATIONS_FLOW_STATE_METADATA_KEY = 'recommendationsFlowState';
 export const RECOMMENDATIONS_FLOW_FRANCHISE_METADATA_KEY = 'recommendationsFlowFranchise';
-export const RECOMMENDATIONS_FLOW_CATEGORY_HINT_METADATA_KEY =
-  'recommendationsFlowCategoryHint';
+export const RECOMMENDATIONS_FLOW_CATEGORY_HINT_METADATA_KEY = 'recommendationsFlowCategoryHint';
 
 export type RecommendationDisambiguationState =
   | 'awaiting_category_or_volume'
@@ -71,9 +70,7 @@ export function resolveRecommendationFollowup(input: {
 
   return {
     hasSignals:
-      Boolean(requestedType) ||
-      volumeSignals.hasVolumeSignal ||
-      Boolean(mentionedFranchise),
+      Boolean(requestedType) || volumeSignals.hasVolumeSignal || Boolean(mentionedFranchise),
     requestedType,
     volumeNumber: volumeSignals.volumeNumber,
     wantsLatest: volumeSignals.wantsLatest,
@@ -82,12 +79,26 @@ export function resolveRecommendationFollowup(input: {
   };
 }
 
+/** Phrases that are polite closings / thanks; do not treat as continuing recommendations flow. */
+const POLITE_CLOSING_PATTERN =
+  /^(?:gracias(?:\s+por\s+la\s+ayuda)?|muchas\s+gracias|ok\s+gracias|genial\s+gracias|perfecto\s+gracias|dale\s+gracias)\s*$/i;
+
+export function isPoliteClosing(text: string): boolean {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  return POLITE_CLOSING_PATTERN.test(normalized);
+}
+
 export function shouldContinueRecommendationsFlow(input: {
   currentFlowState: RecommendationDisambiguationState;
   text: string;
   entities: string[];
 }): boolean {
   if (input.currentFlowState === null) {
+    return false;
+  }
+
+  const normalized = input.text.trim().replace(/\s+/g, ' ');
+  if (POLITE_CLOSING_PATTERN.test(normalized)) {
     return false;
   }
 

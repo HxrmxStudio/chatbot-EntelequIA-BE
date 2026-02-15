@@ -9,7 +9,10 @@ export type ContextType =
   | 'catalog_taxonomy'
   | 'store_info'
   | 'general'
-  | 'static_context';
+  | 'policy_facts'
+  | 'static_context'
+  | 'critical_policy'
+  | 'instruction_hint';
 
 export interface ContextBlock {
   contextType: ContextType;

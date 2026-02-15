@@ -253,6 +253,20 @@ npm run wf1:learning:validate-seeds
 npm run wf1:learning:build
 ```
 
+## Canonical business prompts
+- Canonical source file: `prompts/static/entelequia_business_context_canonical_v1.yaml`.
+- Generated targets:
+  - `prompts/static/entelequia_static_context_v1.txt`
+  - `prompts/static/entelequia_critical_policy_context_v1.txt`
+  - `prompts/tickets/entelequia_tickets_returns_policy_context_v1.txt`
+  - `prompts/payment-shipping/entelequia_payment_shipping_general_context_v1.txt`
+
+Commands:
+```bash
+npm run prompts:generate:entelequia
+npm run prompts:validate:entelequia
+```
+
 ## GitHub Actions DB connectivity note
 - `db.<project-ref>.supabase.co` can resolve only IPv6 in some setups.
 - For GitHub runners without IPv6 route, provide an IPv4-capable connection URL in secret `CHATBOT_DB_URL_IPV4`.

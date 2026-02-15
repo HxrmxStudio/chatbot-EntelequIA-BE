@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { MetricsPort } from '@/modules/wf1/application/ports/metrics.port';
 import {
+  WF1_METRIC_CRITICAL_POLICY_CONTEXT_INJECTED_TOTAL,
+  WF1_METRIC_CRITICAL_POLICY_CONTEXT_TRIMMED_TOTAL,
   WF1_METRIC_EXEMPLARS_USED_IN_PROMPT_TOTAL,
   WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL,
   WF1_METRIC_FEEDBACK_RECEIVED_TOTAL,
+  WF1_METRIC_FEEDBACK_WITH_CATEGORY_TOTAL,
   WF1_METRIC_FALLBACK_TOTAL,
   WF1_METRIC_LEARNING_AUTOPROMOTE_TOTAL,
   WF1_METRIC_LEARNING_AUTOROLLBACK_TOTAL,
@@ -18,7 +21,12 @@ import {
   WF1_METRIC_ORDER_LOOKUP_RATE_LIMIT_DEGRADED_TOTAL,
   WF1_METRIC_ORDER_LOOKUP_RATE_LIMITED_TOTAL,
   WF1_METRIC_ORDER_LOOKUP_VERIFICATION_FAILED_TOTAL,
+  WF1_METRIC_ORDERS_BACKEND_CALLS_TOTAL,
+  WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS,
   WF1_METRIC_OUTPUT_TECHNICAL_TERMS_SANITIZED_TOTAL,
+  WF1_METRIC_POLICY_DIRECT_ANSWER_TOTAL,
+  WF1_METRIC_PROMPT_CONTEXT_TRUNCATED_TOTAL,
+  WF1_METRIC_RETURNS_POLICY_DIRECT_ANSWER_TOTAL,
   WF1_METRIC_RECOMMENDATIONS_CATALOG_DEGRADED_TOTAL,
   WF1_METRIC_RECOMMENDATIONS_DISAMBIGUATION_RESOLVED_TOTAL,
   WF1_METRIC_RECOMMENDATIONS_DISAMBIGUATION_TRIGGERED_TOTAL,
@@ -27,6 +35,7 @@ import {
   WF1_METRIC_RECOMMENDATIONS_FRANCHISE_MATCH_TOTAL,
   WF1_METRIC_RECOMMENDATIONS_NO_MATCH_TOTAL,
   WF1_METRIC_RESPONSE_LATENCY_SECONDS,
+  WF1_METRIC_SCOPE_REDIRECT_TOTAL,
   WF1_METRIC_STOCK_EXACT_DISCLOSURE_TOTAL,
   WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL,
   WF1_METRIC_UI_PAYLOAD_SUPPRESSED_TOTAL,
@@ -53,9 +62,20 @@ export class PrometheusMetricsAdapter implements MetricsPort {
   private recommendationsEditorialSuggested = 0;
   private orderFlowAmbiguousAck = 0;
   private orderFlowHijackPrevented = 0;
+  private readonly ordersBackendCalls = new Map<string, number>();
+  private readonly ordersBackendLatencyBuckets = new Map<string, number>();
+  private readonly ordersBackendLatencySum = new Map<string, number>();
+  private readonly ordersBackendLatencyCount = new Map<string, number>();
   private outputTechnicalTermsSanitized = 0;
+  private readonly criticalPolicyContextInjected = new Map<string, number>();
+  private readonly criticalPolicyContextTrimmed = new Map<string, number>();
+  private readonly promptContextTruncated = new Map<string, number>();
+  private returnsPolicyDirectAnswer = 0;
+  private readonly policyDirectAnswers = new Map<string, number>();
+  private readonly scopeRedirects = new Map<string, number>();
   private feedbackReceived = new Map<string, number>();
   private feedbackNegative = 0;
+  private readonly feedbackWithCategory = new Map<string, number>();
   private uiPayloadEmitted = 0;
   private readonly uiPayloadSuppressed = new Map<string, number>();
   private learningAutopromote = 0;
@@ -156,8 +176,94 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     this.orderFlowHijackPrevented += 1;
   }
 
+  incrementOrdersBackendCall(input: {
+    endpoint: '/account/orders' | '/account/orders/{id}';
+    outcome: 'succeeded' | 'failed';
+    statusCode: number;
+  }): void {
+    const endpoint = sanitizeLabelValue(input.endpoint);
+    const outcome = sanitizeLabelValue(input.outcome);
+    const statusCode =
+      Number.isFinite(input.statusCode) && input.statusCode >= 0
+        ? String(Math.trunc(input.statusCode))
+        : '0';
+    const key = `${endpoint}|${outcome}|${statusCode}`;
+    this.ordersBackendCalls.set(key, (this.ordersBackendCalls.get(key) ?? 0) + 1);
+  }
+
+  observeOrdersBackendLatency(input: {
+    endpoint: '/account/orders' | '/account/orders/{id}';
+    seconds: number;
+  }): void {
+    const endpoint = sanitizeLabelValue(input.endpoint);
+    const latency = Number.isFinite(input.seconds) && input.seconds >= 0 ? input.seconds : 0;
+
+    this.ordersBackendLatencySum.set(
+      endpoint,
+      (this.ordersBackendLatencySum.get(endpoint) ?? 0) + latency,
+    );
+    this.ordersBackendLatencyCount.set(
+      endpoint,
+      (this.ordersBackendLatencyCount.get(endpoint) ?? 0) + 1,
+    );
+
+    for (const bucket of WF1_RESPONSE_LATENCY_BUCKETS) {
+      if (latency <= bucket) {
+        const key = `${endpoint}|${bucket}`;
+        this.ordersBackendLatencyBuckets.set(
+          key,
+          (this.ordersBackendLatencyBuckets.get(key) ?? 0) + 1,
+        );
+      }
+    }
+
+    const infKey = `${endpoint}|+Inf`;
+    this.ordersBackendLatencyBuckets.set(
+      infKey,
+      (this.ordersBackendLatencyBuckets.get(infKey) ?? 0) + 1,
+    );
+  }
+
   incrementOutputTechnicalTermsSanitized(): void {
     this.outputTechnicalTermsSanitized += 1;
+  }
+
+  incrementCriticalPolicyContextInjected(input: { intent: string }): void {
+    const key = sanitizeLabelValue(input.intent);
+    this.criticalPolicyContextInjected.set(
+      key,
+      (this.criticalPolicyContextInjected.get(key) ?? 0) + 1,
+    );
+  }
+
+  incrementCriticalPolicyContextTrimmed(input: { intent: string }): void {
+    const key = sanitizeLabelValue(input.intent);
+    this.criticalPolicyContextTrimmed.set(
+      key,
+      (this.criticalPolicyContextTrimmed.get(key) ?? 0) + 1,
+    );
+  }
+
+  incrementPromptContextTruncated(input: { intent: string; strategy: string }): void {
+    const key = `${sanitizeLabelValue(input.intent)}|${sanitizeLabelValue(input.strategy)}`;
+    this.promptContextTruncated.set(
+      key,
+      (this.promptContextTruncated.get(key) ?? 0) + 1,
+    );
+  }
+
+  incrementReturnsPolicyDirectAnswer(): void {
+    this.returnsPolicyDirectAnswer += 1;
+  }
+
+  incrementPolicyDirectAnswer(input: { policyType: string }): void {
+    const key = sanitizeLabelValue(input.policyType);
+    this.policyDirectAnswers.set(key, (this.policyDirectAnswers.get(key) ?? 0) + 1);
+  }
+
+  incrementScopeRedirect(input: { reason: string }): void {
+    const key = sanitizeLabelValue(input.reason);
+    this.scopeRedirects.set(key, (this.scopeRedirects.get(key) ?? 0) + 1);
   }
 
   incrementFeedbackReceived(rating: 'up' | 'down'): void {
@@ -166,6 +272,11 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     if (rating === 'down') {
       this.feedbackNegative += 1;
     }
+  }
+
+  incrementFeedbackWithCategory(input: { category: string }): void {
+    const key = sanitizeLabelValue(input.category);
+    this.feedbackWithCategory.set(key, (this.feedbackWithCategory.get(key) ?? 0) + 1);
   }
 
   incrementUiPayloadEmitted(): void {
@@ -351,12 +462,95 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     );
 
     lines.push(
+      `# HELP ${WF1_METRIC_ORDERS_BACKEND_CALLS_TOTAL} Total authenticated orders backend calls by endpoint, outcome and status code.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_ORDERS_BACKEND_CALLS_TOTAL} counter`);
+    for (const [key, value] of this.ordersBackendCalls.entries()) {
+      const [endpoint, outcome, statusCode] = key.split('|');
+      lines.push(
+        `${WF1_METRIC_ORDERS_BACKEND_CALLS_TOTAL}{endpoint="${endpoint}",outcome="${outcome}",status_code="${statusCode}"} ${value}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS} Authenticated orders backend latency in seconds by endpoint.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS} histogram`);
+    for (const [key, value] of this.ordersBackendLatencyBuckets.entries()) {
+      const [endpoint, bucket] = key.split('|');
+      lines.push(
+        `${WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS}_bucket{endpoint="${endpoint}",le="${bucket}"} ${value}`,
+      );
+    }
+    for (const [endpoint, value] of this.ordersBackendLatencySum.entries()) {
+      lines.push(`${WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS}_sum{endpoint="${endpoint}"} ${value}`);
+    }
+    for (const [endpoint, value] of this.ordersBackendLatencyCount.entries()) {
+      lines.push(`${WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS}_count{endpoint="${endpoint}"} ${value}`);
+    }
+
+    lines.push(
       `# HELP ${WF1_METRIC_OUTPUT_TECHNICAL_TERMS_SANITIZED_TOTAL} Total responses sanitized to remove technical jargon from user-facing output.`,
     );
     lines.push(`# TYPE ${WF1_METRIC_OUTPUT_TECHNICAL_TERMS_SANITIZED_TOTAL} counter`);
     lines.push(
       `${WF1_METRIC_OUTPUT_TECHNICAL_TERMS_SANITIZED_TOTAL} ${this.outputTechnicalTermsSanitized}`,
     );
+
+    lines.push(
+      `# HELP ${WF1_METRIC_CRITICAL_POLICY_CONTEXT_INJECTED_TOTAL} Total prompts where critical policy context was injected by intent.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_CRITICAL_POLICY_CONTEXT_INJECTED_TOTAL} counter`);
+    for (const [intent, value] of this.criticalPolicyContextInjected.entries()) {
+      lines.push(
+        `${WF1_METRIC_CRITICAL_POLICY_CONTEXT_INJECTED_TOTAL}{intent="${intent}"} ${value}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_CRITICAL_POLICY_CONTEXT_TRIMMED_TOTAL} Total prompts where critical policy context was trimmed by intent.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_CRITICAL_POLICY_CONTEXT_TRIMMED_TOTAL} counter`);
+    for (const [intent, value] of this.criticalPolicyContextTrimmed.entries()) {
+      lines.push(
+        `${WF1_METRIC_CRITICAL_POLICY_CONTEXT_TRIMMED_TOTAL}{intent="${intent}"} ${value}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_PROMPT_CONTEXT_TRUNCATED_TOTAL} Total prompts with context truncation by intent and strategy.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_PROMPT_CONTEXT_TRUNCATED_TOTAL} counter`);
+    for (const [key, value] of this.promptContextTruncated.entries()) {
+      const [intent, strategy] = key.split('|');
+      lines.push(
+        `${WF1_METRIC_PROMPT_CONTEXT_TRUNCATED_TOTAL}{intent="${intent}",strategy="${strategy}"} ${value}`,
+      );
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_RETURNS_POLICY_DIRECT_ANSWER_TOTAL} Total ticket flows answered directly with returns policy context.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_RETURNS_POLICY_DIRECT_ANSWER_TOTAL} counter`);
+    lines.push(
+      `${WF1_METRIC_RETURNS_POLICY_DIRECT_ANSWER_TOTAL} ${this.returnsPolicyDirectAnswer}`,
+    );
+
+    lines.push(
+      `# HELP ${WF1_METRIC_POLICY_DIRECT_ANSWER_TOTAL} Total deterministic business policy answers emitted by policy type.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_POLICY_DIRECT_ANSWER_TOTAL} counter`);
+    for (const [policyType, value] of this.policyDirectAnswers.entries()) {
+      lines.push(`${WF1_METRIC_POLICY_DIRECT_ANSWER_TOTAL}{policy_type="${policyType}"} ${value}`);
+    }
+
+    lines.push(
+      `# HELP ${WF1_METRIC_SCOPE_REDIRECT_TOTAL} Total out-of-scope redirections by reason.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_SCOPE_REDIRECT_TOTAL} counter`);
+    for (const [reason, value] of this.scopeRedirects.entries()) {
+      lines.push(`${WF1_METRIC_SCOPE_REDIRECT_TOTAL}{reason="${reason}"} ${value}`);
+    }
 
     lines.push(`# HELP ${WF1_METRIC_FEEDBACK_RECEIVED_TOTAL} Total chat feedback events.`);
     lines.push(`# TYPE ${WF1_METRIC_FEEDBACK_RECEIVED_TOTAL} counter`);
@@ -367,6 +561,14 @@ export class PrometheusMetricsAdapter implements MetricsPort {
     lines.push(`# HELP ${WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL} Total negative chat feedback events.`);
     lines.push(`# TYPE ${WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL} counter`);
     lines.push(`${WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL} ${this.feedbackNegative}`);
+
+    lines.push(
+      `# HELP ${WF1_METRIC_FEEDBACK_WITH_CATEGORY_TOTAL} Total chat feedback events with explicit category.`,
+    );
+    lines.push(`# TYPE ${WF1_METRIC_FEEDBACK_WITH_CATEGORY_TOTAL} counter`);
+    for (const [category, value] of this.feedbackWithCategory.entries()) {
+      lines.push(`${WF1_METRIC_FEEDBACK_WITH_CATEGORY_TOTAL}{category="${category}"} ${value}`);
+    }
 
     lines.push(`# HELP ${WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL} Total WF1 responses with ui payload attached.`);
     lines.push(`# TYPE ${WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL} counter`);

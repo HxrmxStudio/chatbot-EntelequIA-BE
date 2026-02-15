@@ -21,7 +21,14 @@ describe('OpenAiAdapter', () => {
     incrementOrderFlowAmbiguousAck: jest.fn(),
     incrementOrderFlowHijackPrevented: jest.fn(),
     incrementOutputTechnicalTermsSanitized: jest.fn(),
+    incrementCriticalPolicyContextInjected: jest.fn(),
+    incrementCriticalPolicyContextTrimmed: jest.fn(),
+    incrementPromptContextTruncated: jest.fn(),
+    incrementReturnsPolicyDirectAnswer: jest.fn(),
+    incrementPolicyDirectAnswer: jest.fn(),
+    incrementScopeRedirect: jest.fn(),
     incrementFeedbackReceived: jest.fn(),
+    incrementFeedbackWithCategory: jest.fn(),
     incrementUiPayloadEmitted: jest.fn(),
     incrementUiPayloadSuppressed: jest.fn(),
     incrementLearningAutopromote: jest.fn(),
@@ -57,7 +64,14 @@ describe('OpenAiAdapter', () => {
     metricsStub.incrementOrderFlowAmbiguousAck.mockReset();
     metricsStub.incrementOrderFlowHijackPrevented.mockReset();
     metricsStub.incrementOutputTechnicalTermsSanitized.mockReset();
+    metricsStub.incrementCriticalPolicyContextInjected.mockReset();
+    metricsStub.incrementCriticalPolicyContextTrimmed.mockReset();
+    metricsStub.incrementPromptContextTruncated.mockReset();
+    metricsStub.incrementReturnsPolicyDirectAnswer.mockReset();
+    metricsStub.incrementPolicyDirectAnswer.mockReset();
+    metricsStub.incrementScopeRedirect.mockReset();
     metricsStub.incrementFeedbackReceived.mockReset();
+    metricsStub.incrementFeedbackWithCategory.mockReset();
     metricsStub.incrementUiPayloadEmitted.mockReset();
     metricsStub.incrementUiPayloadSuppressed.mockReset();
     metricsStub.incrementLearningAutopromote.mockReset();

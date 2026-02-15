@@ -1,4 +1,7 @@
 import {
+  appendCriticalPolicyContextBlock,
+  appendPolicyFactsContextBlock,
+  appendPriceChallengeHintContextBlock,
   appendStaticContextBlock,
   renderContextBlocksForPrompt,
   type ContextBlock,
@@ -121,6 +124,117 @@ describe('Context Block', () => {
           contextPayload: { context: 'Valid context' },
         },
       ]);
+    });
+  });
+
+  describe('appendCriticalPolicyContextBlock', () => {
+    it('returns empty array when critical policy context is empty string', () => {
+      const result = appendCriticalPolicyContextBlock([], '');
+      expect(result).toEqual([]);
+    });
+
+    it('appends critical policy block to existing context', () => {
+      const existingBlocks: ContextBlock[] = [
+        {
+          contextType: 'products',
+          contextPayload: { summary: 'Product summary' },
+        },
+      ];
+
+      const result = appendCriticalPolicyContextBlock(
+        existingBlocks,
+        'Politica critica',
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[1]).toEqual({
+        contextType: 'critical_policy',
+        contextPayload: { context: 'Politica critica' },
+      });
+    });
+
+    it('replaces existing critical_policy block', () => {
+      const existingBlocks: ContextBlock[] = [
+        {
+          contextType: 'critical_policy',
+          contextPayload: { context: 'Politica vieja' },
+        },
+      ];
+
+      const result = appendCriticalPolicyContextBlock(
+        existingBlocks,
+        'Politica nueva',
+      );
+
+      expect(result).toEqual([
+        {
+          contextType: 'critical_policy',
+          contextPayload: { context: 'Politica nueva' },
+        },
+      ]);
+    });
+  });
+
+  describe('appendPolicyFactsContextBlock', () => {
+    it('returns empty array when policy facts context is empty string', () => {
+      const result = appendPolicyFactsContextBlock([], '');
+      expect(result).toEqual([]);
+    });
+
+    it('appends policy facts block to existing context', () => {
+      const existingBlocks: ContextBlock[] = [
+        {
+          contextType: 'products',
+          contextPayload: { summary: 'Product summary' },
+        },
+      ];
+
+      const result = appendPolicyFactsContextBlock(existingBlocks, 'Hechos clave');
+
+      expect(result).toHaveLength(2);
+      expect(result[1]).toEqual({
+        contextType: 'policy_facts',
+        contextPayload: { context: 'Hechos clave' },
+      });
+    });
+
+    it('replaces existing policy_facts block', () => {
+      const existingBlocks: ContextBlock[] = [
+        {
+          contextType: 'policy_facts',
+          contextPayload: { context: 'Hechos viejos' },
+        },
+      ];
+
+      const result = appendPolicyFactsContextBlock(existingBlocks, 'Hechos nuevos');
+
+      expect(result).toEqual([
+        {
+          contextType: 'policy_facts',
+          contextPayload: { context: 'Hechos nuevos' },
+        },
+      ]);
+    });
+  });
+
+  describe('appendPriceChallengeHintContextBlock', () => {
+    it('appends instruction_hint block with price challenge hint', () => {
+      const result = appendPriceChallengeHintContextBlock([]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].contextType).toBe('instruction_hint');
+      expect(result[0].contextPayload.hint).toContain('cuestionando');
+      expect(result[0].contextPayload.hint).toContain('precio');
+    });
+
+    it('replaces existing instruction_hint block', () => {
+      const existing: ContextBlock[] = [
+        { contextType: 'instruction_hint', contextPayload: { hint: 'old' } },
+      ];
+      const result = appendPriceChallengeHintContextBlock(existing);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].contextPayload.hint).toContain('cuestionando');
     });
   });
 
@@ -266,6 +380,43 @@ describe('Context Block', () => {
 
       expect(result).toContain('Contexto estatico:');
       expect(result).toContain('{"other":"data"}');
+    });
+
+    it('renders critical_policy block with context string', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'critical_policy',
+          contextPayload: { context: 'Politica de devoluciones' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Politica de devoluciones');
+    });
+
+    it('renders policy_facts block with context string', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'policy_facts',
+          contextPayload: { context: 'Hechos operativos clave' },
+        },
+      ];
+
+      const result = renderContextBlocksForPrompt(blocks);
+      expect(result).toBe('Hechos operativos clave');
+    });
+
+    it('renders instruction_hint block with hint', () => {
+      const blocks: ContextBlock[] = [
+        {
+          contextType: 'instruction_hint',
+          contextPayload: { hint: 'Valida el precio indicado.' },
+        },
+      ];
+      const result = renderContextBlocksForPrompt(blocks);
+
+      expect(result).toContain('Instruccion importante:');
+      expect(result).toContain('Valida el precio indicado.');
     });
 
     it('renders general block with hint', () => {

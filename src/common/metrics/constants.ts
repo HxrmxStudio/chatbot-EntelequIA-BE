@@ -27,10 +27,27 @@ export const WF1_METRIC_ORDER_FLOW_AMBIGUOUS_ACK_TOTAL =
   'wf1_order_flow_ambiguous_ack_total';
 export const WF1_METRIC_ORDER_FLOW_HIJACK_PREVENTED_TOTAL =
   'wf1_order_flow_hijack_prevented_total';
+export const WF1_METRIC_ORDERS_BACKEND_CALLS_TOTAL =
+  'wf1_orders_backend_calls_total';
+export const WF1_METRIC_ORDERS_BACKEND_LATENCY_SECONDS =
+  'wf1_orders_backend_latency_seconds';
 export const WF1_METRIC_OUTPUT_TECHNICAL_TERMS_SANITIZED_TOTAL =
   'wf1_output_technical_terms_sanitized_total';
+export const WF1_METRIC_CRITICAL_POLICY_CONTEXT_INJECTED_TOTAL =
+  'wf1_critical_policy_context_injected_total';
+export const WF1_METRIC_CRITICAL_POLICY_CONTEXT_TRIMMED_TOTAL =
+  'wf1_critical_policy_context_trimmed_total';
+export const WF1_METRIC_PROMPT_CONTEXT_TRUNCATED_TOTAL =
+  'wf1_prompt_context_truncated_total';
+export const WF1_METRIC_RETURNS_POLICY_DIRECT_ANSWER_TOTAL =
+  'wf1_returns_policy_direct_answer_total';
+export const WF1_METRIC_POLICY_DIRECT_ANSWER_TOTAL =
+  'wf1_policy_direct_answer_total';
+export const WF1_METRIC_SCOPE_REDIRECT_TOTAL = 'wf1_scope_redirect_total';
 export const WF1_METRIC_FEEDBACK_RECEIVED_TOTAL = 'wf1_feedback_received_total';
 export const WF1_METRIC_FEEDBACK_NEGATIVE_TOTAL = 'wf1_feedback_negative_total';
+export const WF1_METRIC_FEEDBACK_WITH_CATEGORY_TOTAL =
+  'wf1_feedback_with_category_total';
 export const WF1_METRIC_UI_PAYLOAD_EMITTED_TOTAL = 'wf1_ui_payload_emitted_total';
 export const WF1_METRIC_UI_PAYLOAD_SUPPRESSED_TOTAL = 'wf1_ui_payload_suppressed_total';
 export const WF1_METRIC_LEARNING_AUTOPROMOTE_TOTAL = 'wf1_learning_autopromote_total';
