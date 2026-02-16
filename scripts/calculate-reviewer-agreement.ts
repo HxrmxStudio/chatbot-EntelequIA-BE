@@ -12,8 +12,24 @@ type AgreementRow = {
   reviewed_at: string;
 };
 
+function readOptionalArg(name: string): string | undefined {
+  const prefixed = `--${name}`;
+  const index = process.argv.findIndex((arg) => arg === prefixed);
+  const value = index >= 0 ? process.argv[index + 1] : undefined;
+  if (!value || value.trim().length === 0) {
+    return undefined;
+  }
+  return value.trim();
+}
+
 async function main(): Promise<void> {
-  const reviewer = readRequiredArg('reviewer');
+  const reviewer = readOptionalArg('reviewer');
+  if (!reviewer) {
+    // eslint-disable-next-line no-console
+    console.log('No --reviewer specified, skipping.');
+    return;
+  }
+
   const days = readNumericArg('days', 30);
   const pool = createAnalyticsPool();
 
@@ -144,16 +160,6 @@ function averageIssueOverlap(
 
 function isQualityLabel(value: string): value is QualityLabel {
   return QUALITY_VALUES.includes(value as QualityLabel);
-}
-
-function readRequiredArg(name: string): string {
-  const prefixed = `--${name}`;
-  const index = process.argv.findIndex((arg) => arg === prefixed);
-  const value = index >= 0 ? process.argv[index + 1] : undefined;
-  if (!value || value.trim().length === 0) {
-    throw new Error(`Missing required argument: ${prefixed}`);
-  }
-  return value.trim();
 }
 
 function readNumericArg(name: string, fallback: number): number {
