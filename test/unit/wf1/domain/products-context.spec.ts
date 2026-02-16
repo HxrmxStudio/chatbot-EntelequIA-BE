@@ -90,6 +90,48 @@ describe('Products Context', () => {
       expect(result.contextText).toContain('Mostrando 1 de 2');
       expect(result.contextText).toContain('Stock: Hay stock');
     });
+
+    it('includes missing queries info when queriesWithoutResults provided', () => {
+      const result = buildProductsAiContext({
+        items: [
+          {
+            id: 1,
+            slug: 'yugioh-starter',
+            title: 'Yu-Gi-Oh Starter Deck',
+            stock: 5,
+            categoryName: 'TCG',
+            price: { currency: 'ARS', amount: 15000 },
+          },
+        ],
+        total: 1,
+        query: 'pokemon, yugioh',
+        queriesWithoutResults: ['pokemon'],
+        discloseExactStock: false,
+      });
+
+      expect(result.contextText).toContain('No encontramos stock de: pokemon');
+      expect(result.contextText).toContain(
+        'IMPORTANTE: Informá al usuario qué no se encontró y sugerí alternativas.',
+      );
+    });
+
+    it('does not include missing info when all queries have results', () => {
+      const result = buildProductsAiContext({
+        items: [
+          {
+            id: 1,
+            slug: 'product-1',
+            title: 'Product 1',
+            stock: 2,
+            price: { currency: 'ARS', amount: 1000 },
+          },
+        ],
+        total: 1,
+        queriesWithoutResults: [],
+      });
+
+      expect(result.contextText).not.toContain('No encontramos');
+    });
   });
 
   describe('selectBestProductMatch', () => {

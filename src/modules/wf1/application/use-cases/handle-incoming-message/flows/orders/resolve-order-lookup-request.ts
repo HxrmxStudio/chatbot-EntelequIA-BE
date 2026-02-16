@@ -306,20 +306,26 @@ function resolveNamePartsFromSegment(value: string): {
   }
 
   const words = normalized.split(' ').filter((word) => word.length > 0);
-  if (words.length !== 2) {
+  if (words.length < 2) {
     return {};
   }
 
-  const [firstName, resolvedLastName] = words;
-  if (NAME_STOP_WORDS.has(firstName.toLowerCase()) || NAME_STOP_WORDS.has(resolvedLastName.toLowerCase())) {
+  const [firstName, ...lastNameParts] = words;
+  const lastName = lastNameParts.join(' ');
+
+  if (
+    NAME_STOP_WORDS.has(firstName.toLowerCase()) ||
+    NAME_STOP_WORDS.has(lastName.toLowerCase())
+  ) {
     return {};
   }
+
   const isFirstNameValid = NAME_VALUE_PATTERN.test(firstName);
-  const isLastNameValid = NAME_VALUE_PATTERN.test(resolvedLastName);
+  const isLastNameValid = NAME_VALUE_PATTERN.test(lastName);
 
   return {
     ...(isFirstNameValid ? { name: firstName } : {}),
-    ...(isLastNameValid ? { lastName: resolvedLastName } : {}),
+    ...(isLastNameValid ? { lastName } : {}),
   };
 }
 

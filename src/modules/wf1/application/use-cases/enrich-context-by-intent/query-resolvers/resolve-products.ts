@@ -44,6 +44,7 @@ import {
   SLUG_TCG_POKEMON,
   SLUG_TCG_YUGIOH,
 } from './category-slugs';
+import { normalizeTextForSearch } from '@/common/utils/text-normalize.utils';
 import { normalizeForToken } from './normalize';
 import { cleanProductsEntities, pickMostSpecificEntity, stripProductModifiers, stripVolumeHints } from './clean-entities';
 import { detectProductCategory } from './detect-category';
@@ -125,16 +126,27 @@ export function resolveProductsQuery(
   const originalEntities = [...entities];
   const cleanedEntities = cleanProductsEntities(entities);
 
+  const normalized = normalizeTextForSearch(originalText);
+  const hasOr =
+    /\b(o|u)\b/.test(normalized) && !/\b(otro|o sea)\b/.test(normalized);
+
   const fallbackProductName = stripProductModifiers(stripVolumeHints(originalText)).trim();
   const productName =
     cleanedEntities.length > 0
       ? pickMostSpecificEntity(cleanedEntities)
       : fallbackProductName;
 
+  const hasMultipleQueries =
+    (hasOr || cleanedEntities.length > 1) && cleanedEntities.length > 0;
+  const productNames = hasMultipleQueries
+    ? cleanedEntities
+    : [productName];
+
   const normalizedOriginalText = normalizeForToken(originalText);
   const category = detectProductCategory(originalText);
 
   return {
+    productNames,
     productName,
     category,
     categorySlug: resolveCategorySlug(category, normalizedOriginalText),
@@ -144,5 +156,6 @@ export function resolveProductsQuery(
     hasFormatHint: FORMAT_HINT_PATTERN.test(normalizedOriginalText),
     hasLanguageHint: LANGUAGE_HINT_PATTERN.test(normalizedOriginalText),
     hasOfferHint: OFFER_HINT_PATTERN.test(normalizedOriginalText),
+    hasMultipleQueries,
   };
 }

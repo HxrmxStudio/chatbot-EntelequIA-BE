@@ -307,7 +307,11 @@ function isActiveContextType(intent: string, contextType: ContextType): boolean 
     case 'products':
       return contextType === 'products' || contextType === 'product_detail';
     case 'orders':
-      return contextType === 'orders' || contextType === 'order_detail';
+      return (
+        contextType === 'orders' ||
+        contextType === 'order_detail' ||
+        contextType === 'order_lookup_error'
+      );
     case 'payment_shipping':
       return contextType === 'payment_info';
     case 'tickets':

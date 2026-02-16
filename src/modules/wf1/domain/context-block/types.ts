@@ -3,6 +3,7 @@ export type ContextType =
   | 'product_detail'
   | 'orders'
   | 'order_detail'
+  | 'order_lookup_error'
   | 'payment_info'
   | 'tickets'
   | 'recommendations'

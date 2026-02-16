@@ -43,6 +43,38 @@ describe('Query Resolvers', () => {
       const result = resolveProductsQuery([], 'Hola, tienen Attack on Titan?');
       expect(result.productName).toContain('Attack on Titan');
     });
+
+    it('detects OR and returns multiple product names', () => {
+      const result = resolveProductsQuery(
+        ['pokemon', 'yugioh'],
+        'pokemon o yugioh',
+      );
+      expect(result.hasMultipleQueries).toBe(true);
+      expect(result.productNames).toEqual(['pokemon', 'yugioh']);
+    });
+
+    it('returns multiple names when multiple entities without OR', () => {
+      const result = resolveProductsQuery(
+        ['naruto', 'boruto'],
+        'naruto boruto',
+      );
+      expect(result.hasMultipleQueries).toBe(true);
+      expect(result.productNames).toHaveLength(2);
+    });
+
+    it('does not detect OR in otro or o sea', () => {
+      const result = resolveProductsQuery(
+        ['producto'],
+        'quiero otro producto o sea algo diferente',
+      );
+      expect(result.hasMultipleQueries).toBe(false);
+    });
+
+    it('single entity keeps existing behavior', () => {
+      const result = resolveProductsQuery(['naruto'], 'busco naruto');
+      expect(result.hasMultipleQueries).toBe(false);
+      expect(result.productNames).toEqual(['naruto']);
+    });
   });
 
   describe('detectProductCategory', () => {

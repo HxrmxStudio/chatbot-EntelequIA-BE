@@ -14,6 +14,23 @@ import {
 
 export { BACKEND_ERROR_MESSAGE };
 
+/**
+ * Extracts statusCode and errorCode from ExternalServiceError.
+ * Shared by mapContextOrBackendError and buildOrderErrorContextBlocks.
+ */
+export function getExternalServiceErrorInfo(error: unknown): {
+  statusCode: number | null;
+  errorCode: string;
+} {
+  if (error instanceof ExternalServiceError) {
+    return {
+      statusCode: typeof error.statusCode === 'number' ? error.statusCode : null,
+      errorCode: error.errorCode ?? 'service',
+    };
+  }
+  return { statusCode: null, errorCode: 'unknown' };
+}
+
 export function mapContextOrBackendError(error: unknown): Wf1Response {
   if (error instanceof MissingAuthForOrdersError) {
     return buildOrdersRequiresAuthResponse();

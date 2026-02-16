@@ -112,10 +112,90 @@ export class EnrichContextByIntentUseCase {
           entities: intentResult.entities,
         });
         const resolvedQuery = resolveProductsQuery(intentResult.entities, input.text);
-        const query = resolvedQuery.productName;
+
+        if (
+          resolvedQuery.hasMultipleQueries &&
+          resolvedQuery.productNames.length > 1
+        ) {
+          const searchResults = await Promise.allSettled(
+            resolvedQuery.productNames.map((query) =>
+              this.entelequiaContextPort.getProducts({
+                query,
+                ...(resolvedQuery.categorySlug
+                  ? { categorySlug: resolvedQuery.categorySlug }
+                  : {}),
+                currency: input.currency,
+              }),
+            ),
+          );
+
+          const allItems = searchResults.flatMap((r) =>
+            r.status === 'fulfilled'
+              ? extractProductItems(r.value.contextPayload)
+              : [],
+          );
+          const allTotal = searchResults.reduce(
+            (sum, r) =>
+              r.status === 'fulfilled'
+                ? sum +
+                  (typeof r.value.contextPayload.total === 'number'
+                    ? r.value.contextPayload.total
+                    : extractProductItems(r.value.contextPayload).length)
+                : sum,
+            0,
+          );
+
+          const queriesWithoutResults = resolvedQuery.productNames.filter(
+            (_, i) => {
+              const r = searchResults[i];
+              if (r.status !== 'fulfilled') return true;
+              return extractProductItems(r.value.contextPayload).length === 0;
+            },
+          );
+
+          if (allItems.length === 0) {
+            return [];
+          }
+
+          const aiContext = buildProductsAiContext({
+            items: allItems,
+            total: allTotal,
+            query: resolvedQuery.productNames.join(', '),
+            queriesWithoutResults,
+            discloseExactStock,
+            lowStockThreshold: WF1_LOW_STOCK_THRESHOLD,
+            templates: {
+              header: this.promptTemplates.getProductsContextHeader(),
+              additionalInfo: this.promptTemplates.getProductsContextAdditionalInfo(),
+              instructions: this.promptTemplates.getProductsContextInstructions(),
+            },
+          });
+
+          const productsWithAi: ContextBlock = {
+            contextType: 'products',
+            contextPayload: {
+              items: allItems,
+              total: allTotal,
+              aiContext: aiContext.contextText,
+              productCount: aiContext.productCount,
+              totalCount: aiContext.totalCount,
+              inStockCount: aiContext.inStockCount,
+              stockDisclosurePolicy: discloseExactStock ? 'exact' : 'banded',
+              lowStockThreshold: WF1_LOW_STOCK_THRESHOLD,
+              discloseExactStock,
+              resolvedQuery,
+            },
+          };
+
+          return [productsWithAi];
+        }
+
+        const query = resolvedQuery.productNames[0];
         const products = await this.entelequiaContextPort.getProducts({
           query,
-          ...(resolvedQuery.categorySlug ? { categorySlug: resolvedQuery.categorySlug } : {}),
+          ...(resolvedQuery.categorySlug
+            ? { categorySlug: resolvedQuery.categorySlug }
+            : {}),
           currency: input.currency,
         });
 
@@ -180,7 +260,6 @@ export class EnrichContextByIntentUseCase {
 
           return [productsWithBest, detail];
         } catch (error: unknown) {
-          // Product detail is an optional enrichment step. If it fails, keep going with the list context.
           if (error instanceof ExternalServiceError) {
             return [productsWithBest];
           }

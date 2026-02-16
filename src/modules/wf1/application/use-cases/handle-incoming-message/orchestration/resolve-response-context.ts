@@ -24,21 +24,33 @@ import type { MutableResolutionState, ResolveResponseInput } from './resolve-res
 
 const ORDERS_MIN_CONTEXT_MAX_CHARS = 1600;
 
+function hasOrderLookupErrorContext(state: MutableResolutionState): boolean {
+  return (
+    state.ordersDeterministicReply === false &&
+    Array.isArray(state.contextBlocks) &&
+    state.contextBlocks.some((b) => b.contextType === 'order_lookup_error')
+  );
+}
+
 export async function resolveContextFallback(
   input: ResolveResponseInput,
   state: MutableResolutionState,
 ): Promise<void> {
   try {
     state.toolAttempts += 1;
-    state.contextBlocks = await input.enrichContextByIntent.execute({
-      intentResult: state.effectiveRoutedIntentResult,
-      text: state.effectiveText,
-      sentiment: input.validatedIntent.sentiment,
-      currency: input.payload.currency,
-      accessToken: input.payload.accessToken,
-      requestId: input.requestId,
-      conversationId: input.payload.conversationId,
-    });
+
+    if (!hasOrderLookupErrorContext(state)) {
+      state.contextBlocks = await input.enrichContextByIntent.execute({
+        intentResult: state.effectiveRoutedIntentResult,
+        text: state.effectiveText,
+        sentiment: input.validatedIntent.sentiment,
+        currency: input.payload.currency,
+        accessToken: input.payload.accessToken,
+        requestId: input.requestId,
+        conversationId: input.payload.conversationId,
+      });
+    }
+
     persistRecommendationsMemoryFromContext(state);
 
     const disambiguationResponse = buildRecommendationsDisambiguationResponseFromContext({

@@ -7,6 +7,7 @@ import type { MetricsPort } from '@/modules/wf1/application/ports/metrics.port';
 import {
   dedupeAssistantGreeting,
   sanitizeAssistantUserMessage,
+  sanitizeEmptyListItems,
 } from '@/modules/wf1/domain/assistant-output-safety';
 import { sanitizeCatalogNarrativeMessage } from '@/modules/wf1/domain/assistant-output-safety/catalog-narrative';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
@@ -284,6 +285,7 @@ function sanitizeResponseMessage(input: {
   logger: Pick<Logger, 'chat'>;
 }): Wf1Response {
   const sanitizedAssistantOutput = sanitizeAssistantUserMessage(input.response.message);
+  let sanitizedAssistantMessage = sanitizeEmptyListItems(sanitizedAssistantOutput.message);
   if (sanitizedAssistantOutput.rewritten) {
     input.metricsPort.incrementOutputTechnicalTermsSanitized();
     input.logger.chat('assistant_output_sanitized', {
@@ -296,7 +298,6 @@ function sanitizeResponseMessage(input: {
     });
   }
 
-  let sanitizedAssistantMessage = sanitizedAssistantOutput.message;
   if (input.response.ok) {
     const catalogNarrativeSanitization = sanitizeCatalogNarrativeMessage({
       message: sanitizedAssistantMessage,

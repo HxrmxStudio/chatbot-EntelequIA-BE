@@ -15,7 +15,8 @@ import {
 } from '../flows/orders/resolve-orders-escalation-flow-state';
 import { handlePendingRecommendationsFlow } from '../flows/recommendations/pending-recommendations.flow';
 import { shouldContinueRecommendationsFlow } from '../flows/recommendations/resolve-recommendations-flow-state';
-import { mapContextOrBackendError } from '../support/error-mapper';
+import { getExternalServiceErrorInfo } from '../support/error-mapper';
+import { buildOrderErrorContextBlocks } from '../flows/orders/build-order-error-context-blocks';
 import { checkIfAuthenticated } from '../support/check-if-authenticated';
 import {
   shouldGuideOrdersReauthentication,
@@ -270,8 +271,20 @@ export async function resolveAuthenticatedOrdersDeterministicResponse(
     state.ordersStateConflict = deterministicResolution.ordersStateConflict;
     state.ordersDeterministicReply = deterministicResolution.ordersDeterministicReply;
   } catch (error: unknown) {
-    state.response = mapContextOrBackendError(error);
+    state.contextBlocks = buildOrderErrorContextBlocks({
+      error,
+      userText: state.effectiveText,
+      isAuthenticated: Boolean(input.payload.accessToken),
+    });
     state.ordersDeterministicReply = false;
+
+    input.logger.warn('orders_lookup_failed_llm_fallback', {
+      event: 'orders_lookup_failed_llm_fallback',
+      request_id: input.requestId,
+      conversation_id: input.payload.conversationId,
+      error_type: getExternalServiceErrorInfo(error).errorCode,
+      is_authenticated: Boolean(input.payload.accessToken),
+    });
   }
 }
 

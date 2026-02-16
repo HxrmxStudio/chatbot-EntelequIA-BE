@@ -10,7 +10,7 @@ RUNTIME_DIR="${RUNTIME_DIR:-/tmp/entelequia-local-stack}"
 ENTELEQUIA_FE_REPO="${ENTELEQUIA_FE_REPO:-/Users/user/Workspace/entelequia_tienda}"
 CHATBOT_BE_REPO="${CHATBOT_BE_REPO:-/Users/user/Workspace/chatbot-EntelequIA-BE}"
 ENTELEQUIA_BE_REPO="${ENTELEQUIA_BE_REPO:-/Users/user/Workspace/p-entelequia24}"
-CHAT_WIDGET_REPO="${CHAT_WIDGET_REPO:-/Users/user/Workspace/chatbot-EntelequIA/chatbot-widget}"
+CHAT_WIDGET_REPO="${CHAT_WIDGET_REPO:-/Users/user/Workspace/chatbot-EntelequIA}"
 
 FE_PORT="${FE_PORT:-5173}"
 CHATBOT_PORT="${CHATBOT_PORT:-3090}"
@@ -59,7 +59,7 @@ Configurable env vars:
   ENTELEQUIA_FE_REPO      Default: /Users/user/Workspace/entelequia_tienda
   CHATBOT_BE_REPO         Default: /Users/user/Workspace/chatbot-EntelequIA-BE
   ENTELEQUIA_BE_REPO      Default: /Users/user/Workspace/p-entelequia24
-  CHAT_WIDGET_REPO        Default: /Users/user/Workspace/chatbot-EntelequIA/chatbot-widget
+  CHAT_WIDGET_REPO        Default: /Users/user/Workspace/chatbot-EntelequIA
   FE_PORT                 Default: 5173
   CHATBOT_PORT            Default: 3090
   ENTELEQUIA_PORT         Default: 8010
@@ -200,8 +200,16 @@ build_and_sync_widget_for_local_dev() {
     return 1
   fi
 
-  if ! npm --prefix "$ENTELEQUIA_FE_REPO" run sync:chatbot-widget >>"$FE_LOG" 2>&1; then
-    log_error "Widget sync failed. See $FE_LOG"
+  local fe_widget_dir="$ENTELEQUIA_FE_REPO/public/chatbot-widget"
+  local widget_dist="$CHAT_WIDGET_REPO/dist"
+  if [ ! -d "$widget_dist" ]; then
+    log_error "Widget dist not found: $widget_dist"
+    return 1
+  fi
+  rm -rf "$fe_widget_dir"
+  mkdir -p "$fe_widget_dir"
+  if ! cp -R "$widget_dist/." "$fe_widget_dir/"; then
+    log_error "Widget sync failed (copy to $fe_widget_dir). See $FE_LOG"
     return 1
   fi
 
@@ -265,7 +273,7 @@ validate_widget_csp_matches_webhook() {
   WIDGET_CSP_STATUS="mismatch"
   WIDGET_CSP_NOTE="autofix_failed"
   log_error "Widget CSP still blocks webhook origin ($webhook_origin) after rebuild/sync."
-  log_error "Run manually: (cd $CHAT_WIDGET_REPO && npm run build:skip-checks -- --mode development) && (cd $ENTELEQUIA_FE_REPO && npm run sync:chatbot-widget)"
+  log_error "Run manually: (cd $CHAT_WIDGET_REPO && npm run build:skip-checks -- --mode development) && rm -rf $ENTELEQUIA_FE_REPO/public/chatbot-widget && mkdir -p $ENTELEQUIA_FE_REPO/public/chatbot-widget && cp -R $CHAT_WIDGET_REPO/dist/. $ENTELEQUIA_FE_REPO/public/chatbot-widget/"
   return 1
 }
 

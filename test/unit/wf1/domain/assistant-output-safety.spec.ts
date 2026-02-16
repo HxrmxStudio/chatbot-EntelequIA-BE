@@ -1,6 +1,7 @@
 import {
   dedupeAssistantGreeting,
   sanitizeAssistantUserMessage,
+  sanitizeEmptyListItems,
 } from '@/modules/wf1/domain/assistant-output-safety';
 
 describe('assistant-output-safety', () => {
@@ -40,6 +41,33 @@ describe('assistant-output-safety', () => {
     expect(result.message).toBe(input);
     expect(result.rewritten).toBe(false);
     expect(result.reasons).toEqual([]);
+  });
+
+  describe('sanitizeEmptyListItems', () => {
+    it('removes empty list items with colons', () => {
+      const input = 'Contact:\n- Phone: 123\n- Web:\n- Email: foo@bar.com';
+      const result = sanitizeEmptyListItems(input);
+      expect(result).not.toContain('- Web:');
+      expect(result).toContain('- Phone: 123');
+      expect(result).toContain('- Email: foo@bar.com');
+    });
+
+    it('does not remove list items with content', () => {
+      const input = '- Web: https://example.com\n- Phone: 123';
+      expect(sanitizeEmptyListItems(input)).toBe(input);
+    });
+
+    it('handles multiple empty items', () => {
+      const input = '- Field1:\n- Field2: value\n- Field3:  \n';
+      const result = sanitizeEmptyListItems(input);
+      expect(result).toContain('- Field2: value');
+      expect(result).not.toContain('- Field1:');
+      expect(result).not.toContain('- Field3:');
+    });
+
+    it('returns empty string unchanged', () => {
+      expect(sanitizeEmptyListItems('')).toBe('');
+    });
   });
 
   it('dedupes repeated greeting when previous bot turn already greeted', () => {

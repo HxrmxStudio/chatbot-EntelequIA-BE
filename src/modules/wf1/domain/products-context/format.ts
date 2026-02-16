@@ -27,6 +27,7 @@ export function buildProductsAiContext(input: {
   items: ProductSearchItem[];
   total?: number;
   query?: string;
+  queriesWithoutResults?: string[];
   discloseExactStock?: boolean;
   lowStockThreshold?: number;
   templates?: Partial<ProductsContextTemplates>;
@@ -49,6 +50,19 @@ export function buildProductsAiContext(input: {
       ? `- Query: ${input.query.trim()}`
       : undefined;
 
+  const missingQueriesLines: string[] = [];
+  if (
+    input.queriesWithoutResults &&
+    input.queriesWithoutResults.length > 0
+  ) {
+    missingQueriesLines.push(
+      `- No encontramos stock de: ${input.queriesWithoutResults.join(', ')}`,
+    );
+    missingQueriesLines.push(
+      '- IMPORTANTE: Informá al usuario qué no se encontró y sugerí alternativas.',
+    );
+  }
+
   // Use provided templates or empty strings (caller should always provide templates via PromptTemplatesPort)
   const header = input.templates?.header ?? 'PRODUCTOS ENTELEQUIA';
   const additionalInfo =
@@ -67,6 +81,7 @@ export function buildProductsAiContext(input: {
     `- Mostrando ${productCount} de ${totalCount} productos encontrados`,
     `- ${inStockCount} producto(s) con stock disponible`,
     ...(queryLine ? [queryLine] : []),
+    ...missingQueriesLines,
     '',
     additionalInfo,
     '',

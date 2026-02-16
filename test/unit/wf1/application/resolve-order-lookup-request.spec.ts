@@ -145,6 +145,22 @@ describe('resolveOrderLookupRequest', () => {
     expect(result.invalidFactors).toEqual(['dni', 'name']);
   });
 
+  it('parses names with 3+ words (first word as name, rest as lastName)', () => {
+    const result = resolveOrderLookupRequest({
+      text: 'pedido 12345, dni 12345678, juan pablo garcia',
+      entities: [],
+    });
+
+    expect(result.orderId).toBe(12345);
+    expect(result.providedFactors).toBe(3);
+    expect(result.identity).toEqual({
+      dni: '12345678',
+      name: 'juan',
+      lastName: 'pablo garcia',
+    });
+    expect(result.invalidFactors).toEqual([]);
+  });
+
   it('rejects phone values outside expected range', () => {
     const result = resolveOrderLookupRequest({
       text: 'pedido 12345, dni 12345678, telefono 123',

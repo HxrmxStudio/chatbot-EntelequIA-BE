@@ -1,5 +1,39 @@
 import { ExternalServiceError, MissingAuthForOrdersError } from '@/modules/wf1/domain/errors';
-import { mapContextOrBackendError } from '@/modules/wf1/application/use-cases/handle-incoming-message/support/error-mapper';
+import {
+  getExternalServiceErrorInfo,
+  mapContextOrBackendError,
+} from '@/modules/wf1/application/use-cases/handle-incoming-message/support/error-mapper';
+
+describe('getExternalServiceErrorInfo', () => {
+  it('returns statusCode and errorCode for ExternalServiceError', () => {
+    const error = new ExternalServiceError('msg', 404, 'http');
+    expect(getExternalServiceErrorInfo(error)).toEqual({
+      statusCode: 404,
+      errorCode: 'http',
+    });
+  });
+
+  it('returns "service" when errorCode is undefined', () => {
+    const error = Object.create(ExternalServiceError.prototype);
+    error.statusCode = 500;
+    error.errorCode = undefined;
+    expect(getExternalServiceErrorInfo(error).errorCode).toBe('service');
+  });
+
+  it('returns statusCode null when not a number', () => {
+    const error = Object.create(ExternalServiceError.prototype);
+    error.statusCode = undefined;
+    error.errorCode = 'timeout';
+    expect(getExternalServiceErrorInfo(error).statusCode).toBeNull();
+  });
+
+  it('returns unknown for non-ExternalServiceError', () => {
+    expect(getExternalServiceErrorInfo(new Error('generic'))).toEqual({
+      statusCode: null,
+      errorCode: 'unknown',
+    });
+  });
+});
 
 describe('error-mapper', () => {
   it('maps missing auth to requiresAuth response', () => {

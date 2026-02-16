@@ -35,6 +35,10 @@ function resolveContinuationFallback(state: MutableResolutionState): void {
     return;
   }
 
+  if (state.currentOrdersEscalationFlowState !== null) {
+    return;
+  }
+
   const continuationResolution = resolveRecommendationContinuation({
     text: state.effectiveText,
     entities: state.effectiveRoutedIntentResult.entities,

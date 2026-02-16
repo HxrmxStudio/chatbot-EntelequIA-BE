@@ -16,9 +16,12 @@ export type DetectedProductCategory =
   | 'merch';
 
 /**
- * Result of resolving a products query: product name, category, cleaned entities, and hint flags.
+ * Result of resolving a products query: product name(s), category, cleaned entities, and hint flags.
  */
 export interface ResolvedProductsQuery {
+  /** Single query: [productName]. Multi-query: [name1, name2, ...] */
+  productNames: string[];
+  /** @deprecated Use productNames[0] for single-query. Kept for backward compatibility. */
   productName: string;
   category: DetectedProductCategory | null;
   /**
@@ -32,4 +35,6 @@ export interface ResolvedProductsQuery {
   hasFormatHint: boolean;
   hasLanguageHint: boolean;
   hasOfferHint: boolean;
+  /** True when OR detected or multiple entities present; triggers parallel searches. */
+  hasMultipleQueries: boolean;
 }

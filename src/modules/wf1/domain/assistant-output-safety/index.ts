@@ -120,6 +120,18 @@ export function sanitizeAssistantUserMessage(message: string): AssistantOutputSa
   };
 }
 
+/**
+ * Removes empty list items like "- Web:\n" or "- Email:  \n"
+ * Follows the same pattern as sanitizeAssistantUserMessage
+ */
+export function sanitizeEmptyListItems(text: string): string {
+  if (text.trim().length === 0) {
+    return text;
+  }
+
+  return text.replace(/^\s*[-*]\s+[^:\n]+:\s*$/gm, '');
+}
+
 export function dedupeAssistantGreeting(input: {
   message: string;
   previousBotMessage: string | null;
