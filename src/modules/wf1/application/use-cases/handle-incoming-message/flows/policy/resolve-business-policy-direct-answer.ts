@@ -116,9 +116,7 @@ const PROMOTIONS_TERMS = [
   'rebaja',
 ];
 
-export function resolveBusinessPolicyDirectAnswer(
-  text: string,
-): BusinessPolicyDirectAnswer | null {
+export function resolveBusinessPolicyDirectAnswer(text: string): BusinessPolicyDirectAnswer | null {
   const normalized = normalizeTextStrict(text, true); // Allow '#' for order IDs
   if (normalized.length === 0) {
     return null;

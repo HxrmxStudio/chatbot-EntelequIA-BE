@@ -228,7 +228,6 @@ Behavior:
 
 ## Key env vars
 - `OPENAI_TIMEOUT_MS` (default `8000`): timeout in milliseconds for OpenAI requests.
-- `CHATBOT_DB_TEST_URL` (optional): explicit DB URL for PostgreSQL integration tests (`test:integration:pg`).
 - `CHATBOT_DB_IP_FAMILY` (optional): force DB DNS family (`4` or `6`) for environments with IPv6 routing issues (useful in CI).
 - `ENTELEQUIA_BASE_URL` (recommended): Entelequia base URL. If empty, falls back to `ENTELEQUIA_API_BASE_URL`.
 - `CHATBOT_ENTELEQUIA_BASE_URL` (stack script runtime): upstream API used when launching local stack; default `https://entelequia.com.ar`.
@@ -239,7 +238,7 @@ Behavior:
 - `WF1_CONVERSATION_ACTIVE_TTL_MINUTES` (default `1440`): TTL in minutes before auto-closing stale active conversations.
 - `WF1_CONVERSATION_CLOSER_ENABLED` (default `true`): enables scheduled stale conversation closer job.
 - `WF1_RECURSIVE_LEARNING_ENABLED` (default `true`): enables adaptive exemplar hints.
-- `WF1_RECURSIVE_AUTOPROMOTE_ENABLED` (default `false`): promotion remains manual by default.
+- `WF1_RECURSIVE_AUTOPROMOTE_ENABLED` (default `true`): enables automatic promotion of feedback exemplars in the weekly loop.
 - `WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED` (default `false`): rollback remains manual by default.
 - `WF1_LEARNING_SEED_FILE` (default `docs/qa/learning-seed-cases.jsonl`): QA seed dataset used by bootstrap script.
 

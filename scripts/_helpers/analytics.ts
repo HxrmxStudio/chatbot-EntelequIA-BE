@@ -52,8 +52,7 @@ export function readStringEnv(name: string, fallback: string): string {
 }
 
 export function createAnalyticsPool(): Pool {
-  const connectionString =
-    process.env.CHATBOT_DB_TEST_URL?.trim() || requireEnv('CHATBOT_DB_URL');
+  const connectionString = requireEnv('CHATBOT_DB_URL');
   const ipFamily = resolveIpFamily(process.env.CHATBOT_DB_IP_FAMILY);
 
   return new Pool({

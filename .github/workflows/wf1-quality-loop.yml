@@ -91,9 +91,6 @@ jobs:
       - name: Inject golden samples
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/inject-golden-samples.ts
 
-      - name: Calculate reviewer agreement
-        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/calculate-reviewer-agreement.ts
-
       - name: Validate learning seeds
         run: npm run wf1:learning:validate-seeds
 
@@ -101,6 +98,12 @@ jobs:
         run: npm run wf1:learning:build
         env:
           WF1_RECURSIVE_LEARNING_ENABLED: 'true'
+
+      - name: Promote intent exemplars
+        run: npm run wf1:learning:promote
+        env:
+          WF1_RECURSIVE_LEARNING_ENABLED: 'true'
+          WF1_RECURSIVE_AUTOPROMOTE_ENABLED: 'true'
 
       - name: Generate weekly report
         run: npm run wf1:quality:weekly-report

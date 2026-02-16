@@ -102,10 +102,7 @@ export class PgChatRepository implements ChatPersistencePort {
     conversationId: string;
     limit: number;
   }): Promise<ConversationHistoryRow[]> {
-    const limit = Math.min(
-      Math.max(0, input.limit),
-      WF1_MAX_CONVERSATION_HISTORY_MESSAGES,
-    );
+    const limit = Math.min(Math.max(0, input.limit), WF1_MAX_CONVERSATION_HISTORY_MESSAGES);
 
     const result = await this.pool.query<{
       id: string;

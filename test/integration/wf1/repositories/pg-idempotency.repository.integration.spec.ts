@@ -7,9 +7,7 @@ const REQUIRED_TABLES = ['users', 'conversations', 'messages', 'external_events'
 
 jest.setTimeout(30_000);
 
-const hasDbUrl = Boolean(
-  (process.env.CHATBOT_DB_TEST_URL ?? process.env.CHATBOT_DB_URL)?.trim(),
-);
+const hasDbUrl = Boolean(process.env.CHATBOT_DB_URL?.trim());
 
 describe('PgIdempotencyRepository (PostgreSQL integration)', () => {
   let repository: PgIdempotencyRepository | undefined;
@@ -30,7 +28,7 @@ describe('PgIdempotencyRepository (PostgreSQL integration)', () => {
       const details = error instanceof Error ? error.message : String(error);
       throw new Error(
         `PostgreSQL integration test cannot connect to database. ` +
-          `Set CHATBOT_DB_TEST_URL (or CHATBOT_DB_URL) to a reachable test DB. Details: ${details}`,
+          `Set CHATBOT_DB_URL to a reachable DB. Details: ${details}`,
       );
     }
 
@@ -91,12 +89,10 @@ describe('PgIdempotencyRepository (PostgreSQL integration)', () => {
 });
 
 function resolveDatabaseUrl(): string {
-  const databaseUrl = process.env.CHATBOT_DB_TEST_URL ?? process.env.CHATBOT_DB_URL;
+  const databaseUrl = process.env.CHATBOT_DB_URL;
 
   if (!databaseUrl || databaseUrl.trim().length === 0) {
-    throw new Error(
-      'PostgreSQL integration test requires CHATBOT_DB_TEST_URL (or CHATBOT_DB_URL) environment variable.',
-    );
+    throw new Error('PostgreSQL integration test requires CHATBOT_DB_URL environment variable.');
   }
 
   return databaseUrl.trim();

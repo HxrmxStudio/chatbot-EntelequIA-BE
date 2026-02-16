@@ -6,9 +6,7 @@ import { PgChatRepository } from '@/modules/wf1/infrastructure/repositories/pg-c
 
 jest.setTimeout(30_000);
 
-const hasDbUrl = Boolean(
-  (process.env.CHATBOT_DB_TEST_URL ?? process.env.CHATBOT_DB_URL)?.trim(),
-);
+const hasDbUrl = Boolean(process.env.CHATBOT_DB_URL?.trim());
 
 describe('Outbox idempotency guarantees (PostgreSQL integration)', () => {
   let repository: PgChatRepository | undefined;
@@ -239,12 +237,10 @@ describe('Outbox idempotency guarantees (PostgreSQL integration)', () => {
 });
 
 function resolveDatabaseUrl(): string {
-  const databaseUrl = process.env.CHATBOT_DB_TEST_URL ?? process.env.CHATBOT_DB_URL;
+  const databaseUrl = process.env.CHATBOT_DB_URL;
 
   if (!databaseUrl || databaseUrl.trim().length === 0) {
-    throw new Error(
-      'PostgreSQL integration test requires CHATBOT_DB_TEST_URL (or CHATBOT_DB_URL) environment variable.',
-    );
+    throw new Error('PostgreSQL integration test requires CHATBOT_DB_URL environment variable.');
   }
 
   return databaseUrl.trim();

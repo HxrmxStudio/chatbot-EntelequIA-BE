@@ -8,11 +8,14 @@ export class PgPoolProvider implements OnModuleDestroy {
   readonly pool: Pool;
 
   constructor(private readonly configService: ConfigService) {
+    const connectionString = this.configService.get<string>('CHATBOT_DB_URL');
+    const ipFamily = this.configService.get<4 | 6 | undefined>('CHATBOT_DB_IP_FAMILY');
     this.pool = new Pool({
-      connectionString: this.configService.get<string>('CHATBOT_DB_URL'),
+      connectionString,
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
+      ...(ipFamily ? { family: ipFamily } : {}),
     });
   }
 

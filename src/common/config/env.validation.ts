@@ -2,6 +2,7 @@ export interface AppEnv {
   NODE_ENV: 'development' | 'test' | 'production';
   PORT: number;
   CHATBOT_DB_URL: string;
+  CHATBOT_DB_IP_FAMILY?: 4 | 6;
   ENTELEQUIA_BASE_URL: string;
   ENTELEQUIA_API_BASE_URL: string;
   ENTELEQUIA_WEB_BASE_URL: string;
@@ -104,6 +105,16 @@ function parseNodeEnv(value: unknown): AppEnv['NODE_ENV'] {
   return 'development';
 }
 
+function resolveDbIpFamily(value: unknown): 4 | 6 | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined;
+  }
+  const n = value.trim();
+  if (n === '4') return 4;
+  if (n === '6') return 6;
+  return undefined;
+}
+
 function parseLogLevel(value: unknown): AppEnv['LOG_LEVEL'] {
   if (value === 'debug' || value === 'warn' || value === 'error') {
     return value;
@@ -133,6 +144,8 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
   const REDIS_URL = String(config.REDIS_URL ?? '').trim() || undefined;
   const ALLOWED_ORIGINS = parseOrigins(config.ALLOWED_ORIGINS);
 
+  const CHATBOT_DB_IP_FAMILY = resolveDbIpFamily(config.CHATBOT_DB_IP_FAMILY);
+
   if (CHATBOT_DB_URL.length === 0) {
     throw new Error('CHATBOT_DB_URL is required');
   }
@@ -158,6 +171,7 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     NODE_ENV,
     PORT: parseNumber(config.PORT, 3090),
     CHATBOT_DB_URL,
+    CHATBOT_DB_IP_FAMILY,
     ENTELEQUIA_BASE_URL: resolvedEntelequiaBaseUrl,
     ENTELEQUIA_API_BASE_URL:
       ENTELEQUIA_API_BASE_URL.length > 0 ? ENTELEQUIA_API_BASE_URL : resolvedEntelequiaBaseUrl,
@@ -244,7 +258,7 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     ),
     WF1_RECURSIVE_AUTOPROMOTE_ENABLED: parseBoolean(
       config.WF1_RECURSIVE_AUTOPROMOTE_ENABLED,
-      false,
+      true,
     ),
     WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED: parseBoolean(
       config.WF1_RECURSIVE_AUTO_ROLLBACK_ENABLED,

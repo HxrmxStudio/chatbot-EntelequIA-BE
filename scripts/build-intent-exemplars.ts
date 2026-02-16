@@ -40,11 +40,12 @@ async function main(): Promise<void> {
            evidence,
            enabled
          )
-         VALUES ($1, $2, $3, 'feedback', $4::jsonb, FALSE)
+         VALUES ($1, $2, $3, 'feedback', $4::jsonb, TRUE)
          ON CONFLICT (intent, prompt_hint)
          DO UPDATE
            SET confidence_weight = GREATEST(wf1_intent_exemplars.confidence_weight, EXCLUDED.confidence_weight),
                evidence = EXCLUDED.evidence,
+               enabled = TRUE,
                updated_at = CURRENT_TIMESTAMP`,
         [
           normalizeIntent(cluster.intent),

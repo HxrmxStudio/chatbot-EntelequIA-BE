@@ -7,7 +7,7 @@ import { Pool } from 'pg';
 
 jest.setTimeout(120_000);
 
-const dbUrl = process.env.CHATBOT_DB_TEST_URL?.trim();
+const dbUrl = process.env.CHATBOT_DB_URL?.trim();
 const hasDbUrl = Boolean(dbUrl);
 
 describe('bootstrap-learning-seeds script (PostgreSQL integration)', () => {

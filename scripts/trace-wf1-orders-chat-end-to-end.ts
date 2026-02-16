@@ -116,7 +116,6 @@ function resolveRequiredEnvString(name: string): string {
 async function main(): Promise<void> {
   // Ensure the security guard does not require Turnstile for this local trace.
   process.env.TURNSTILE_SECRET_KEY = '';
-  process.env.CHATBOT_DB_URL = process.env.CHATBOT_DB_URL ?? 'postgres://test:test@localhost:5432/chatbot';
   process.env.ENTELEQUIA_API_BASE_URL = process.env.ENTELEQUIA_API_BASE_URL ?? 'https://entelequia.com.ar/api/v1';
   process.env.ENTELEQUIA_WEB_BASE_URL = process.env.ENTELEQUIA_WEB_BASE_URL ?? 'https://entelequia.com.ar';
 

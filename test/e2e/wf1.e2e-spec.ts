@@ -7,8 +7,7 @@ import { createHmac } from 'node:crypto';
 import { json } from 'express';
 import type { Request, Response } from 'express';
 
-process.env.CHATBOT_DB_URL = 'postgres://test:test@localhost:5432/chatbot';
-process.env.ENTELEQUIA_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+process.env.ENTELEQUIA_API_BASE_URL = process.env.ENTELEQUIA_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1';
 process.env.BOT_ORDER_LOOKUP_HMAC_SECRET = 'test-hmac-secret';
 process.env.ORDER_LOOKUP_RATE_LIMIT_ENABLED = 'false';
 process.env.TURNSTILE_SECRET_KEY = '';

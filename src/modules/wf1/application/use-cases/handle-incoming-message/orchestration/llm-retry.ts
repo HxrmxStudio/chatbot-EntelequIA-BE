@@ -30,8 +30,7 @@ export async function buildAssistantReplyWithGuidedRetry(
     {
       contextType: 'general' as const,
       contextPayload: {
-        hint:
-          'Reintento guiado: evita respuesta generica. Responde accionable y especifico al pedido actual, sin reiniciar el flujo.',
+        hint: 'Reintento guiado: evita respuesta generica. Responde accionable y especifico al pedido actual, sin reiniciar el flujo.',
       },
     },
   ];
@@ -56,10 +55,7 @@ export async function buildAssistantReplyWithGuidedRetry(
  * Determines if LLM response needs a guided retry based on metadata flags.
  * Uses metadata only - no message parsing.
  */
-function shouldRetryLlmWithGuidance(
-  message: string,
-  metadata?: LlmReplyMetadata,
-): boolean {
+function shouldRetryLlmWithGuidance(message: string, metadata?: LlmReplyMetadata): boolean {
   if (typeof metadata?.llmPath === 'string' && metadata.llmPath.startsWith('fallback_')) {
     return true;
   }
