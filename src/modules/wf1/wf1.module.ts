@@ -13,6 +13,7 @@ import {
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
   METRICS_PORT,
+  ORDER_LOOKUP_PORT,
   ORDER_LOOKUP_RATE_LIMITER_PORT,
   PROMPT_TEMPLATES_PORT,
 } from './application/ports/tokens';
@@ -93,6 +94,10 @@ import { TurnstileVerificationService } from './infrastructure/security/services
     {
       provide: METRICS_PORT,
       useExisting: PrometheusMetricsAdapter,
+    },
+    {
+      provide: ORDER_LOOKUP_PORT,
+      useExisting: EntelequiaOrderLookupClient,
     },
     {
       provide: ORDER_LOOKUP_RATE_LIMITER_PORT,

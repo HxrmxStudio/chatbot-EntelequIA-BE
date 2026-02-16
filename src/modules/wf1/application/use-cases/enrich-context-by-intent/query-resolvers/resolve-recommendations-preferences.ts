@@ -24,6 +24,13 @@ const GENRE_PATTERNS: ReadonlyArray<{ genre: string; pattern: RegExp }> = [
 
 const AGE_PATTERN = /\b(?:para|de|tengo|edad\s+de)\s*(\d{1,2})\s*anos?\b/;
 
+const PRICE_PREFERENCE_PATTERNS: readonly RegExp[] = [
+  /\b(barat[oa]s?|economico|econ[oó]mico|economica|econ[oó]mica|economicas|econ[oó]micas)\b/i,
+  /\bpresupuesto\b/i,
+  /\b(algo|opciones?)\s+(barat[oa]s?|economico|econ[oó]mico|economica|econ[oó]mica)\b/i,
+  /\b(necesito|quiero|busco)\s+algo\s+barat[oa]\b/i,
+];
+
 export function resolveRecommendationsPreferences(input: {
   text: string;
   entities: string[];
@@ -33,12 +40,14 @@ export function resolveRecommendationsPreferences(input: {
   const genre = detectGenres(normalizedText);
   const type = detectTypes(input.text, input.entities);
   const age = detectAge(normalizedText);
+  const prefersLowPrice = PRICE_PREFERENCE_PATTERNS.some((p) => p.test(normalizedText));
 
   return {
     franchiseKeywords,
     genre,
     type,
     age,
+    prefersLowPrice,
   };
 }
 

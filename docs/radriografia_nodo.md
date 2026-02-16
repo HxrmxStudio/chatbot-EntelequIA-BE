@@ -59,7 +59,7 @@ Es un system prompt largo en español rioplatense. Contiene:
    - **tickets:** problemas/devoluciones/quejas/reclamos/soporte; ejemplos: producto dañado, faltante, error factura, producto incorrecto
    - **store_info:** locales, horarios, ubicación, cómo llegar, estacionamiento; locales y horarios:
      - Locales: Uruguay 341 (centro) y Juramento 2584 (Belgrano)
-     - Horarios: L a V 10-19hs, Sábados 11-18hs
+     - Horarios: L a V 10-19hs, Sábados 10-17hs
 
    - **payment_shipping:** medios de pago, envío, costos, tiempos; medios (tarjeta crédito/débito, Mercado Pago, efectivo en local); envío: retiro sin cargo / envío a domicilio (consultar costo)
    - **recommendations:** pedir recomendaciones o ayuda para elegir productos

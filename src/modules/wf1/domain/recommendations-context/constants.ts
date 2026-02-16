@@ -1,30 +1,8 @@
+/**
+ * Recommendations context - Structural constants only
+ * 
+ * Text content has been removed to eliminate duplication with prompt files.
+ * Only configuration values (max items) remain.
+ */
+
 export const WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS = 5;
-
-export const DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER = 'RECOMENDACIONES PERSONALIZADAS';
-
-export const DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE = [
-  'Por que estos productos:',
-  '- Se seleccionaron segun lo que contaste.',
-  '- Son opciones destacadas del catalogo.',
-  '- Priorizamos productos con stock disponible.',
-].join('\n');
-
-export const DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS = [
-  'Instrucciones para tu respuesta:',
-  '- Presenta las recomendaciones con tono cercano y claro.',
-  '- Conecta la sugerencia con la preferencia del usuario cuando aplique.',
-  '- Pregunta si quiere mas opciones o detalle de algun producto.',
-  '- Ofrece ayuda para decidir entre alternativas.',
-].join('\n');
-
-export const DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE =
-  'En este momento no tengo recomendaciones especificas para ese filtro, pero si queres te puedo mostrar ultimos lanzamientos.';
-
-export const DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE =
-  'No pude consultar recomendaciones en tiempo real, pero te dejo una guia para seguir.';
-
-export const DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION =
-  'Si queres, te muestro opciones similares de anime/manga o buscamos por personaje/producto.';
-
-export const DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE =
-  'Ahora mismo no puedo consultar el catalogo en tiempo real. Intenta nuevamente en unos minutos o te muestro categorias disponibles.';

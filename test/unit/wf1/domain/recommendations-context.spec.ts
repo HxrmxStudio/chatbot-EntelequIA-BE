@@ -2,6 +2,7 @@ import {
   buildEmptyRecommendationsAiContext,
   buildRecommendationsAiContext,
 } from '@/modules/wf1/domain/recommendations-context';
+import type { RecommendationsTemplates } from '@/modules/wf1/domain/recommendations-context/types';
 
 describe('RecommendationsContext', () => {
   const preferences = {
@@ -9,6 +10,20 @@ describe('RecommendationsContext', () => {
     genre: ['accion'],
     type: ['mangas'],
     age: 16,
+  };
+
+  const mockTemplates: RecommendationsTemplates & {
+    noMatchSuggestion?: string;
+    apiFallbackNote?: string;
+    catalogUnavailableMessage?: string;
+  } = {
+    header: 'RECOMENDACIONES PERSONALIZADAS',
+    whyThese: 'Por que estos productos:\n- Se seleccionaron segun lo que contaste.',
+    instructions: 'Instrucciones para tu respuesta:\n- Presenta con tono cercano.',
+    emptyMessage: 'En este momento no tengo recomendaciones especificas para ese filtro, pero si queres te puedo mostrar ultimos lanzamientos.',
+    noMatchSuggestion: 'Si queres, te muestro opciones similares.',
+    apiFallbackNote: 'No pude consultar en tiempo real.',
+    catalogUnavailableMessage: 'Catalogo no disponible ahora.',
   };
 
   it('builds recommendations context and limits output to top 5', () => {
@@ -23,6 +38,7 @@ describe('RecommendationsContext', () => {
       ],
       total: 6,
       preferences,
+      templates: mockTemplates,
     });
 
     expect(result.recommendationsCount).toBe(5);
@@ -37,6 +53,7 @@ describe('RecommendationsContext', () => {
     const result = buildRecommendationsAiContext({
       items: [{ id: 1, slug: 'a', title: 'A', stock: 2, categoryNames: [], categorySlugs: [] }],
       preferences,
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('Generos de interes: accion');
@@ -44,10 +61,21 @@ describe('RecommendationsContext', () => {
     expect(result.contextText).toContain('Edad aproximada: 16 anos');
   });
 
+  it('includes price preference hint when prefersLowPrice is true', () => {
+    const result = buildRecommendationsAiContext({
+      items: [{ id: 1, slug: 'a', title: 'A', stock: 2, categoryNames: [], categorySlugs: [] }],
+      preferences: { ...preferences, prefersLowPrice: true },
+      templates: mockTemplates,
+    });
+
+    expect(result.contextText).toContain('Precio: priorizar opciones economicas');
+  });
+
   it('builds empty context with fallback message', () => {
     const result = buildEmptyRecommendationsAiContext({
       preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.isEmpty).toBe(true);
@@ -60,6 +88,7 @@ describe('RecommendationsContext', () => {
     const result = buildEmptyRecommendationsAiContext({
       preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.contextText.toLowerCase()).toContain('si queres');
@@ -69,6 +98,7 @@ describe('RecommendationsContext', () => {
     const result = buildRecommendationsAiContext({
       items: [{ id: 1, slug: 'a', title: 'A', stock: 1, categoryNames: [], categorySlugs: [] }],
       preferences: { franchiseKeywords: [], genre: [], type: [], age: null },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).not.toContain('Uruguay 341');

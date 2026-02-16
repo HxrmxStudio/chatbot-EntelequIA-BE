@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { isRecord } from '../../src/common/utils/object.utils';
 
 const VALID_SEVERITIES = ['P0', 'P1', 'P2'] as const;
 const VALID_SOURCES = ['qa_seed'] as const;
@@ -230,10 +231,6 @@ function normalizeSeedCandidate(
       ...(expectedResponseExample ? { expectedResponseExample } : {}),
     },
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function normalizeString(value: unknown): string | null {

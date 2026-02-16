@@ -742,10 +742,10 @@ EntelequIA: ¡Buena elección! ¿Buscás algún tomo o volumen en particular, o 
 **Horarios correctos según documento:**
 
 - **Lunes a Viernes:** 10:00 - 19:00 hs
-- **Sábado:** 11:00 - 19:00 hs (NO 11:00-18:00)
+- **Sábado:** 10:00 - 17:00 hs
 - **Domingo:** CERRADO
 
-**⚠️ NOTA:** El bot debe corregir si dice "11-18h" para sábado.
+**⚠️ NOTA:** Horarios actualizados según SSOT canonical.
 
 ---
 
@@ -855,10 +855,10 @@ Bot (BIEN): "Hay un problema con los datos que me pasaste:
 - **Impacto:** Medio - Frustra usuarios con errores genéricos
 - **Fix:** Validar DNI/teléfono/nombres y dar feedback específico
 
-### **5. Horario sábado potencialmente incorrecto**
+### **5. Horarios actualizados en SSOT**
 
-- **Impacto:** Bajo-Medio - Información incorrecta
-- **Fix:** Verificar que dice "11:00-19:00" (no "11:00-18:00")
+- **Impacto:** Bajo - Información actualizada
+- **Fix:** Horarios correctos en canonical YAML: sábados 10:00-17:00hs
 
 ---
 

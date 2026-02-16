@@ -10,7 +10,7 @@ describe('orders-unauthenticated-response', () => {
     expect(response.ok).toBe(false);
     expect('requiresAuth' in response && response.requiresAuth).toBe(true);
     expect(response.message).toContain('NECESITAS INICIAR SESION');
-    expect(response.message).toContain('Inicia sesion en entelequia.com.ar');
+    expect(response.message).toContain('Inicia sesion en https://entelequia.com.ar');
     expect(response.message).toContain('info@entelequia.com.ar');
     expect(response.message).toContain('No compartas credenciales en el chat');
   });

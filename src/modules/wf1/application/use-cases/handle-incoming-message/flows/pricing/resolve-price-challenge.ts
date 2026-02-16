@@ -1,3 +1,4 @@
+import { normalizeTextForSearch } from '@/common/utils/text-normalize.utils';
 import type { RecommendationsMemorySnapshot } from '../recommendations/recommendations-memory';
 import { isSnapshotFresh } from '../recommendations/recommendations-memory';
 
@@ -17,22 +18,12 @@ const CHALLENGE_PATTERNS: readonly RegExp[] = [
 
 const CHALLENGE_REVALIDATE_MAX_AGE_MS = 2 * 60 * 1000;
 
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 export function detectPriceChallenge(input: {
   text: string;
   memory: Pick<RecommendationsMemorySnapshot, 'snapshotTimestamp'>;
   lastBotMessage: string | null;
 }): ChallengeResolution {
-  const normalized = normalizeText(input.text);
+  const normalized = normalizeTextForSearch(input.text);
   const isChallenge = CHALLENGE_PATTERNS.some((pattern) => pattern.test(normalized));
 
   if (!isChallenge) {

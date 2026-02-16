@@ -3,7 +3,6 @@ import {
   resolveOrdersEscalationFlowStateFromHistory,
   resolveRecentCancelledOrderId,
   shouldContinueOrdersEscalationFlow,
-  shouldSuggestCancelledOrderEscalation,
 } from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/orders/resolve-orders-escalation-flow-state';
 
 describe('resolve-orders-escalation-flow-state', () => {
@@ -81,12 +80,6 @@ describe('resolve-orders-escalation-flow-state', () => {
     expect(orderId).toBe('78399');
   });
 
-  it('detects cancelled-order consult prompts to persist pending escalation state', () => {
-    expect(
-      shouldSuggestCancelledOrderEscalation(
-        'No me figura el motivo de la cancelacion. Queres que consulte con el area correspondiente?',
-      ),
-    ).toBe(true);
-    expect(shouldSuggestCancelledOrderEscalation('Te paso el estado del pedido.')).toBe(false);
-  });
+  // Removed test for deprecated shouldSuggestCancelledOrderEscalation function
+  // Use metadata-based shouldSuggestCancelledOrderEscalationFromMetadata instead
 });

@@ -1,4 +1,5 @@
 import type { Wf1Response } from '../../../../../domain/wf1-response';
+import { WHATSAPP_DISPLAY, EMAIL_DISPLAY } from '@/common/constants/contact.constants';
 
 export function buildCancelledOrderEscalationActionResponse(input?: {
   orderId?: string | null;
@@ -13,8 +14,8 @@ export function buildCancelledOrderEscalationActionResponse(input?: {
     message: [
       `No tengo el motivo exacto de cancelacion de tu ${orderHint} desde este canal.`,
       'Para resolverlo rapido, escribinos por uno de estos canales:',
-      '- WhatsApp: +54 9 11 6189-8533',
-      '- Email: info@entelequia.com.ar',
+      `- ${WHATSAPP_DISPLAY}`,
+      `- ${EMAIL_DISPLAY}`,
       '',
       `Inclui el numero de ${orderHint}, nombre completo y un telefono de contacto.`,
     ].join('\n'),

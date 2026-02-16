@@ -34,6 +34,8 @@ export interface RecommendationPreferences {
   genre: string[];
   type: string[];
   age: number | null;
+  /** True when user asks for cheap/affordable options (e.g. "algo barato", "económico"). */
+  prefersLowPrice?: boolean;
 }
 
 export interface RecommendationItem {

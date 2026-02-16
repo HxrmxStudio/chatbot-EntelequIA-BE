@@ -30,7 +30,6 @@ export interface AppEnv {
   WF1_EVAL_TIMEOUT_MS: number;
   WF1_EVAL_SAMPLE_RANDOM_PERCENT: number;
   WF1_EVAL_LOW_SCORE_THRESHOLD: number;
-  WF1_UI_CARDS_ENABLED: boolean;
   WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED: boolean;
   WF1_RECOMMENDATIONS_FRANCHISE_THRESHOLD: number;
   WF1_RECOMMENDATIONS_VOLUME_THRESHOLD: number;
@@ -227,8 +226,6 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
       1,
       Math.max(0, parseNumber(config.WF1_EVAL_LOW_SCORE_THRESHOLD, 0.6)),
     ),
-    // Deprecated gate: UI cards are always enabled for FE rendering consistency.
-    WF1_UI_CARDS_ENABLED: true,
     WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED: parseBoolean(
       config.WF1_RECOMMENDATIONS_DISAMBIGUATION_ENABLED,
       true,

@@ -6,7 +6,11 @@ import type { LlmPort, LlmReplyResult } from '../../../application/ports/llm.por
 import type { MetricsPort } from '../../../application/ports/metrics.port';
 import type { ContextBlock } from '../../../domain/context-block';
 import { estimateCostUsd } from '../../../domain/llm-cost-policy';
-import { detectComplexSignals, routeModel } from '../../../domain/model-router';
+import {
+  detectComplexSignals,
+  routeModel,
+  shouldEscalateToPrimary as shouldEscalateToPrimaryDomain,
+} from '../../../domain/model-router';
 import { withRetry } from '../openai-retry';
 import { loadJsonFile, loadPromptFile } from '../shared';
 import {
@@ -121,9 +125,15 @@ export class OpenAiAdapter implements LlmPort {
         },
       });
 
+      const escalationSignals = isStructuredResult(result)
+        ? {
+            confidenceLabel: result.payload.confidence_label,
+            requiresClarification: result.payload.requires_clarification,
+          }
+        : null;
       if (
         selectedModel !== primaryModel &&
-        this.shouldEscalateToPrimary(result, input.intent)
+        shouldEscalateToPrimaryDomain(escalationSignals, input.intent)
       ) {
         this.logger.info('openai_assistant_reply_model_escalation', {
           event: 'openai_assistant_reply_model_escalation',
@@ -272,22 +282,6 @@ export class OpenAiAdapter implements LlmPort {
         });
       },
     });
-  }
-
-  private shouldEscalateToPrimary(
-    result: OpenAiLegacyResult | OpenAiStructuredResult,
-    intent: Parameters<LlmPort['buildAssistantReply']>[0]['intent'],
-  ): boolean {
-    if (!isStructuredResult(result)) {
-      return false;
-    }
-
-    if (result.payload.confidence_label === 'low') {
-      return true;
-    }
-
-    // Clarifications for non-general intents are treated as potentially costly quality misses.
-    return result.payload.requires_clarification && intent !== 'general';
   }
 
   private recordOpenAiUsageMetrics(input: {

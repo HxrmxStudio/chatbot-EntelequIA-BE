@@ -11,7 +11,6 @@ export { resolveStockDisclosure } from './resolve-stock-disclosure';
 export {
   buildDynamicFranchiseAliases,
   getRecommendationFranchiseTerms,
-  resolveRecommendationFranchiseLabel,
   resolveRecommendationFranchiseQuery,
   resolveRecommendationFranchiseKeywords,
 } from './recommendation-franchise-keywords';

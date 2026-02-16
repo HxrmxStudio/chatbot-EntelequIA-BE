@@ -1,7 +1,14 @@
+/**
+ * Domain scope resolution after Step 5 guardrails simplification.
+ * Smalltalk now goes through LLM instead of direct bypass.
+ * Only hostile and out-of-scope remain as hard blocks.
+ */
+
+import { normalizeTextStrict } from '@/common/utils/text-normalize.utils';
+
 export type DomainScopeResolution =
   | { type: 'in_scope' }
   | { type: 'out_of_scope'; message: string }
-  | { type: 'smalltalk'; message: string }
   | { type: 'hostile'; message: string };
 
 const HOSTILE_PATTERNS = [
@@ -24,46 +31,6 @@ const HOSTILE_PATTERNS = [
 
 const HOSTILE_RESPONSE =
   'Entiendo que puede haber frustracion. Si tenes una consulta especifica sobre productos, pedidos o envios, estoy para ayudarte.';
-
-const SMALLTALK_PATTERNS = [
-  /\bhola\b/,
-  /\bbuenas\b/,
-  /\bbuen dia\b/,
-  /\bbuenos dias\b/,
-  /\bbuenas tardes\b/,
-  /\bbuenas noches\b/,
-  /\bhey\b/,
-  /\bque tal\b/,
-  /\bgracias\b/,
-  /\bmuchas gracias\b/,
-  /\bte agradezco\b/,
-  /\btodo bien\b/,
-  /\bcomo va\b/,
-  /\bcomo andas\b/,
-  /\bperfecto\b/,
-  /\bgenial\b/,
-  /\bdale\b/,
-  /\bok\b/,
-  /\blisto\b/,
-  /\bjoya\b/,
-  /\bchau\b/,
-  /\badios\b/,
-  /\bhasta luego\b/,
-  /\bnos vemos\b/,
-  /^\s*si+\s*$/i,
-  /^\s*no+\s*$/i,
-  /^\s*si\s+por\s+favor\s*$/i,
-];
-
-const SMALLTALK_RESPONSES: Record<string, string> = {
-  greeting: 'Hola, como va? Decime que necesitas y lo resolvemos juntos.',
-  thanks: 'Genial, un gusto ayudarte. Cuando quieras, seguimos por aca.',
-  confirmation: 'Perfecto. Si necesitas algo mas, avisame.',
-  farewell: 'Hasta luego! Cualquier cosa, volve cuando quieras.',
-  default: 'En que puedo ayudarte? Estoy para consultas sobre productos, pedidos o envios.',
-};
-
-const SMALLTALK_MAX_WORDS = 15;
 
 const OUT_OF_SCOPE_RESPONSE =
   'Te ayudo con consultas de Entelequia (productos, pedidos, envios, pagos, locales y soporte). Si queres, arrancamos por ahi.';
@@ -148,34 +115,40 @@ const ENTELEQUIA_SCOPE_TERMS = [
   'ayuda',
 ];
 
+/**
+ * Simplified domain scope after Step 5 guardrails reduction.
+ * Smalltalk bypass removed - now flows through LLM (treated as in_scope).
+ * Only hostile and clearly unrelated queries are blocked.
+ */
 export function resolveDomainScope(input: {
   text: string;
   routedIntent: string;
 }): DomainScopeResolution {
-  const normalized = normalizeText(input.text);
+  const normalized = normalizeTextStrict(input.text);
 
-  if (normalized.length === 0) {
-    return { type: 'smalltalk', message: SMALLTALK_RESPONSES.default };
-  }
-
+  // Keep hostile detection as hard block
   if (isHostile(normalized)) {
     return { type: 'hostile', message: HOSTILE_RESPONSE };
   }
 
-  if (containsEntelequiaScopeSignal(normalized)) {
-    return { type: 'in_scope' };
-  }
-
+  // If intent classifier routed to a specific intent, trust it
   if (input.routedIntent !== 'general') {
     return { type: 'in_scope' };
   }
 
-  if (isSmalltalk(normalized)) {
-    const responseKey = getSmalltalkResponseKey(normalized);
-    return { type: 'smalltalk', message: SMALLTALK_RESPONSES[responseKey] };
+  // If it mentions Entelequia context, it's in scope
+  if (containsEntelequiaScopeSignal(normalized)) {
+    return { type: 'in_scope' };
   }
 
-  return { type: 'out_of_scope', message: OUT_OF_SCOPE_RESPONSE };
+  // Check if it's clearly unrelated (very specific patterns)
+  if (isDefinitelyOutOfScope(normalized)) {
+    return { type: 'out_of_scope', message: OUT_OF_SCOPE_RESPONSE };
+  }
+
+  // Default: treat as in_scope and let LLM handle it
+  // This includes smalltalk, greetings, thanks, etc.
+  return { type: 'in_scope' };
 }
 
 function isHostile(normalizedText: string): boolean {
@@ -186,31 +159,26 @@ function containsEntelequiaScopeSignal(normalizedText: string): boolean {
   return ENTELEQUIA_SCOPE_TERMS.some((term) => normalizedText.includes(term));
 }
 
-function isSmalltalk(normalizedText: string): boolean {
-  const words = normalizedText.split(' ').filter((word) => word.length > 0);
-  if (words.length === 0 || words.length > SMALLTALK_MAX_WORDS) {
-    return false;
-  }
+/**
+ * Checks if query is definitely out of scope (unrelated topics).
+ * Conservative check - when in doubt, let LLM handle it.
+ */
+function isDefinitelyOutOfScope(normalizedText: string): boolean {
+  // Very specific out-of-scope patterns
+  const outOfScopePatterns = [
+    /\b(receta|cocina|comida|restaurante)\b/i,
+    /\b(clima|tiempo|temperatura|lluvia)\b/i,
+    /\b(politica|elecciones|gobierno)\b/i,
+    /\b(futbol|deportes|partido)\b/i,
+    /\b(medicina|medico|enfermedad|sintoma)\b/i,
+  ];
+
+  // If query contains business terms, not out of scope
   if (containsEntelequiaScopeSignal(normalizedText)) {
     return false;
   }
-  return SMALLTALK_PATTERNS.some((pattern) => pattern.test(normalizedText));
+
+  // Check for clearly unrelated topics
+  return outOfScopePatterns.some((pattern) => pattern.test(normalizedText));
 }
 
-function getSmalltalkResponseKey(normalizedText: string): string {
-  if (/hola|buenas|buen dia|hey|que tal/.test(normalizedText)) return 'greeting';
-  if (/gracias|agradezco/.test(normalizedText)) return 'thanks';
-  if (/chau|adios|hasta|nos vemos/.test(normalizedText)) return 'farewell';
-  if (/perfecto|genial|joya|listo|ok|dale/.test(normalizedText)) return 'confirmation';
-  return 'default';
-}
-
-function normalizeText(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}

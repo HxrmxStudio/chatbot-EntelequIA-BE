@@ -1,4 +1,15 @@
 import { buildPaymentShippingAiContext } from '@/modules/wf1/domain/payment-shipping-context';
+import type { PaymentShippingTemplates } from '@/modules/wf1/domain/payment-shipping-context/types';
+
+const mockTemplates: PaymentShippingTemplates = {
+  paymentContext: 'MEDIOS DE PAGO\n- Tarjetas y efectivo.',
+  shippingContext: 'ENVIOS\n- Retiro sin cargo en tienda.',
+  costContext: 'COSTOS DE ENVIO\n- El costo se calcula en checkout.',
+  timeContext:
+    'TIEMPOS DE ENTREGA\n- CABA (moto): 24-48hs (entrega en el dia comprando antes de las 13hs).\n- Interior: 3-5 dias habiles con Andreani\n- Interior: 5-7 dias con Correo\n- DHL internacional: menos de 4 dias.',
+  generalContext: 'PAGOS Y ENVIOS\n- Opciones disponibles.',
+  instructions: 'Instrucciones para tu respuesta:\n- Responde claro y breve.',
+};
 
 describe('PaymentShippingContext', () => {
   it('builds payment context with dynamic methods and promotions', () => {
@@ -7,6 +18,7 @@ describe('PaymentShippingContext', () => {
       paymentMethods: ['Mercado Pago', 'Tarjetas de credito'],
       promotions: ['Hasta 6 cuotas sin interes'],
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.queryType).toBe('payment');
@@ -23,6 +35,7 @@ describe('PaymentShippingContext', () => {
       paymentMethods: [],
       promotions: [],
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('COSTOS DE ENVIO');
@@ -37,6 +50,7 @@ describe('PaymentShippingContext', () => {
       paymentMethods: [],
       promotions: [],
       apiFallback: true,
+      templates: mockTemplates,
     });
 
     expect(result.apiFallback).toBe(true);
@@ -47,6 +61,7 @@ describe('PaymentShippingContext', () => {
     const result = buildPaymentShippingAiContext({
       queryType: 'shipping',
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.contextText).not.toContain('Uruguay 341');
@@ -58,6 +73,7 @@ describe('PaymentShippingContext', () => {
     const result = buildPaymentShippingAiContext({
       queryType: 'time',
       apiFallback: false,
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('24-48');

@@ -1,3 +1,4 @@
+import { normalizeTextForSearch } from '@/common/utils/text-normalize.utils';
 import { isRecord } from '@/common/utils/object.utils';
 import type { ConversationHistoryRow } from '@/modules/wf1/domain/conversation-history';
 import type { CatalogSnapshotItem } from '@/modules/wf1/domain/ui-payload';
@@ -20,7 +21,7 @@ const MOST_EXPENSIVE_PATTERNS: readonly RegExp[] = [
 export function resolvePriceComparisonRequestIntent(
   text: string,
 ): PriceComparisonRequestIntent {
-  const normalized = normalizeText(text);
+  const normalized = normalizeTextForSearch(text);
   if (normalized.length === 0) {
     return 'none';
   }
@@ -155,11 +156,3 @@ function normalizeHttpUrl(value: unknown): string | undefined {
   }
 }
 
-function normalizeText(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}

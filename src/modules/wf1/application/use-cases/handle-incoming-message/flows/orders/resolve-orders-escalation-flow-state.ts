@@ -1,7 +1,12 @@
+import {
+  containsAnyTerm,
+  normalizeTextWithRepeatedCharRemoval,
+} from '@/common/utils/text-normalize.utils';
 import { isRecord } from '@/common/utils/object.utils';
 import type { ConversationHistoryRow } from '@/modules/wf1/domain/conversation-history';
 
 export const ORDERS_ESCALATION_FLOW_STATE_METADATA_KEY = 'ordersEscalationFlowState';
+export const OFFERED_ESCALATION_METADATA_KEY = 'offeredEscalation';
 
 export type OrdersEscalationFlowState = 'awaiting_cancelled_reason_confirmation' | null;
 export type CancelledOrderEscalationAnswer = 'yes' | 'no' | 'unknown';
@@ -84,20 +89,23 @@ export function shouldContinueOrdersEscalationFlow(input: {
 export function resolveCancelledOrderEscalationAnswer(
   text: string,
 ): CancelledOrderEscalationAnswer {
-  const normalized = normalizeText(text);
+  const normalized = normalizeTextWithRepeatedCharRemoval(text);
   if (normalized.length === 0) {
     return 'unknown';
   }
 
-  if (containsAnyTerm(normalized, STRONG_NO_TERMS)) {
+  if (containsAnyTerm(normalized, STRONG_NO_TERMS, normalizeTextWithRepeatedCharRemoval)) {
     return 'no';
   }
 
-  if (containsAnyTerm(normalized, STRONG_YES_TERMS)) {
+  if (containsAnyTerm(normalized, STRONG_YES_TERMS, normalizeTextWithRepeatedCharRemoval)) {
     return 'yes';
   }
 
-  if (containsAnyTerm(normalized, WEAK_YES_TERMS) && isShortAck(normalized)) {
+  if (
+    containsAnyTerm(normalized, WEAK_YES_TERMS, normalizeTextWithRepeatedCharRemoval) &&
+    isShortAck(normalized)
+  ) {
     return 'yes';
   }
 
@@ -125,21 +133,18 @@ export function resolveRecentCancelledOrderId(
   return null;
 }
 
-export function shouldSuggestCancelledOrderEscalation(message: string): boolean {
-  const normalized = normalizeText(message);
-  if (normalized.length === 0) {
+/**
+ * Check if escalation was offered by examining metadata flag.
+ * Replaces substring checking on bot message.
+ */
+export function shouldSuggestCancelledOrderEscalationFromMetadata(
+  metadata: unknown,
+): boolean {
+  if (!isRecord(metadata)) {
     return false;
   }
 
-  const hasCancelSignal = normalized.includes('cancel');
-  const hasReasonSignal = normalized.includes('motivo') || normalized.includes('razon');
-  const hasConsultSignal =
-    normalized.includes('queres que consulte') ||
-    normalized.includes('queres que revis') ||
-    normalized.includes('area correspondiente') ||
-    normalized.includes('escal');
-
-  return hasCancelSignal && hasReasonSignal && hasConsultSignal;
+  return metadata[OFFERED_ESCALATION_METADATA_KEY] === true;
 }
 
 function parseFlowStateFromMetadata(metadata: unknown): OrdersEscalationFlowState | undefined {
@@ -160,7 +165,7 @@ function parseFlowStateFromMetadata(metadata: unknown): OrdersEscalationFlowStat
 }
 
 function containsEscalationIntent(text: string): boolean {
-  const normalized = normalizeText(text);
+  const normalized = normalizeTextWithRepeatedCharRemoval(text);
   return (
     normalized.includes('consult') ||
     normalized.includes('escal') ||
@@ -174,37 +179,3 @@ function isShortAck(text: string): boolean {
   return words.length <= MAX_SHORT_ACK_WORDS;
 }
 
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/([a-z])\1{2,}/g, '$1$1')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function containsAnyTerm(text: string, terms: readonly string[]): boolean {
-  for (const term of terms) {
-    const normalizedTerm = normalizeText(term);
-    if (containsNormalizedTerm(text, normalizedTerm)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function containsNormalizedTerm(text: string, normalizedTerm: string): boolean {
-  if (normalizedTerm.length === 0) {
-    return false;
-  }
-
-  if (text === normalizedTerm) {
-    return true;
-  }
-
-  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(text);
-}

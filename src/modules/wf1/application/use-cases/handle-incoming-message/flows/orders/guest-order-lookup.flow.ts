@@ -2,7 +2,7 @@ import type { Logger } from '@/common/utils/logger';
 import type { MetricsPort } from '@/modules/wf1/application/ports/metrics.port';
 import type { OrderLookupRateLimiterPort } from '@/modules/wf1/application/ports/order-lookup-rate-limiter.port';
 import type { Wf1Response } from '@/modules/wf1/domain/wf1-response';
-import { EntelequiaOrderLookupClient } from '@/modules/wf1/infrastructure/adapters/entelequia-http';
+import type { OrderLookupPort } from '@/modules/wf1/application/ports/order-lookup.port';
 import {
   buildOrderLookupHasDataQuestionResponse,
   buildOrderLookupInvalidPayloadResponse,
@@ -53,7 +53,7 @@ export interface GuestOrderLookupFlowResult {
 
 export interface GuestOrderLookupFlowDependencies {
   orderLookupRateLimiter: OrderLookupRateLimiterPort;
-  orderLookupClient: EntelequiaOrderLookupClient;
+  orderLookupClient: OrderLookupPort;
   metricsPort: MetricsPort;
   logger: Pick<Logger, 'warn'>;
 }

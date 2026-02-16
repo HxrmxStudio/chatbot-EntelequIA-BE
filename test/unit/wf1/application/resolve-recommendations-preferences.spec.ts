@@ -39,7 +39,26 @@ describe('resolveRecommendationsPreferences', () => {
       genre: [],
       type: [],
       age: null,
+      prefersLowPrice: false,
     });
+  });
+
+  it('detects price preference from "necesito algo barato"', () => {
+    const result = resolveRecommendationsPreferences({
+      text: 'necesito algo barato',
+      entities: [],
+    });
+
+    expect(result.prefersLowPrice).toBe(true);
+  });
+
+  it('detects price preference from "opciones economicas"', () => {
+    const result = resolveRecommendationsPreferences({
+      text: 'tenes opciones economicas de manga?',
+      entities: [],
+    });
+
+    expect(result.prefersLowPrice).toBe(true);
   });
 
   it('falls back to legacy detector when specific detector has no direct match', () => {

@@ -24,6 +24,16 @@ describe('recommendation franchise keywords', () => {
     expect(result).toContain('evangelion');
   });
 
+  it('does not fuzzy match "barato" to naruto when user asks for cheap options', () => {
+    const result = resolveRecommendationFranchiseKeywords({
+      text: 'necesito algo barato',
+      entities: [],
+    });
+
+    expect(result).toEqual([]);
+    expect(result).not.toContain('naruto');
+  });
+
   it('detects naruto based on text and entities', () => {
     const result = resolveRecommendationFranchiseKeywords({
       text: 'algo de anime',

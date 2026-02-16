@@ -8,13 +8,7 @@ export type {
   OrdersContextTemplates,
   OrderSummaryItem,
 } from './types';
-export {
-  DEFAULT_ORDERS_CONTEXT_HEADER,
-  DEFAULT_ORDER_DETAIL_INSTRUCTIONS,
-  DEFAULT_ORDERS_EMPTY_MESSAGE,
-  DEFAULT_ORDERS_LIST_INSTRUCTIONS,
-  WF1_ORDERS_CONTEXT_AI_MAX_ITEMS,
-} from './constants';
+export { WF1_ORDERS_CONTEXT_AI_MAX_ITEMS, CANONICAL_ORDER_STATE_LABELS } from './constants';
 export {
   buildOrderDetailAiContext,
   buildOrdersListAiContext,

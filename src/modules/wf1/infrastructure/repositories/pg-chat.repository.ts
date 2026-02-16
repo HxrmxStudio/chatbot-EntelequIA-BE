@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isRecord } from '@/common/utils/object.utils';
 import { Pool, type PoolClient } from 'pg';
 import { coerceTimestamp } from '@/common/utils/date.utils';
 import { toJsonb } from './shared';
@@ -305,10 +306,6 @@ export class PgChatRepository implements ChatPersistencePort {
       [input.conversationId, input.userId, input.channel],
     );
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function asNullableUuid(value: string): string | null {

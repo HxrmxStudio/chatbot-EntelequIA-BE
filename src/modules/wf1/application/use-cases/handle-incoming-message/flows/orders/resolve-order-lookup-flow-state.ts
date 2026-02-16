@@ -1,3 +1,4 @@
+import { containsAnyTerm } from '@/common/utils/text-normalize.utils';
 import { isRecord } from '@/common/utils/object.utils';
 import type { ConversationHistoryRow } from '@/modules/wf1/domain/conversation-history';
 import type { ResolvedOrderLookupRequest } from './resolve-order-lookup-request';
@@ -238,25 +239,3 @@ function normalizeLookupText(value: string): string {
     .trim();
 }
 
-function containsAnyTerm(text: string, terms: readonly string[]): boolean {
-  for (const term of terms) {
-    if (containsNormalizedTerm(text, term)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function containsNormalizedTerm(text: string, normalizedTerm: string): boolean {
-  if (normalizedTerm.length === 0) {
-    return false;
-  }
-
-  if (text === normalizedTerm) {
-    return true;
-  }
-
-  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(text);
-}

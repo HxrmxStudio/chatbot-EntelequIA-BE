@@ -1,5 +1,4 @@
 import { isRecord } from '@/common/utils/object.utils';
-import { storageImageUrl } from './endpoints';
 
 export async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();
@@ -65,23 +64,3 @@ export function extractCategoryInfo(
   };
 }
 
-export function pickImageUrl(images: unknown, webBaseUrl: string): string | undefined {
-  if (!Array.isArray(images) || images.length === 0) {
-    return undefined;
-  }
-
-  const first = images[0];
-  if (!isRecord(first)) {
-    return undefined;
-  }
-
-  if (typeof first.url === 'string' && first.url.trim().length > 0) {
-    return first.url.trim();
-  }
-
-  if (typeof first.path === 'string' && first.path.trim().length > 0) {
-    return storageImageUrl(webBaseUrl, first.path);
-  }
-
-  return undefined;
-}

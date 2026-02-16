@@ -5,12 +5,11 @@ import {
   type ProductSearchItem,
 } from '@/modules/wf1/domain/products-context';
 import { parseMoney } from '@/modules/wf1/domain/money';
-import { productWebUrl } from './endpoints';
+import { pickImageUrl, productWebUrl } from '@/common/utils/url-builder.utils';
 import {
   coerceNumber,
   extractCategoryInfo,
   extractTotal,
-  pickImageUrl,
 } from './product-helpers';
 
 export function normalizeProductsListPayload(

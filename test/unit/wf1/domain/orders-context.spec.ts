@@ -3,6 +3,14 @@ import {
   buildOrdersListAiContext,
   normalizeOrderState,
 } from '@/modules/wf1/domain/orders-context';
+import type { OrdersContextTemplates } from '@/modules/wf1/domain/orders-context/types';
+
+const mockTemplates: OrdersContextTemplates = {
+  header: 'TUS ULTIMOS PEDIDOS',
+  emptyMessage: 'No encontramos pedidos en tu cuenta.',
+  listInstructions: 'Instrucciones:\n- Mostrar pedidos de forma clara.',
+  detailInstructions: 'Instrucciones:\n- Explicar el estado del pedido.',
+};
 
 describe('Orders Context', () => {
   it('builds order detail context with state, shipping, items and payment', () => {
@@ -26,6 +34,7 @@ describe('Orders Context', () => {
           status: 'approved',
         },
       },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('PEDIDO #1001');
@@ -43,6 +52,7 @@ describe('Orders Context', () => {
         state: '',
         orderItems: [],
       },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('Estado: Sin estado');
@@ -61,6 +71,7 @@ describe('Orders Context', () => {
         { id: 4, state: 'delivered', orderItems: [], total: { currency: 'ARS', amount: 4000 } },
       ],
       total: 10,
+      templates: mockTemplates,
     });
 
     expect(result.ordersShown).toBe(3);
@@ -72,12 +83,14 @@ describe('Orders Context', () => {
   });
 
   it('returns empty-message context when there are no orders', () => {
+    const customTemplates: OrdersContextTemplates = {
+      ...mockTemplates,
+      emptyMessage: 'No hay pedidos para mostrar.',
+    };
     const result = buildOrdersListAiContext({
       orders: [],
       total: 0,
-      templates: {
-        emptyMessage: 'No hay pedidos para mostrar.',
-      },
+      templates: customTemplates,
     });
 
     expect(result.ordersShown).toBe(0);

@@ -1,6 +1,6 @@
 import type { ContextBlock } from '../../../domain/context-block';
 import type { IntentName } from '../../../domain/intent';
-import { fetchWithTimeout } from '../shared';
+import { fetchWithTimeout, openaiResponsesUrl } from '../shared';
 import {
   ASSISTANT_SCHEMA_NAME,
   ASSISTANT_SCHEMA_VERSION,
@@ -8,7 +8,6 @@ import {
   resolveMaxOutputTokens,
 } from './constants';
 import { OpenAiEmptyOutputError, OpenAiHttpError, OpenAiSchemaError } from './errors';
-import { openaiResponsesUrl } from './endpoints';
 import { buildPrompt } from './prompt-builder';
 import type {
   AssistantReplyPayload,

@@ -3,7 +3,7 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Pool } from 'pg';
 import { fetchWithTimeout } from '../src/modules/wf1/infrastructure/adapters/shared/http-client';
-import { OPENAI_API_BASE_URL } from '../src/modules/wf1/infrastructure/adapters/openai/endpoints';
+import { OPENAI_API_BASE_URL } from '../src/modules/wf1/infrastructure/adapters/shared/openai-endpoints';
 import {
   createAnalyticsPool,
   readBooleanEnv,

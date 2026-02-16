@@ -143,6 +143,11 @@ function resolvePriceComparisonFallback(
       };
 }
 
+/**
+ * Policy direct answer bypass DISABLED in Step 5.
+ * Policy questions now flow through LLM with enriched context.
+ * Detection still runs for metrics/observability but doesn't block LLM.
+ */
 function resolveBusinessPolicyFallback(
   input: ResolveResponseInput,
   state: MutableResolutionState,
@@ -151,32 +156,23 @@ function resolveBusinessPolicyFallback(
     return;
   }
 
+  // Detect policy intent for metrics but don't bypass LLM
   const policyDirectAnswer = resolveBusinessPolicyDirectAnswer(state.effectiveText);
   if (!policyDirectAnswer) {
     return;
   }
 
-  state.response = {
-    ok: true,
-    conversationId: input.payload.conversationId,
-    intent: policyDirectAnswer.intent,
-    message: policyDirectAnswer.message,
-  };
-  state.pipelineFallbackCount += 1;
-  state.pipelineFallbackReasons.push(`business_policy_${policyDirectAnswer.policyType}`);
-  if (policyDirectAnswer.policyType === 'returns') {
-    input.metricsPort.incrementReturnsPolicyDirectAnswer();
-  }
-  input.metricsPort.incrementPolicyDirectAnswer({
-    policyType: policyDirectAnswer.policyType,
-  });
-  input.logger.chat('business_policy_direct_answer', {
-    event: 'business_policy_direct_answer',
+  // Log detection for observability
+  input.logger.chat('business_policy_detected', {
+    event: 'business_policy_detected',
     request_id: input.requestId,
     conversation_id: input.payload.conversationId,
     intent: policyDirectAnswer.intent,
     policy_type: policyDirectAnswer.policyType,
+    note: 'direct_answer_bypass_disabled_step5',
   });
+
+  // Do NOT set state.response - let it flow to LLM with context
 }
 
 function resolveScopeFallback(input: ResolveResponseInput, state: MutableResolutionState): void {

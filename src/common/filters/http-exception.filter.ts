@@ -7,9 +7,13 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { createLogger } from '../utils/logger';
+import {
+  BACKEND_ERROR_MESSAGE,
+  INVALID_PAYLOAD_MESSAGE,
+  INVALID_CREDENTIALS_MESSAGE,
+} from '../constants/error-messages.constants';
 
-const SAFE_FALLBACK_MESSAGE =
-  'Tuvimos un inconveniente momentaneo. Si queres, te ayudo con otra consulta o lo intentamos de nuevo en un momento.';
+const SAFE_FALLBACK_MESSAGE = BACKEND_ERROR_MESSAGE;
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -65,11 +69,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     if (exception.getStatus() === HttpStatus.BAD_REQUEST) {
-      return 'Payload invalido.';
+      return INVALID_PAYLOAD_MESSAGE;
     }
 
     if (exception.getStatus() === HttpStatus.UNAUTHORIZED) {
-      return 'Firma o credenciales invalidas.';
+      return INVALID_CREDENTIALS_MESSAGE;
     }
 
     return SAFE_FALLBACK_MESSAGE;

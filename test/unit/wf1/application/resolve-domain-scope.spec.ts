@@ -1,9 +1,19 @@
 import { resolveDomainScope } from '@/modules/wf1/application/use-cases/handle-incoming-message/flows/policy/resolve-domain-scope';
 
 describe('resolve-domain-scope', () => {
-  it('returns out_of_scope for external-topic questions routed as general', () => {
+  it('defaults to in_scope for ambiguous queries (lets LLM handle after Step 5)', () => {
+    // After Step 5, we're more lenient - let LLM reject if truly out of scope
     const result = resolveDomainScope({
       text: 'was 911 an inside job?',
+      routedIntent: 'general',
+    });
+
+    expect(result.type).toBe('in_scope');
+  });
+
+  it('returns out_of_scope for clearly unrelated topics like recipes', () => {
+    const result = resolveDomainScope({
+      text: 'receta de tarta de manzana',
       routedIntent: 'general',
     });
 
@@ -11,14 +21,13 @@ describe('resolve-domain-scope', () => {
     expect('message' in result && result.message).toBeDefined();
   });
 
-  it('returns smalltalk for greeting messages routed as general', () => {
+  it('returns in_scope for greeting messages (smalltalk now flows through LLM)', () => {
     const result = resolveDomainScope({
       text: 'hola',
       routedIntent: 'general',
     });
 
-    expect(result.type).toBe('smalltalk');
-    expect('message' in result && result.message).toContain('Hola');
+    expect(result.type).toBe('in_scope');
   });
 
   it('returns in_scope for business queries routed as general', () => {
@@ -76,24 +85,22 @@ describe('resolve-domain-scope', () => {
     expect(result.type).toBe('hostile');
   });
 
-  it('returns smalltalk for thanks without business terms', () => {
+  it('returns in_scope for thanks without business terms (smalltalk now flows through LLM)', () => {
     const result = resolveDomainScope({
       text: 'muchas gracias',
       routedIntent: 'general',
     });
 
-    expect(result.type).toBe('smalltalk');
-    expect('message' in result && result.message).toContain('gusto');
+    expect(result.type).toBe('in_scope');
   });
 
-  it('returns smalltalk for farewell', () => {
+  it('returns in_scope for farewell (smalltalk now flows through LLM)', () => {
     const result = resolveDomainScope({
       text: 'chau hasta luego',
       routedIntent: 'general',
     });
 
-    expect(result.type).toBe('smalltalk');
-    expect('message' in result && result.message).toContain('luego');
+    expect(result.type).toBe('in_scope');
   });
 
   it('returns in_scope for greeting with business query (hola como puedo consultar mi pedido)', () => {
@@ -105,13 +112,13 @@ describe('resolve-domain-scope', () => {
     expect(result.type).toBe('in_scope');
   });
 
-  it('returns smalltalk for extended greeting without business terms', () => {
+  it('returns in_scope for extended greeting without business terms (smalltalk now flows through LLM)', () => {
     const result = resolveDomainScope({
       text: 'hola buenas tardes',
       routedIntent: 'general',
     });
 
-    expect(result.type).toBe('smalltalk');
+    expect(result.type).toBe('in_scope');
   });
 
   it('returns in_scope for franchise name query', () => {

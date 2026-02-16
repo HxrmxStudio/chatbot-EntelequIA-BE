@@ -5,6 +5,7 @@ import { createLogger } from '@/common/utils/logger';
 import { isRecord } from '@/common/utils/object.utils';
 import { ExternalServiceError } from '@/modules/wf1/domain/errors';
 import { parseMoney, type Money } from '@/modules/wf1/domain/money';
+import type { OrderLookupPort } from '@/modules/wf1/application/ports/order-lookup.port';
 import { fetchWithTimeout } from '../shared';
 import { parseJson } from './product-helpers';
 import {
@@ -56,7 +57,7 @@ export interface OrderLookupFailureResult {
 export type OrderLookupResult = OrderLookupSuccessResult | OrderLookupFailureResult;
 
 @Injectable()
-export class EntelequiaOrderLookupClient {
+export class EntelequiaOrderLookupClient implements OrderLookupPort {
   private readonly logger = createLogger(EntelequiaOrderLookupClient.name);
   private readonly apiBaseUrl: string;
   private readonly timeoutMs: number;

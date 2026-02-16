@@ -1,3 +1,4 @@
+import { normalizeTextForSearch } from '@/common/utils/text-normalize.utils';
 import { isRecord } from '@/common/utils/object.utils';
 import type { ConversationHistoryRow } from '@/modules/wf1/domain/conversation-history';
 
@@ -37,7 +38,7 @@ export interface OrdersDetailFollowupResolution {
 export function resolveOrdersDetailFollowup(
   input: ResolveOrdersDetailFollowupInput,
 ): OrdersDetailFollowupResolution {
-  const normalizedText = normalizeText(input.text);
+  const normalizedText = normalizeTextForSearch(input.text);
   const includeOrderItems = matchesAnyPattern(normalizedText, ORDER_ITEMS_REQUEST_PATTERNS);
   const explicitOrderId = normalizeOrderId(input.explicitOrderId ?? null);
 
@@ -112,15 +113,6 @@ function matchesAnyPattern(text: string, patterns: readonly RegExp[]): boolean {
   }
 
   return false;
-}
-
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function normalizeOrderId(value: unknown): string | null {

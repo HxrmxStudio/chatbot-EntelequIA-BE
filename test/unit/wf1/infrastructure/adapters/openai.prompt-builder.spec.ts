@@ -113,12 +113,12 @@ describe('openai/prompt-builder', () => {
   it('preserves canonical shipping ranges in critical policy when static context is trimmed', () => {
     const paymentInfoContent = [
       'TIEMPOS DE ENTREGA',
-      '- CABA (moto): 24-48hs.',
+      '- CABA (moto): en el dia (pedido antes de las 13hs).',
       '- Interior con Andreani: 3-5 dias habiles.',
     ].join('\n');
     const criticalPolicyContent = [
       'TIEMPOS ESTIMADOS DE ENVIO (REFERENCIA)',
-      '- CABA (moto): 24-48hs.',
+      '- CABA (moto): 24-48hs (entrega en el dia comprando antes de las 13hs).',
       '- Interior con Andreani: 3-5 dias habiles.',
       '- Interior con Correo Argentino: 5-7 dias habiles.',
       '- Internacional con DHL: menos de 4 dias habiles.',

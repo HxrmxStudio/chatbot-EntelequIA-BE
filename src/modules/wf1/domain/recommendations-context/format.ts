@@ -1,14 +1,5 @@
 import { formatMoney } from '../money';
-import {
-  DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE,
-  DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE,
-  DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER,
-  DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
-  DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
-  DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
-  DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION,
-  WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS,
-} from './constants';
+import { WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS } from './constants';
 import type {
   RecommendationItem,
   RecommendationPreferences,
@@ -47,13 +38,15 @@ const RECOMMENDATION_TYPE_LABELS: Readonly<Record<RecommendationTypeKey, string>
   merch: 'Merchandising',
 };
 
+/**
+ * @param input.templates - REQUIRED. Templates must be provided by the adapter (no fallbacks).
+ */
 export function buildRecommendationsAiContext(input: {
   items: RecommendationItem[];
   total?: number;
   preferences: RecommendationPreferences;
-  templates?: Partial<RecommendationsTemplates>;
+  templates: RecommendationsTemplates;
 }): RecommendationsAiContext {
-  const templates = resolveTemplates(input.templates);
   const shownItems = input.items.slice(0, WF1_RECOMMENDATIONS_CONTEXT_AI_MAX_ITEMS);
   const totalRecommendations =
     typeof input.total === 'number' ? input.total : input.items.length;
@@ -61,14 +54,14 @@ export function buildRecommendationsAiContext(input: {
   const list = shownItems.map((item, index) => formatRecommendation(item, index)).join('\n\n');
 
   const lines: string[] = [
-    templates.header,
+    input.templates.header,
     ...(preferencesLines.length > 0 ? ['', ...preferencesLines] : []),
     '',
     list.length > 0 ? list : '(Sin recomendaciones disponibles)',
     '',
-    templates.whyThese,
+    input.templates.whyThese,
     '',
-    templates.instructions,
+    input.templates.instructions,
   ];
 
   return {
@@ -81,20 +74,26 @@ export function buildRecommendationsAiContext(input: {
   };
 }
 
+/**
+ * @param input.templates - REQUIRED. Templates must be provided by the adapter (no fallbacks).
+ */
 export function buildEmptyRecommendationsAiContext(input: {
   preferences: RecommendationPreferences;
-  templates?: Partial<RecommendationsTemplates>;
+  templates: RecommendationsTemplates & {
+    noMatchSuggestion?: string;
+    apiFallbackNote?: string;
+    catalogUnavailableMessage?: string;
+  };
   apiFallback: boolean;
   fallbackReason?: 'no_matches' | 'api_error' | 'catalog_unavailable';
 }): RecommendationsAiContext {
-  const templates = resolveTemplates(input.templates);
   const preferencesLines = formatPreferences(input.preferences);
-  const emptyMessage = resolveEmptyMessage(input.fallbackReason, templates.emptyMessage);
+  const emptyMessage = resolveEmptyMessage(input.fallbackReason, input.templates.emptyMessage, input.templates.catalogUnavailableMessage);
   const suggestionLine = input.fallbackReason === 'no_matches'
-    ? DEFAULT_RECOMMENDATIONS_NO_MATCH_SUGGESTION
+    ? input.templates.noMatchSuggestion
     : null;
   const apiFallbackLine = input.apiFallback
-    ? DEFAULT_RECOMMENDATIONS_API_FALLBACK_NOTE
+    ? input.templates.apiFallbackNote
     : null;
 
   const lines: string[] = [
@@ -103,7 +102,7 @@ export function buildEmptyRecommendationsAiContext(input: {
     ...(suggestionLine ? ['', suggestionLine] : []),
     ...(apiFallbackLine ? ['', apiFallbackLine] : []),
     '',
-    templates.instructions,
+    input.templates.instructions,
   ];
 
   return {
@@ -113,19 +112,6 @@ export function buildEmptyRecommendationsAiContext(input: {
     preferences: input.preferences,
     apiFallback: input.apiFallback,
     isEmpty: true,
-  };
-}
-
-function resolveTemplates(
-  partial?: Partial<RecommendationsTemplates>,
-): RecommendationsTemplates {
-  return {
-    header: partial?.header ?? DEFAULT_RECOMMENDATIONS_CONTEXT_HEADER,
-    whyThese: partial?.whyThese ?? DEFAULT_RECOMMENDATIONS_CONTEXT_WHY_THESE,
-    instructions:
-      partial?.instructions ?? DEFAULT_RECOMMENDATIONS_CONTEXT_INSTRUCTIONS,
-    emptyMessage:
-      partial?.emptyMessage ?? DEFAULT_RECOMMENDATIONS_EMPTY_CONTEXT_MESSAGE,
   };
 }
 
@@ -168,15 +154,20 @@ function formatPreferences(preferences: RecommendationPreferences): string[] {
     lines.push(`Edad aproximada: ${preferences.age} anos`);
   }
 
+  if (preferences.prefersLowPrice) {
+    lines.push('Precio: priorizar opciones economicas');
+  }
+
   return lines;
 }
 
 function resolveEmptyMessage(
   fallbackReason: 'no_matches' | 'api_error' | 'catalog_unavailable' | undefined,
   templateEmptyMessage: string,
+  catalogUnavailableMessage?: string,
 ): string {
-  if (fallbackReason === 'catalog_unavailable') {
-    return DEFAULT_RECOMMENDATIONS_CATALOG_UNAVAILABLE_MESSAGE;
+  if (fallbackReason === 'catalog_unavailable' && catalogUnavailableMessage) {
+    return catalogUnavailableMessage;
   }
 
   return templateEmptyMessage;

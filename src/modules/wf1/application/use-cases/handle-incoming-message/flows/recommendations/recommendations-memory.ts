@@ -5,16 +5,17 @@ import {
   resolveRecommendationFranchiseKeywords,
   resolveRecommendationsPreferences,
 } from '../../../enrich-context-by-intent/query-resolvers';
+import {
+  containsNormalizedTerm,
+  normalizeTextForSearch,
+} from '@/common/utils/text-normalize.utils';
 
-export const RECOMMENDATIONS_LAST_FRANCHISE_METADATA_KEY =
-  'recommendationsLastFranchise';
+export const RECOMMENDATIONS_LAST_FRANCHISE_METADATA_KEY = 'recommendationsLastFranchise';
 export const RECOMMENDATIONS_LAST_TYPE_METADATA_KEY = 'recommendationsLastType';
-export const RECOMMENDATIONS_SNAPSHOT_TIMESTAMP_METADATA_KEY =
-  'recommendationsSnapshotTimestamp';
-export const RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY =
-  'recommendationsSnapshotSource';
-export const RECOMMENDATIONS_SNAPSHOT_ITEM_COUNT_METADATA_KEY =
-  'recommendationsSnapshotItemCount';
+export const RECOMMENDATIONS_SNAPSHOT_TIMESTAMP_METADATA_KEY = 'recommendationsSnapshotTimestamp';
+export const RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY = 'recommendationsSnapshotSource';
+export const RECOMMENDATIONS_SNAPSHOT_ITEM_COUNT_METADATA_KEY = 'recommendationsSnapshotItemCount';
+export const RECOMMENDATIONS_PROMPTED_FRANCHISE_METADATA_KEY = 'recommendationsPromptedFranchise';
 
 const SHORT_ACK_TERMS = new Set([
   'si',
@@ -50,22 +51,23 @@ const SHORT_ACK_TERMS = new Set([
   'no gracias',
 ]);
 
+/**
+ * Patterns that indicate continuation of a previous recommendation flow.
+ * Excludes standalone "barato"/"económico" - those are new requests, not continuations.
+ * "presupuesto" stays: "tengo poco presupuesto" after k pop = valid continuation.
+ */
 const CONTINUATION_PATTERNS: readonly RegExp[] = [
   /\b(mas|más)\s+barat[oa]\b/i,
-  /\bbarat[oa]s?\b/i,
-  /\b(economico|econ[oó]mico|presupuesto)\b/i,
   /\b(algo\s+mas|algo\s+m[aá]s)\b/i,
   /\b(tenes|ten[eé]s|tienes)\b/i,
   /\b(que\s+tenes|que\s+ten[eé]s)\b/i,
+  /\bpresupuesto\b/i,
 ];
 
 const CATALOG_SIGNAL_PATTERN =
   /\b(manga|mangas|comic|comics|figura|figuras|funko|merch|k\s*-?\s*pop|kpop|booster|tcg|carta|cartas|yu\s*-?\s*gi\s*-?\s*oh|yugioh|pokemon|evangelion|naruto|chainsaw\s+man|demon\s+slayer|one\s+piece|attack\s+on\s+titan|shingeki|boku\s+no\s+hero|dragon\s+ball|jujutsu\s+kaisen|spy\s+family|bleach|hunter|kimetsu|my\s+hero\s+academia)\b/i;
 
-const PROMPTED_FRANCHISE_PATTERNS: readonly RegExp[] = [
-  /\bproductos?\s+de\s+([^?.!\n]+)/i,
-  /\bopciones?\s+de\s+([^?.!\n]+)/i,
-];
+// Removed PROMPTED_FRANCHISE_PATTERNS - no longer used after deprecating message parsing
 
 export interface RecommendationsMemorySnapshot {
   lastFranchise: string | null;
@@ -106,19 +108,14 @@ export function resolveRecommendationsMemoryFromHistory(
     }
 
     if (isRecord(row.metadata)) {
-      if (
-        lastFranchise === null &&
-        RECOMMENDATIONS_LAST_FRANCHISE_METADATA_KEY in row.metadata
-      ) {
+      if (lastFranchise === null && RECOMMENDATIONS_LAST_FRANCHISE_METADATA_KEY in row.metadata) {
         lastFranchise = normalizeStringOrNull(
           row.metadata[RECOMMENDATIONS_LAST_FRANCHISE_METADATA_KEY],
         );
       }
 
       if (lastType === null && RECOMMENDATIONS_LAST_TYPE_METADATA_KEY in row.metadata) {
-        lastType = normalizeStringOrNull(
-          row.metadata[RECOMMENDATIONS_LAST_TYPE_METADATA_KEY],
-        );
+        lastType = normalizeStringOrNull(row.metadata[RECOMMENDATIONS_LAST_TYPE_METADATA_KEY]);
       }
 
       if (
@@ -129,10 +126,7 @@ export function resolveRecommendationsMemoryFromHistory(
         snapshotTimestamp = typeof v === 'number' ? v : null;
       }
 
-      if (
-        snapshotSource === null &&
-        RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY in row.metadata
-      ) {
+      if (snapshotSource === null && RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY in row.metadata) {
         snapshotSource = normalizeStringOrNull(
           row.metadata[RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY],
         );
@@ -145,12 +139,19 @@ export function resolveRecommendationsMemoryFromHistory(
         const v = row.metadata[RECOMMENDATIONS_SNAPSHOT_ITEM_COUNT_METADATA_KEY];
         snapshotItemCount = typeof v === 'number' ? v : null;
       }
+
+      // Read prompted franchise from metadata instead of parsing message
+      if (
+        promptedFranchise === null &&
+        RECOMMENDATIONS_PROMPTED_FRANCHISE_METADATA_KEY in row.metadata
+      ) {
+        promptedFranchise = normalizeStringOrNull(
+          row.metadata[RECOMMENDATIONS_PROMPTED_FRANCHISE_METADATA_KEY],
+        );
+      }
     }
 
-    if (promptedFranchise === null && typeof row.content === 'string') {
-      promptedFranchise = resolvePromptedFranchiseFromMessage(row.content);
-    }
-
+    // No fallback to message parsing - rely exclusively on metadata
     if (lastFranchise !== null && lastType !== null && promptedFranchise !== null) {
       break;
     }
@@ -208,9 +209,7 @@ export function resolveRecommendationsMemoryUpdateFromContext(input: {
     }
   }
 
-  const productsBlock = input.contextBlocks.find(
-    (entry) => entry.contextType === 'products',
-  );
+  const productsBlock = input.contextBlocks.find((entry) => entry.contextType === 'products');
   if (!productsBlock || !isRecord(productsBlock.contextPayload)) {
     return {};
   }
@@ -225,8 +224,7 @@ export function resolveRecommendationsMemoryUpdateFromContext(input: {
   const resolvedQuery = isRecord(productsBlock.contextPayload.resolvedQuery)
     ? productsBlock.contextPayload.resolvedQuery
     : null;
-  const queryText =
-    normalizeStringOrNull(resolvedQuery?.productName) ?? input.text;
+  const queryText = normalizeStringOrNull(resolvedQuery?.productName) ?? input.text;
   const detectedFranchise =
     resolveRecommendationFranchiseKeywords({
       text: queryText,
@@ -261,7 +259,7 @@ export function resolveRecommendationContinuation(input: {
     text: input.text,
     entities: input.entities,
   });
-  const normalizedText = normalizeText(input.text);
+  const normalizedText = normalizeTextForSearch(input.text);
   const isShortAck = SHORT_ACK_TERMS.has(normalizedText);
   const hasContinuationSignal =
     isShortAck || CONTINUATION_PATTERNS.some((pattern) => pattern.test(normalizedText));
@@ -345,13 +343,15 @@ export function buildRecommendationsMemoryMetadata(input: {
   snapshotTimestamp?: number | null;
   snapshotSource?: string | null;
   snapshotItemCount?: number | null;
+  promptedFranchise?: string | null;
 }): Record<string, unknown> {
   const hasAny =
     input.lastFranchise !== undefined ||
     input.lastType !== undefined ||
     input.snapshotTimestamp !== undefined ||
     input.snapshotSource !== undefined ||
-    input.snapshotItemCount !== undefined;
+    input.snapshotItemCount !== undefined ||
+    input.promptedFranchise !== undefined;
   if (!hasAny) return {};
 
   const result: Record<string, unknown> = {
@@ -359,43 +359,18 @@ export function buildRecommendationsMemoryMetadata(input: {
     [RECOMMENDATIONS_LAST_TYPE_METADATA_KEY]: input.lastType ?? null,
   };
   if (input.snapshotTimestamp !== undefined) {
-    result[RECOMMENDATIONS_SNAPSHOT_TIMESTAMP_METADATA_KEY] =
-      input.snapshotTimestamp ?? null;
+    result[RECOMMENDATIONS_SNAPSHOT_TIMESTAMP_METADATA_KEY] = input.snapshotTimestamp ?? null;
   }
   if (input.snapshotSource !== undefined) {
-    result[RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY] =
-      input.snapshotSource ?? null;
+    result[RECOMMENDATIONS_SNAPSHOT_SOURCE_METADATA_KEY] = input.snapshotSource ?? null;
   }
   if (input.snapshotItemCount !== undefined) {
-    result[RECOMMENDATIONS_SNAPSHOT_ITEM_COUNT_METADATA_KEY] =
-      input.snapshotItemCount ?? null;
+    result[RECOMMENDATIONS_SNAPSHOT_ITEM_COUNT_METADATA_KEY] = input.snapshotItemCount ?? null;
+  }
+  if (input.promptedFranchise !== undefined) {
+    result[RECOMMENDATIONS_PROMPTED_FRANCHISE_METADATA_KEY] = input.promptedFranchise ?? null;
   }
   return result;
-}
-
-function resolvePromptedFranchiseFromMessage(message: string): string | null {
-  for (const pattern of PROMPTED_FRANCHISE_PATTERNS) {
-    const match = message.match(pattern);
-    if (!match || !match[1]) {
-      continue;
-    }
-
-    const candidate = match[1].trim();
-    if (candidate.length === 0) {
-      continue;
-    }
-
-    const resolved = resolveRecommendationFranchiseKeywords({
-      text: candidate,
-      entities: [],
-    })[0];
-
-    if (resolved) {
-      return resolved;
-    }
-  }
-
-  return null;
 }
 
 function resolveContinuationFranchise(input: {
@@ -420,8 +395,8 @@ function resolveContinuationFranchise(input: {
 }
 
 function appendFranchiseToText(text: string, franchise: string): string {
-  const normalizedText = normalizeText(text);
-  const normalizedFranchise = normalizeText(franchise);
+  const normalizedText = normalizeTextForSearch(text);
+  const normalizedFranchise = normalizeTextForSearch(franchise);
 
   if (
     normalizedFranchise.length > 0 &&
@@ -438,13 +413,13 @@ function normalizeFranchiseQuery(value: string): string {
 }
 
 function appendEntity(entities: string[], candidate: string): string[] {
-  const normalizedCandidate = normalizeText(candidate);
+  const normalizedCandidate = normalizeTextForSearch(candidate);
   if (normalizedCandidate.length === 0) {
     return entities;
   }
 
   for (const entity of entities) {
-    if (normalizeText(entity) === normalizedCandidate) {
+    if (normalizeTextForSearch(entity) === normalizedCandidate) {
       return entities;
     }
   }
@@ -459,29 +434,6 @@ function normalizeStringOrNull(value: unknown): string | null {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
-}
-
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function containsNormalizedTerm(text: string, normalizedTerm: string): boolean {
-  if (normalizedTerm.length === 0) {
-    return false;
-  }
-
-  if (text === normalizedTerm) {
-    return true;
-  }
-
-  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(text);
 }
 
 function parseStringArray(value: unknown): string[] {

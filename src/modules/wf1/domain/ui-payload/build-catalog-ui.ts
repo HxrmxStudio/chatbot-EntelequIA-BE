@@ -1,3 +1,4 @@
+import { isRecord } from '@/common/utils/object.utils';
 import type { ContextBlock } from '../context-block';
 import { formatMoney, parseMoney } from '../money';
 import { WF1_UI_LOW_STOCK_THRESHOLD, WF1_UI_THUMBNAIL_FALLBACK_URL } from './constants';
@@ -422,8 +423,4 @@ function toFiniteNumber(value: unknown): number | undefined {
   }
 
   return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

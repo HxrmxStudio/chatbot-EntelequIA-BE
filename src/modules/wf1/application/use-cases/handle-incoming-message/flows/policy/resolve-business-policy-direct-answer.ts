@@ -1,3 +1,20 @@
+import {
+  RETURNS_POLICY_MESSAGE,
+  RESERVATIONS_POLICY_MESSAGE,
+  IMPORTS_POLICY_MESSAGE,
+  EDITORIALS_POLICY_MESSAGE,
+  INTERNATIONAL_SHIPPING_POLICY_MESSAGE,
+  PROMOTIONS_POLICY_MESSAGE,
+  SHIPPING_COST_POLICY_MESSAGE,
+  PICKUP_STORE_POLICY_MESSAGE,
+  STORE_HOURS_POLICY_MESSAGE,
+  PAYMENT_METHODS_POLICY_MESSAGE,
+} from '../../../../../domain/policy';
+import {
+  containsAnyTermAsSubstring,
+  normalizeTextStrict,
+} from '@/common/utils/text-normalize.utils';
+
 export type BusinessPolicyType =
   | 'returns'
   | 'reservations'
@@ -15,27 +32,6 @@ export interface BusinessPolicyDirectAnswer {
   message: string;
   policyType: BusinessPolicyType;
 }
-
-const RETURNS_POLICY_MESSAGE =
-  'Para cambios o devoluciones tenes 30 dias corridos desde la compra. El producto tiene que estar sin uso, con embalaje original y comprobante + numero de pedido. Una vez aprobado, el cambio o reintegro demora entre 7 y 10 dias habiles. Si llego danado por envio, hace el reclamo dentro de 48 horas con fotos.';
-const RESERVATIONS_POLICY_MESSAGE =
-  'Si, se pueden reservar productos por 48 horas con una sena del 30%. Si queres gestionar una reserva puntual, te ayudo a seguir por WhatsApp (+54 9 11 6189-8533) o email.';
-const IMPORTS_POLICY_MESSAGE =
-  'Si, se pueden traer productos importados o bajo pedido especial. La demora estimada es de 30 a 60 dias segun origen y se requiere una sena del 50%. Si queres gestionar uno puntual, te paso el canal de contacto.';
-const EDITORIALS_POLICY_MESSAGE =
-  'Trabajamos con editoriales como Ivrea, Panini y Editorial Mil Suenos, ademas de material importado (segun disponibilidad). Si queres, te filtro por manga/comic y te muestro opciones.';
-const INTERNATIONAL_SHIPPING_POLICY_MESSAGE =
-  'Si, hacemos envios internacionales con DHL. Si queres, te ayudo a revisar cobertura y la mejor opcion de envio para tu caso.';
-const PROMOTIONS_POLICY_MESSAGE =
-  'Tenemos promociones que pueden variar por vigencia, banco y medio de pago. Lo mas actualizado siempre esta en la web y checkout; si queres, te ayudo a validar la mejor opcion para tu compra.';
-const SHIPPING_COST_POLICY_MESSAGE =
-  'El costo exacto se calcula en checkout segun destino. Si queres te ayudo a estimarlo.';
-const PICKUP_STORE_POLICY_MESSAGE =
-  'Si, podes retirar en sucursal y no tiene costo de envio.';
-const STORE_HOURS_POLICY_MESSAGE =
-  'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 10:00 a 17:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
-const PAYMENT_METHODS_POLICY_MESSAGE =
-  'Aceptamos varios medios de pago. En local: efectivo, credito, debito. Online: todas las tarjetas y transferencia.';
 
 const RETURNS_TERMS = [
   'devolucion',
@@ -123,18 +119,18 @@ const PROMOTIONS_TERMS = [
 export function resolveBusinessPolicyDirectAnswer(
   text: string,
 ): BusinessPolicyDirectAnswer | null {
-  const normalized = normalizeText(text);
+  const normalized = normalizeTextStrict(text, true); // Allow '#' for order IDs
   if (normalized.length === 0) {
     return null;
   }
 
   const hasReturnsSignal =
-    containsAnyTerm(normalized, RETURNS_TERMS) ||
-    containsAnyTerm(normalized, RETURNS_TYPO_VARIANTS);
+    containsAnyTermAsSubstring(normalized, RETURNS_TERMS) ||
+    containsAnyTermAsSubstring(normalized, RETURNS_TYPO_VARIANTS);
   if (
     hasReturnsSignal &&
-    containsAnyTerm(normalized, RETURNS_DETAIL_TERMS) &&
-    !containsAnyTerm(normalized, RETURNS_CASE_MANAGEMENT_TERMS) &&
+    containsAnyTermAsSubstring(normalized, RETURNS_DETAIL_TERMS) &&
+    !containsAnyTermAsSubstring(normalized, RETURNS_CASE_MANAGEMENT_TERMS) &&
     !hasOrderIdLikeSignal(normalized)
   ) {
     return {
@@ -144,7 +140,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, RESERVATION_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, RESERVATION_TERMS)) {
     return {
       intent: 'products',
       policyType: 'reservations',
@@ -153,8 +149,8 @@ export function resolveBusinessPolicyDirectAnswer(
   }
 
   if (
-    containsAnyTerm(normalized, SHIPPING_COST_TERMS) &&
-    containsAnyTerm(normalized, SHIPPING_CONTEXT_TERMS)
+    containsAnyTermAsSubstring(normalized, SHIPPING_COST_TERMS) &&
+    containsAnyTermAsSubstring(normalized, SHIPPING_CONTEXT_TERMS)
   ) {
     return {
       intent: 'payment_shipping',
@@ -163,7 +159,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, PAYMENT_METHODS_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, PAYMENT_METHODS_TERMS)) {
     return {
       intent: 'store_info',
       policyType: 'payment_methods',
@@ -171,7 +167,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, PICKUP_STORE_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, PICKUP_STORE_TERMS)) {
     return {
       intent: 'payment_shipping',
       policyType: 'pickup_store',
@@ -179,7 +175,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, STORE_HOURS_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, STORE_HOURS_TERMS)) {
     return {
       intent: 'store_info',
       policyType: 'store_hours',
@@ -187,7 +183,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, INTERNATIONAL_SHIPPING_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, INTERNATIONAL_SHIPPING_TERMS)) {
     return {
       intent: 'payment_shipping',
       policyType: 'international_shipping',
@@ -195,7 +191,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, IMPORT_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, IMPORT_TERMS)) {
     return {
       intent: 'products',
       policyType: 'imports',
@@ -203,7 +199,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, EDITORIAL_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, EDITORIAL_TERMS)) {
     return {
       intent: 'products',
       policyType: 'editorials',
@@ -211,7 +207,7 @@ export function resolveBusinessPolicyDirectAnswer(
     };
   }
 
-  if (containsAnyTerm(normalized, PROMOTIONS_TERMS)) {
+  if (containsAnyTermAsSubstring(normalized, PROMOTIONS_TERMS)) {
     return {
       intent: 'payment_shipping',
       policyType: 'promotions',
@@ -224,18 +220,4 @@ export function resolveBusinessPolicyDirectAnswer(
 
 function hasOrderIdLikeSignal(normalizedText: string): boolean {
   return /\bpedido\s*(nro|numero|n)?\s*#?\s*\d{3,}\b/.test(normalizedText);
-}
-
-function containsAnyTerm(normalizedText: string, terms: readonly string[]): boolean {
-  return terms.some((term) => normalizedText.includes(term));
-}
-
-function normalizeText(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s#]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

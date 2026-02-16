@@ -35,6 +35,7 @@ import {
   DEFAULT_POLICY_FACTS_SHORT_CONTEXT,
   DEFAULT_STATIC_CONTEXT,
   DEFAULT_CRITICAL_POLICY_CONTEXT,
+  POLICY_FACTS_PATH,
   GENERAL_CONTEXT_INSTRUCTIONS_PATH,
   GENERAL_CONTEXT_HINT_PATH,
   ORDER_DETAIL_CONTEXT_INSTRUCTIONS_PATH,
@@ -230,12 +231,10 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
       CRITICAL_POLICY_CONTEXT_PATH,
       DEFAULT_CRITICAL_POLICY_CONTEXT,
     );
-    this.policyFactsShortContext = buildPolicyFactsShortContext({
-      staticContext: this.staticContext,
-      criticalPolicyContext: this.criticalPolicyContext,
-      paymentShippingGeneralContext: this.paymentShippingGeneralContext,
-      fallback: DEFAULT_POLICY_FACTS_SHORT_CONTEXT,
-    });
+    this.policyFactsShortContext = loadPromptFile(
+      POLICY_FACTS_PATH,
+      DEFAULT_POLICY_FACTS_SHORT_CONTEXT,
+    );
   }
 
   getProductsContextHeader(): string {
@@ -369,81 +368,4 @@ export class PromptTemplatesAdapter implements PromptTemplatesPort {
   getCriticalPolicyContext(): string {
     return this.criticalPolicyContext;
   }
-}
-
-function buildPolicyFactsShortContext(input: {
-  staticContext: string;
-  criticalPolicyContext: string;
-  paymentShippingGeneralContext: string;
-  fallback: string;
-}): string {
-  const sections: string[] = [];
-
-  const returnsLine = findFirstMatchingLine(
-    input.criticalPolicyContext,
-    /30\s*d[ií]as|devoluciones|cambios/i,
-  );
-  if (returnsLine) {
-    sections.push(`- ${returnsLine}`);
-  }
-
-  const reservationLine = findFirstMatchingLine(
-    input.staticContext,
-    /reserv(a|ar|as)|48hs|30%/i,
-  );
-  if (reservationLine) {
-    sections.push(`- ${reservationLine}`);
-  }
-
-  const importedLine = findFirstMatchingLine(
-    input.staticContext,
-    /importad|bajo pedido|30-60|30 a 60|50%/i,
-  );
-  if (importedLine) {
-    sections.push(`- ${importedLine}`);
-  }
-
-  const editorialLines = findMatchingLines(
-    input.staticContext,
-    /(ivrea|panini|mil sue[ñn]os|editoriales?)/i,
-  ).slice(0, 2);
-  if (editorialLines.length > 0) {
-    sections.push(`- ${editorialLines.join(' ')}`);
-  }
-
-  const internationalShippingLine = findFirstMatchingLine(
-    `${input.paymentShippingGeneralContext}\n${input.criticalPolicyContext}\n${input.staticContext}`,
-    /(env[ií]os?\s+internacionales?|dhl)/i,
-  );
-  if (internationalShippingLine) {
-    sections.push(`- ${internationalShippingLine}`);
-  }
-
-  const promotionsLine = findFirstMatchingLine(
-    `${input.paymentShippingGeneralContext}\n${input.staticContext}`,
-    /(promoci[oó]n|promociones|descuentos?)/i,
-  );
-  if (promotionsLine) {
-    sections.push(`- ${promotionsLine}`);
-  }
-
-  if (sections.length === 0) {
-    return input.fallback;
-  }
-
-  return ['# Hechos criticos de negocio', ...sections].join('\n');
-}
-
-function findMatchingLines(content: string, pattern: RegExp): string[] {
-  return content
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => pattern.test(line))
-    .map((line) => line.replace(/^[-*]\s*/, '').trim());
-}
-
-function findFirstMatchingLine(content: string, pattern: RegExp): string | null {
-  const line = findMatchingLines(content, pattern)[0];
-  return line ?? null;
 }

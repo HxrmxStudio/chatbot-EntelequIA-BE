@@ -11,7 +11,8 @@ import { withRetry } from '../openai-retry';
 import { loadJsonFile, loadPromptFile } from '../shared';
 import { BASE_BACKOFF_MS, DEFAULT_SCHEMA, DEFAULT_SYSTEM_PROMPT, INTENT_PROMPT_PATH, INTENT_SCHEMA_PATH, MAX_ATTEMPTS } from './constants';
 import { classifyFailure, resolveModelPayload, shouldRetry } from './response-helpers';
-import { hashText, normalizeText, truncateText } from './text-helpers';
+import { normalizeTextBasic } from '@/common/utils/text-normalize.utils';
+import { hashText, truncateText } from './text-helpers';
 import { requestIntent } from './openai-client';
 
 @Injectable()
@@ -35,7 +36,7 @@ export class IntentExtractorAdapter implements IntentExtractorPort {
     conversationId?: string;
   }): Promise<IntentResult> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const normalizedText = normalizeText(input.text);
+    const normalizedText = normalizeTextBasic(input.text);
     const { text, truncated } = truncateText(normalizedText, 4000);
 
     if (!apiKey) {

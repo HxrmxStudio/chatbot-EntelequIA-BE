@@ -1,4 +1,13 @@
 import { buildTicketsAiContext } from '@/modules/wf1/domain/tickets-context';
+import type { TicketsTemplates } from '@/modules/wf1/domain/tickets-context/types';
+
+const mockTemplates: TicketsTemplates = {
+  header: 'SOPORTE TÉCNICO ENTELEQUIA',
+  contactOptions: 'Qué podés hacer ahora:\n- Derivar por canales oficiales.',
+  highPriorityNote: 'Prioridad alta detectada:\n- Contacto inmediato.',
+  returnsPolicy: 'Politica de cambios y devoluciones:\n- 30 dias corridos\n- Reportar danos en 48 horas.',
+  instructions: 'Instrucciones:\n- Tono claro y profesional.',
+};
 
 describe('tickets-context', () => {
   it('builds ai context with priority note when escalation is required', () => {
@@ -9,6 +18,7 @@ describe('tickets-context', () => {
         sentiment: 'negative',
         requiresHumanEscalation: true,
       },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('SOPORTE TÉCNICO ENTELEQUIA');
@@ -26,6 +36,7 @@ describe('tickets-context', () => {
         sentiment: 'neutral',
         requiresHumanEscalation: false,
       },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('Prioridad: Normal');
@@ -40,6 +51,7 @@ describe('tickets-context', () => {
         sentiment: 'neutral',
         requiresHumanEscalation: false,
       },
+      templates: mockTemplates,
     });
 
     expect(result.contextText).toContain('Politica de cambios y devoluciones');

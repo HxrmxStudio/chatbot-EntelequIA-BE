@@ -18,7 +18,7 @@ import {
 import type { RecommendationDisambiguationState } from '../flows/recommendations/resolve-recommendations-flow-state';
 import type { GuestOrderFlowState } from '../flows/orders/resolve-order-lookup-flow-state';
 import {
-  shouldSuggestCancelledOrderEscalation,
+  OFFERED_ESCALATION_METADATA_KEY,
   type OrdersEscalationFlowState,
 } from '../flows/orders/resolve-orders-escalation-flow-state';
 import { buildSharedTurnMetadata } from '../support/build-turn-metadata';
@@ -63,7 +63,9 @@ export interface FinalizeSuccessInput {
   recommendationsSnapshotTimestampToPersist?: number | null;
   recommendationsSnapshotSourceToPersist?: string | null;
   recommendationsSnapshotItemCountToPersist?: number | null;
+  recommendationsPromptedFranchiseToPersist?: string | null;
   ordersEscalationFlowStateToPersist?: OrdersEscalationFlowState;
+  offeredEscalationToPersist?: boolean;
   llmAttempts: number;
   toolAttempts: number;
   pipelineFallbackCount: number;
@@ -106,9 +108,11 @@ export async function finalizeSuccess(input: FinalizeSuccessInput): Promise<Wf1R
     logger: input.logger,
   });
 
+  // Use metadata flag exclusively (no message parsing fallback)
+  const offeredEscalation = input.offeredEscalationToPersist === true;
+
   const persistedEscalationState =
-    input.ordersEscalationFlowStateToPersist === undefined &&
-    shouldSuggestCancelledOrderEscalation(sanitizedResponse.message)
+    input.ordersEscalationFlowStateToPersist === undefined && offeredEscalation
       ? 'awaiting_cancelled_reason_confirmation'
       : input.ordersEscalationFlowStateToPersist;
 
@@ -140,8 +144,14 @@ export async function finalizeSuccess(input: FinalizeSuccessInput): Promise<Wf1R
     snapshotTimestamp: input.recommendationsSnapshotTimestampToPersist,
     snapshotSource: input.recommendationsSnapshotSourceToPersist,
     snapshotItemCount: input.recommendationsSnapshotItemCountToPersist,
+    promptedFranchise: input.recommendationsPromptedFranchiseToPersist,
   });
-  const ordersEscalationFlowMetadata = buildOrdersEscalationFlowMetadata(persistedEscalationState);
+  const ordersEscalationFlowMetadata = {
+    ...buildOrdersEscalationFlowMetadata(persistedEscalationState),
+    ...(input.offeredEscalationToPersist !== undefined
+      ? { [OFFERED_ESCALATION_METADATA_KEY]: input.offeredEscalationToPersist }
+      : {}),
+  };
 
   const sharedTurnMetadata = buildSharedTurnMetadata({
     routedIntent: input.routedIntent,

@@ -1,5 +1,5 @@
 import { IntentValidationError } from '../intent-validator';
-import { fetchWithTimeout } from '../shared';
+import { fetchWithTimeout, openaiResponsesUrl } from '../shared';
 import {
   INTENT_MAX_OUTPUT_TOKENS,
   INTENT_MODEL,
@@ -7,7 +7,6 @@ import {
   INTENT_VERBOSITY,
   SCHEMA_NAME,
 } from './constants';
-import { openaiResponsesUrl } from './endpoints';
 import { IntentExtractorHttpError, IntentExtractorNetworkError } from './errors';
 import type { OpenAiResponse } from './types';
 

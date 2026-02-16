@@ -1,8 +1,7 @@
 import { isRecord } from '@/common/utils/object.utils';
 import { parseMoney } from '@/modules/wf1/domain/money';
 import type { RecommendationItem } from '@/modules/wf1/domain/recommendations-context';
-import { productWebUrl } from '@/modules/wf1/infrastructure/adapters/entelequia-http/endpoints';
-import { pickImageUrl } from '@/modules/wf1/infrastructure/adapters/entelequia-http/product-helpers';
+import { productWebUrl, pickImageUrl } from '@/common/utils/url-builder.utils';
 
 export function extractRecommendedItems(
   payload: Record<string, unknown> | unknown[],

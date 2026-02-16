@@ -1,3 +1,4 @@
+import { containsNormalizedTerm } from '@/common/utils/text-normalize.utils';
 import type { RecommendationItem, RecommendationTypeKey } from './types';
 
 /**
@@ -336,20 +337,6 @@ export function filterRecommendationsByType(
   });
 }
 
-function containsNormalizedTerm(normalizedValue: string, normalizedTerm: string): boolean {
-  if (normalizedTerm.length === 0) {
-    return false;
-  }
-
-  if (normalizedTerm.includes(' ')) {
-    return normalizedValue.includes(normalizedTerm);
-  }
-
-  const escaped = escapeRegExp(normalizedTerm);
-  const bounded = new RegExp(`(^|\\b)${escaped}(\\b|$)`);
-  return bounded.test(normalizedValue);
-}
-
 /**
  * Normalizes a recommendation term for comparison.
  * Removes accents, converts to lowercase, normalizes whitespace and separators.
@@ -367,6 +354,3 @@ function normalizeRecommendationTerm(value: string): string {
     .replace(/\s{2,}/g, ' ');
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}

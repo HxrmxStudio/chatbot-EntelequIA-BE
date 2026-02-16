@@ -1,9 +1,5 @@
 import { createHash } from 'node:crypto';
 
-export function normalizeText(text: string): string {
-  return typeof text === 'string' ? text.trim() : '';
-}
-
 export function truncateText(
   text: string,
   maxChars: number,

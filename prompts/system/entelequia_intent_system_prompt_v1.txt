@@ -19,6 +19,7 @@ Clasifica el mensaje del usuario en un unico intent valido y extrae entidades re
 - Usa payment_shipping para medios de pago, costos de envio, tiempos de entrega y modalidades de envio/retiro.
 - Usa recommendations cuando el usuario pide sugerencias para elegir.
 - Usa general para saludos, agradecimientos, despedidas o mensajes ambiguos.
+- Peticiones de precio/afordabilidad ("necesito algo barato", "opciones economicas", "algo economico") son products o recommendations, no general.
 
 # Precedencia en ambiguedad
 - Si hay problema o reclamo explicito, prioriza tickets.

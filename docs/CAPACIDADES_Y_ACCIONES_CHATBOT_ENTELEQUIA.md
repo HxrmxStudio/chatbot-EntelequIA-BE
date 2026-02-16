@@ -233,7 +233,7 @@ Usá esta lista para no dejar ninguna interacción sin probar. En cada ítem, ej
 
 ### Tienda
 
-- [ ] Preguntar **horarios** de atención (esperar Lunes a viernes 10–19, sábados 11–18, domingos cerrado).
+- [ ] Preguntar **horarios** de atención (esperar Lunes a viernes 10–19, sábados 10–17, domingos cerrado).
 - [ ] Preguntar **dirección** o **cómo llegar** (esperar mención de Centro y Belgrano, web o mapas).
 - [ ] Preguntar por **estacionamiento**.
 - [ ] Preguntar por **transporte** o cómo llegar.

@@ -86,7 +86,8 @@ const REQUIRED_SECTIONS_RULES: SectionRule[] = [
     ],
   },
   {
-    filePattern: /prompts\/recommendations\/entelequia_recommendations_context_instructions_v1\.txt$/,
+    filePattern:
+      /prompts\/recommendations\/entelequia_recommendations_context_instructions_v1\.txt$/,
     requiredSections: [
       '# rol y objetivo',
       '# reglas de respuesta',
@@ -171,7 +172,7 @@ const REQUIRED_PHRASES_RULES: RequiredRule[] = [
     requiredPhrases: [
       'lunes a viernes: 10:00 a 19:00 hs',
       'sabados: 10:00 a 17:00 hs',
-      'feriados y fechas especiales',
+      'feriados: 11:00 a 19:00 hs',
     ],
   },
 ];
@@ -193,7 +194,9 @@ const CONTRADICTION_GROUPS: Array<{ name: string; patterns: RegExp[] }> = [
   },
 ];
 
-export async function validatePrompts(rootDir: string = process.cwd()): Promise<PromptValidationIssue[]> {
+export async function validatePrompts(
+  rootDir: string = process.cwd(),
+): Promise<PromptValidationIssue[]> {
   const promptsDir = resolve(rootDir, 'prompts');
   const files = await listTxtFiles(promptsDir);
   const issues: PromptValidationIssue[] = [];

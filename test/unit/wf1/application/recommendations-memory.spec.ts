@@ -20,6 +20,7 @@ describe('recommendations-memory', () => {
         metadata: {
           recommendationsLastFranchise: 'k_pop',
           recommendationsLastType: 'mangas',
+          recommendationsPromptedFranchise: 'k_pop', // Now using metadata instead of parsing message
           recommendationsSnapshotTimestamp: ts,
           recommendationsSnapshotSource: 'recommendations',
           recommendationsSnapshotItemCount: 5,
@@ -187,7 +188,7 @@ describe('recommendations-memory', () => {
     expect(resolution.rewrittenText).toBe('dale');
   });
 
-  it('does not reuse stale franchise for continuation text when prompted franchise is unknown', () => {
+  it('does not treat "necesito algo barato" as continuation when prompted franchise is unknown', () => {
     const resolution = resolveRecommendationContinuation({
       text: 'necesito algo barato',
       entities: [],
@@ -200,9 +201,42 @@ describe('recommendations-memory', () => {
       },
     });
 
-    expect(resolution.forceRecommendationsIntent).toBe(true);
     expect(resolution.rewrittenText).toBe('necesito algo barato');
     expect(resolution.entitiesOverride).toEqual([]);
+    expect(resolution.forceRecommendationsIntent).toBe(false);
+  });
+
+  it('does not force recommendations for "necesito algo barato" as first request', () => {
+    const resolution = resolveRecommendationContinuation({
+      text: 'necesito algo barato',
+      entities: [],
+      routedIntent: 'general',
+      memory: {
+        lastFranchise: null,
+        lastType: null,
+        promptedFranchise: null,
+      },
+    });
+
+    expect(resolution.rewrittenText).toBe('necesito algo barato');
+    expect(resolution.entitiesOverride).toEqual([]);
+    expect(resolution.forceRecommendationsIntent).toBe(false);
+  });
+
+  it('treats "mas barato" as continuation when comparing with previous catalog', () => {
+    const resolution = resolveRecommendationContinuation({
+      text: 'cual es el mas barato de los que mostraste?',
+      entities: [],
+      routedIntent: 'general',
+      memory: {
+        lastFranchise: 'naruto',
+        lastType: 'mangas',
+        promptedFranchise: 'naruto',
+        snapshotTimestamp: Date.now() - 1000,
+      },
+    });
+
+    expect(resolution.forceRecommendationsIntent).toBe(true);
   });
 
   it('isSnapshotFresh returns false when timestamp is null', () => {

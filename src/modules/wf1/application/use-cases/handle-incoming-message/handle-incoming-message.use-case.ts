@@ -9,6 +9,7 @@ import {
   INTENT_EXTRACTOR_PORT,
   LLM_PORT,
   METRICS_PORT,
+  ORDER_LOOKUP_PORT,
   ORDER_LOOKUP_RATE_LIMITER_PORT,
   PROMPT_TEMPLATES_PORT,
 } from '../../ports/tokens';
@@ -30,7 +31,7 @@ import { sanitizeText, sanitizeTextPreservingLineBreaks } from '../../../domain/
 import { resolveBooleanFlag } from '../../../../../common/utils/config.utils';
 import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
-import { EntelequiaOrderLookupClient } from '../../../infrastructure/adapters/entelequia-http';
+import type { OrderLookupPort } from '../../ports/order-lookup.port';
 import { finalizeFailure } from './orchestration/finalize-failure';
 import { finalizeSuccess } from './orchestration/finalize-success';
 import { handleDuplicateEvent } from './orchestration/handle-duplicate-event';
@@ -59,7 +60,8 @@ export class HandleIncomingMessageUseCase {
     @Inject(ENTELEQUIA_CONTEXT_PORT)
     private readonly entelequiaContextPort: EntelequiaContextPort,
     private readonly enrichContextByIntent: EnrichContextByIntentUseCase,
-    private readonly orderLookupClient: EntelequiaOrderLookupClient,
+    @Inject(ORDER_LOOKUP_PORT)
+    private readonly orderLookupClient: OrderLookupPort,
     @Inject(PROMPT_TEMPLATES_PORT)
     private readonly promptTemplates: PromptTemplatesPort,
     @Inject(METRICS_PORT)

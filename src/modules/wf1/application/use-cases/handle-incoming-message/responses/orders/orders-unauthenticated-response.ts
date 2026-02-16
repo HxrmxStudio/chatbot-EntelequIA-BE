@@ -1,4 +1,5 @@
 import type { Wf1Response } from '../../../../../domain/wf1-response';
+import { BASE_URL, CONTACT_EMAIL } from '@/common/constants/contact.constants';
 
 const LOGIN_REQUIRED_TITLE = 'NECESITAS INICIAR SESION';
 const SESSION_EXPIRED_TITLE = 'TU SESION EXPIRO O ES INVALIDA';
@@ -7,9 +8,9 @@ const SHARED_GUIDANCE_LINES = [
   'Para consultar el estado de tus pedidos, necesitas estar autenticado.',
   '',
   'Opciones:',
-  '1. Inicia sesion en entelequia.com.ar',
+  `1. Inicia sesion en ${BASE_URL}`,
   '2. Luego vuelve al chat (tu sesion se sincronizara)',
-  '3. Tambien puedes consultar por email a info@entelequia.com.ar',
+  `3. Tambien puedes consultar por email a ${CONTACT_EMAIL}`,
   '',
   'Si tienes numero de pedido (#12345), tambien puedes consultar por WhatsApp o email sin iniciar sesion.',
   '',
@@ -40,7 +41,7 @@ export function buildOrdersReauthenticationGuidanceResponse(): Wf1Response {
       '[NO DETECTO TU SESION EN ESTE CHAT]',
       '',
       'Para consultar pedidos ahora, hace esta re-autenticacion rapida:',
-      '1. Inicia sesion nuevamente en entelequia.com.ar',
+      `1. Inicia sesion nuevamente en ${BASE_URL}`,
       '2. Volve a este chat y escribi: mis pedidos',
       '',
       'No compartas credenciales ni codigos en el chat.',

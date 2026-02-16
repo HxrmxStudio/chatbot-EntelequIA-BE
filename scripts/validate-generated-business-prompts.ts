@@ -16,6 +16,11 @@ type FactIssue = {
   fact: string;
 };
 
+/**
+ * Business facts validation rules - derived from canonical YAML structure.
+ * After Step 6: These patterns validate that generated prompts contain critical business facts
+ * from the canonical source. If patterns need updating, update the canonical YAML first.
+ */
 const REQUIRED_BUSINESS_FACTS: Array<{ fact: string; patterns: RegExp[] }> = [
   {
     fact: 'reservas 48h con sena 30%',

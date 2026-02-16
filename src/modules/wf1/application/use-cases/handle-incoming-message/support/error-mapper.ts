@@ -4,14 +4,15 @@ import {
   buildOrdersRequiresAuthResponse,
   buildOrdersSessionExpiredResponse,
 } from '../responses/orders/orders-unauthenticated-response';
+import {
+  BACKEND_ERROR_MESSAGE,
+  FORBIDDEN_MESSAGE,
+  ORDER_NOT_FOUND_MESSAGE,
+  INFO_NOT_FOUND_MESSAGE,
+  CATALOG_UNAVAILABLE_MESSAGE,
+} from '@/common/constants/error-messages.constants';
 
-const FORBIDDEN_MESSAGE = 'No tenes permisos para acceder a esa informacion.';
-const ORDER_NOT_FOUND_MESSAGE = 'No encontramos ese pedido en tu cuenta.';
-const INFO_NOT_FOUND_MESSAGE = 'No encontramos la informacion solicitada.';
-const CATALOG_UNAVAILABLE_MESSAGE =
-  'Ahora mismo no puedo consultar el catalogo. Intenta nuevamente en unos minutos o si queres te muestro categorias disponibles.';
-export const BACKEND_ERROR_MESSAGE =
-  'Tuvimos un inconveniente momentaneo. Si queres, te ayudo con otra consulta o lo intentamos de nuevo en un momento.';
+export { BACKEND_ERROR_MESSAGE };
 
 export function mapContextOrBackendError(error: unknown): Wf1Response {
   if (error instanceof MissingAuthForOrdersError) {

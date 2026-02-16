@@ -1,3 +1,4 @@
+import { containsNormalizedTerm } from '@/common/utils/text-normalize.utils';
 import type { RecommendationItem } from '@/modules/wf1/domain/recommendations-context';
 import {
   RECOMMENDATION_FRANCHISE_SEEDS,
@@ -78,6 +79,18 @@ function levenshteinDistance(a: string, b: string): number {
 
 const FUZZY_MIN_TOKEN_LENGTH = 5;
 
+/** Price-related tokens that must not fuzzy-match to franchise names (e.g. "barato" -> "naruto"). */
+const PRICE_FUZZY_BLOCKLIST = new Set([
+  'barato',
+  'barata',
+  'baratos',
+  'economico',
+  'economica',
+  'presupuesto',
+  'necesito',
+  'necesita',
+]);
+
 function tryFuzzyMatch(
   candidate: string,
   aliasesIndex: RecommendationFranchiseAliases,
@@ -134,9 +147,11 @@ export function resolveRecommendationFranchiseKeywords(input: {
   const tokensToTry = new Set<string>();
   for (const candidate of candidates) {
     for (const token of candidate.split(/\s+/).filter((t) => t.length >= FUZZY_MIN_TOKEN_LENGTH)) {
-      tokensToTry.add(token);
+      if (!PRICE_FUZZY_BLOCKLIST.has(token)) tokensToTry.add(token);
     }
-    if (candidate.length >= FUZZY_MIN_TOKEN_LENGTH) tokensToTry.add(candidate);
+    if (candidate.length >= FUZZY_MIN_TOKEN_LENGTH && !PRICE_FUZZY_BLOCKLIST.has(candidate)) {
+      tokensToTry.add(candidate);
+    }
   }
   for (const token of tokensToTry) {
     const fuzzyKey = tryFuzzyMatch(token, aliasesIndex);
@@ -286,15 +301,3 @@ function normalizeFranchiseToken(value: string): string {
     .trim();
 }
 
-function containsNormalizedTerm(text: string, term: string): boolean {
-  if (term.length === 0) {
-    return false;
-  }
-
-  if (text.includes(term)) {
-    return true;
-  }
-
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(text);
-}

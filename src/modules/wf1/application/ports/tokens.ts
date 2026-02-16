@@ -8,5 +8,6 @@ export const AUDIT_PORT = Symbol('AUDIT_PORT');
 export const PROMPT_TEMPLATES_PORT = Symbol('PROMPT_TEMPLATES_PORT');
 export const METRICS_PORT = Symbol('METRICS_PORT');
 export const ORDER_LOOKUP_RATE_LIMITER_PORT = Symbol('ORDER_LOOKUP_RATE_LIMITER_PORT');
+export const ORDER_LOOKUP_PORT = Symbol('ORDER_LOOKUP_PORT');
 export const ADAPTIVE_EXEMPLARS_PORT = Symbol('ADAPTIVE_EXEMPLARS_PORT');
 export const PG_POOL = Symbol('PG_POOL');

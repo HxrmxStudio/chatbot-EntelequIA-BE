@@ -2,16 +2,12 @@ import { formatMoney } from '../money';
 import {
   CANONICAL_ORDER_STATE_LABELS,
   DEFAULT_ORDER_DATE_FALLBACK,
-  DEFAULT_ORDER_DETAIL_INSTRUCTIONS,
   DEFAULT_ORDER_ITEMS_FALLBACK,
   DEFAULT_ORDER_PAYMENT_METHOD_FALLBACK,
   DEFAULT_ORDER_PAYMENT_STATUS_FALLBACK,
   DEFAULT_ORDER_SHIP_METHOD_FALLBACK,
   DEFAULT_ORDER_TOTAL_FALLBACK,
   DEFAULT_ORDER_TRACKING_FALLBACK,
-  DEFAULT_ORDERS_CONTEXT_HEADER,
-  DEFAULT_ORDERS_EMPTY_MESSAGE,
-  DEFAULT_ORDERS_LIST_INSTRUCTIONS,
   WF1_ORDERS_CONTEXT_AI_MAX_ITEMS,
 } from './constants';
 import type {
@@ -25,28 +21,29 @@ import type {
 
 /**
  * Builds an AI-oriented context text for an orders list payload.
+ * 
+ * @param input.templates - REQUIRED. Templates must be provided by the adapter (no fallbacks).
  */
 export function buildOrdersListAiContext(input: {
   orders: OrderSummaryItem[];
   total?: number;
-  templates?: Partial<OrdersContextTemplates>;
+  templates: OrdersContextTemplates;
 }): OrdersAiContext {
   const orders = Array.isArray(input.orders) ? input.orders : [];
   const ordersShownItems = orders.slice(0, WF1_ORDERS_CONTEXT_AI_MAX_ITEMS);
   const ordersShown = ordersShownItems.length;
   const totalOrders = typeof input.total === 'number' ? input.total : orders.length;
 
-  const emptyMessage = input.templates?.emptyMessage ?? DEFAULT_ORDERS_EMPTY_MESSAGE;
   if (ordersShown === 0) {
     return {
-      contextText: emptyMessage,
+      contextText: input.templates.emptyMessage,
       ordersShown: 0,
       totalOrders,
     };
   }
 
-  const header = input.templates?.header ?? DEFAULT_ORDERS_CONTEXT_HEADER;
-  const instructions = input.templates?.listInstructions ?? DEFAULT_ORDERS_LIST_INSTRUCTIONS;
+  const header = input.templates.header;
+  const instructions = input.templates.listInstructions;
   const orderList = ordersShownItems.map((order, index) => formatOrderSummaryItem(order, index)).join('\n\n');
 
   const contextLines: string[] = [
@@ -69,19 +66,20 @@ export function buildOrdersListAiContext(input: {
 
 /**
  * Builds an AI-oriented context text for an order detail payload.
+ * 
+ * @param input.templates - REQUIRED. Templates must be provided by the adapter (no fallbacks).
  */
 export function buildOrderDetailAiContext(input: {
   order: OrderDetailItem | null;
-  templates?: Partial<OrdersContextTemplates>;
+  templates: OrdersContextTemplates;
 }): OrderDetailAiContext {
   if (!input.order) {
     return {
-      contextText: input.templates?.emptyMessage ?? DEFAULT_ORDERS_EMPTY_MESSAGE,
+      contextText: input.templates.emptyMessage,
     };
   }
 
-  const detailInstructions =
-    input.templates?.detailInstructions ?? DEFAULT_ORDER_DETAIL_INSTRUCTIONS;
+  const detailInstructions = input.templates.detailInstructions;
   const order = input.order;
 
   const contextLines: string[] = [
