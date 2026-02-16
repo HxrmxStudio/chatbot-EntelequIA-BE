@@ -9,7 +9,7 @@ export const DEFAULT_STORE_INFO_LOCATION_CONTEXT = [
 export const DEFAULT_STORE_INFO_HOURS_CONTEXT = [
   'HORARIOS DE ATENCIÓN',
   '- Lunes a viernes: 10:00 a 19:00 hs.',
-  '- Sábados: 11:00 a 18:00 hs.',
+  '- Sábados: 10:00 a 17:00 hs.',
   '- Domingos: cerrado.',
   '- Para feriados o fechas especiales, el horario puede variar: sugerí confirmar en web/redes oficiales antes de acercarse.',
 ].join('\n');

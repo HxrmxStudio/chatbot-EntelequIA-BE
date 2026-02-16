@@ -76,6 +76,16 @@ export interface FinalizeSuccessInput {
   orderStateCanonical?: string | null;
   ordersStateConflict: boolean;
   ordersDeterministicReply: boolean;
+  ordersGuestLookupAttempted: boolean;
+  ordersGuestLookupResultCode:
+    | 'success'
+    | 'not_found_or_mismatch'
+    | 'invalid_payload'
+    | 'unauthorized'
+    | 'throttled'
+    | 'exception'
+    | null;
+  ordersGuestLookupStatusCode: number | null;
   authPresent: boolean;
   chatPersistence: ChatPersistencePort;
   idempotencyPort: IdempotencyPort;
@@ -167,6 +177,9 @@ export async function finalizeSuccess(input: FinalizeSuccessInput): Promise<Wf1R
     orderStateCanonical: input.orderStateCanonical ?? null,
     ordersStateConflict: input.ordersStateConflict,
     ordersDeterministicReply: input.ordersDeterministicReply,
+    ordersGuestLookupAttempted: input.ordersGuestLookupAttempted,
+    ordersGuestLookupResultCode: input.ordersGuestLookupResultCode,
+    ordersGuestLookupStatusCode: input.ordersGuestLookupStatusCode,
   });
 
   const persistedTurn = await input.chatPersistence.persistTurn({

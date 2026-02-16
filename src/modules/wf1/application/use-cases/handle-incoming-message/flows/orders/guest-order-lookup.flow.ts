@@ -37,6 +37,18 @@ export interface GuestOrderLookupFlowInput {
 export interface GuestOrderLookupFlowResult {
   response: Wf1Response;
   nextFlowState: GuestOrderFlowState;
+  lookupTelemetry: {
+    ordersGuestLookupAttempted: boolean;
+    ordersGuestLookupResultCode:
+      | 'success'
+      | 'not_found_or_mismatch'
+      | 'invalid_payload'
+      | 'unauthorized'
+      | 'throttled'
+      | 'exception'
+      | null;
+    ordersGuestLookupStatusCode: number | null;
+  };
 }
 
 export interface GuestOrderLookupFlowDependencies {
@@ -77,6 +89,7 @@ export async function handleGuestOrderLookupFlow(
       return {
         response: buildOrderLookupThrottledResponse(),
         nextFlowState: 'awaiting_lookup_payload',
+        lookupTelemetry: buildNoAttemptLookupTelemetry(),
       };
     }
 
@@ -90,8 +103,9 @@ export async function handleGuestOrderLookupFlow(
       dependencies,
     );
     return {
-      response: lookupResponse,
-      nextFlowState: lookupResponse.ok ? null : 'awaiting_lookup_payload',
+      response: lookupResponse.response,
+      nextFlowState: lookupResponse.response.ok ? null : 'awaiting_lookup_payload',
+      lookupTelemetry: lookupResponse.lookupTelemetry,
     };
   }
 
@@ -100,12 +114,14 @@ export async function handleGuestOrderLookupFlow(
       return {
         response: buildGuestOrderLookupMissingDataResponse(resolved),
         nextFlowState: 'awaiting_lookup_payload',
+        lookupTelemetry: buildNoAttemptLookupTelemetry(),
       };
     }
 
     return {
       response: buildOrderLookupHasDataQuestionResponse(),
       nextFlowState: 'awaiting_has_data_answer',
+      lookupTelemetry: buildNoAttemptLookupTelemetry(),
     };
   }
 
@@ -115,6 +131,7 @@ export async function handleGuestOrderLookupFlow(
     return {
       response: buildOrdersRequiresAuthResponse(),
       nextFlowState: null,
+      lookupTelemetry: buildNoAttemptLookupTelemetry(),
     };
   }
 
@@ -123,6 +140,7 @@ export async function handleGuestOrderLookupFlow(
       return {
         response: buildOrderLookupProvideDataResponse(),
         nextFlowState: 'awaiting_lookup_payload',
+        lookupTelemetry: buildNoAttemptLookupTelemetry(),
       };
     }
 
@@ -130,12 +148,14 @@ export async function handleGuestOrderLookupFlow(
       return {
         response: buildGuestOrderLookupMissingDataResponse(resolved),
         nextFlowState: 'awaiting_lookup_payload',
+        lookupTelemetry: buildNoAttemptLookupTelemetry(),
       };
     }
 
     return {
       response: buildOrderLookupUnknownHasDataAnswerResponse(),
       nextFlowState: 'awaiting_has_data_answer',
+      lookupTelemetry: buildNoAttemptLookupTelemetry(),
     };
   }
 
@@ -143,12 +163,14 @@ export async function handleGuestOrderLookupFlow(
     return {
       response: buildOrderLookupProvideDataResponse(),
       nextFlowState: 'awaiting_lookup_payload',
+      lookupTelemetry: buildNoAttemptLookupTelemetry(),
     };
   }
 
   return {
     response: buildGuestOrderLookupMissingDataResponse(resolved),
     nextFlowState: 'awaiting_lookup_payload',
+    lookupTelemetry: buildNoAttemptLookupTelemetry(),
   };
 }
 
@@ -165,7 +187,10 @@ async function executeGuestOrderLookup(
     };
   },
   dependencies: GuestOrderLookupFlowDependencies,
-): Promise<Wf1Response> {
+): Promise<{
+  response: Wf1Response;
+  lookupTelemetry: GuestOrderLookupFlowResult['lookupTelemetry'];
+}> {
   try {
     const lookup = await dependencies.orderLookupClient.lookupOrder({
       requestId: input.requestId,
@@ -175,34 +200,76 @@ async function executeGuestOrderLookup(
 
     if (lookup.ok) {
       return {
-        ok: true,
-        conversationId: input.conversationId,
-        intent: 'orders',
-        message: buildOrderLookupSuccessMessage(lookup.order),
+        response: {
+          ok: true,
+          conversationId: input.conversationId,
+          intent: 'orders',
+          message: buildOrderLookupSuccessMessage(lookup.order),
+        },
+        lookupTelemetry: {
+          ordersGuestLookupAttempted: true,
+          ordersGuestLookupResultCode: 'success',
+          ordersGuestLookupStatusCode: 200,
+        },
       };
     }
 
     if (lookup.code === 'not_found_or_mismatch') {
       dependencies.metricsPort.incrementOrderLookupVerificationFailed();
-      return buildOrderLookupVerificationFailedResponse();
+      return {
+        response: buildOrderLookupVerificationFailedResponse(),
+        lookupTelemetry: {
+          ordersGuestLookupAttempted: true,
+          ordersGuestLookupResultCode: 'not_found_or_mismatch',
+          ordersGuestLookupStatusCode: 404,
+        },
+      };
     }
 
     if (lookup.code === 'invalid_payload') {
-      return buildOrderLookupInvalidPayloadResponse();
+      return {
+        response: buildOrderLookupInvalidPayloadResponse(),
+        lookupTelemetry: {
+          ordersGuestLookupAttempted: true,
+          ordersGuestLookupResultCode: 'invalid_payload',
+          ordersGuestLookupStatusCode: 422,
+        },
+      };
     }
 
     if (lookup.code === 'unauthorized') {
-      return buildOrderLookupUnauthorizedResponse();
+      return {
+        response: buildOrderLookupUnauthorizedResponse(),
+        lookupTelemetry: {
+          ordersGuestLookupAttempted: true,
+          ordersGuestLookupResultCode: 'unauthorized',
+          ordersGuestLookupStatusCode: 401,
+        },
+      };
     }
 
     if (lookup.code === 'throttled') {
       dependencies.metricsPort.incrementOrderLookupRateLimited('backend');
-      return buildOrderLookupThrottledResponse();
+      return {
+        response: buildOrderLookupThrottledResponse(),
+        lookupTelemetry: {
+          ordersGuestLookupAttempted: true,
+          ordersGuestLookupResultCode: 'throttled',
+          ordersGuestLookupStatusCode: 429,
+        },
+      };
     }
 
     return {
-      ok: false,
-      message: BACKEND_ERROR_MESSAGE,
+      response: {
+        ok: false,
+        message: BACKEND_ERROR_MESSAGE,
+      },
+      lookupTelemetry: {
+        ordersGuestLookupAttempted: true,
+        ordersGuestLookupResultCode: 'exception',
+        ordersGuestLookupStatusCode: null,
+      },
     };
   } catch (error: unknown) {
     dependencies.logger.warn('guest_order_lookup_failed', {
@@ -212,10 +279,25 @@ async function executeGuestOrderLookup(
     });
 
     return {
-      ok: false,
-      message: BACKEND_ERROR_MESSAGE,
+      response: {
+        ok: false,
+        message: BACKEND_ERROR_MESSAGE,
+      },
+      lookupTelemetry: {
+        ordersGuestLookupAttempted: true,
+        ordersGuestLookupResultCode: 'exception',
+        ordersGuestLookupStatusCode: null,
+      },
     };
   }
+}
+
+function buildNoAttemptLookupTelemetry(): GuestOrderLookupFlowResult['lookupTelemetry'] {
+  return {
+    ordersGuestLookupAttempted: false,
+    ordersGuestLookupResultCode: null,
+    ordersGuestLookupStatusCode: null,
+  };
 }
 
 export function buildGuestOrderLookupMissingDataResponse(input: {

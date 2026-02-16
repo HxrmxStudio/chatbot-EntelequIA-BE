@@ -173,6 +173,7 @@ const PAYMENT_INFO = `
 
 **Online (Web):**
 - Mercado Pago (todas las tarjetas de crédito y débito)
+- PayPal
 - Transferencia bancaria (consultar descuentos)
 - Débito automático
 

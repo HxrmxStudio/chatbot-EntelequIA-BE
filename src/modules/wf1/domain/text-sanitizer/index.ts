@@ -1,1 +1,1 @@
-export { sanitizeText } from './sanitize';
+export { sanitizeText, sanitizeTextPreservingLineBreaks } from './sanitize';

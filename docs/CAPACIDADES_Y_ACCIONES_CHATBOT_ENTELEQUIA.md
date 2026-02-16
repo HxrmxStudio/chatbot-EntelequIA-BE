@@ -57,7 +57,7 @@ El bot puede hacer todo lo siguiente. Probá cada capacidad en conversaciones re
 
 ### Tienda
 
-- Decirte **horarios** de atención: Lunes a viernes 10:00 a 19:00 hs, sábados 11:00 a 18:00 hs, domingos cerrado (y que en feriados conviene validar en web/redes).
+- Decirte **horarios** de atención: Lunes a viernes 10:00 a 19:00 hs, sábados 10:00 a 17:00 hs, domingos cerrado (y que en feriados conviene validar en web/redes).
 - Decirte **dirección** y **cómo llegar**: hay dos sucursales en CABA (Centro y Belgrano); puede sugerirte la web oficial o mapas para la dirección exacta.
 - Decirte **estacionamiento** y **transporte**.
 

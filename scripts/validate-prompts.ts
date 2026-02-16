@@ -170,7 +170,7 @@ const REQUIRED_PHRASES_RULES: RequiredRule[] = [
     filePattern: /prompts\/store-info\/entelequia_store_info_hours_context_v1\.txt$/,
     requiredPhrases: [
       'lunes a viernes: 10:00 a 19:00 hs',
-      'sabados: 11:00 a 18:00 hs',
+      'sabados: 10:00 a 17:00 hs',
       'feriados y fechas especiales',
     ],
   },

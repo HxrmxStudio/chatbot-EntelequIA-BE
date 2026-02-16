@@ -33,7 +33,7 @@ const SHIPPING_COST_POLICY_MESSAGE =
 const PICKUP_STORE_POLICY_MESSAGE =
   'Si, podes retirar en sucursal y no tiene costo de envio.';
 const STORE_HOURS_POLICY_MESSAGE =
-  'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
+  'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 10:00 a 17:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
 const PAYMENT_METHODS_POLICY_MESSAGE =
   'Aceptamos varios medios de pago. En local: efectivo, credito, debito. Online: todas las tarjetas y transferencia.';
 

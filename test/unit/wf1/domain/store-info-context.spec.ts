@@ -23,7 +23,7 @@ describe('store-info-context', () => {
 
     expect(result.infoRequested).toBe('hours');
     expect(result.contextText).toContain('Lunes a viernes: 10:00 a 19:00 hs.');
-    expect(result.contextText).toContain('Sábados: 11:00 a 18:00 hs.');
+    expect(result.contextText).toContain('Sábados: 10:00 a 17:00 hs.');
     expect(result.contextText).toContain('Domingos: cerrado.');
     expect(result.contextText).toContain('feriados');
     expect(result.contextText).toContain('puede variar');

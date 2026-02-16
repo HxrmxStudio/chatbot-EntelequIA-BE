@@ -43,6 +43,9 @@ const NAME_STOP_WORDS = new Set([
   'manga',
   'comic',
   'producto',
+  'necesito',
+  'estado',
+  'mi',
 ]);
 
 export function resolveOrderLookupRequest(input: {
@@ -220,6 +223,17 @@ function resolveUnlabeledIdentity(input: {
 
   for (const segment of extractUnlabeledSegments(input.text)) {
     if (isLabeledSegment(segment)) {
+      if (!name || !lastName) {
+        const trailingNames = resolveNamePartsFromLabeledSegment(segment);
+        if (!name && trailingNames.name) {
+          name = trailingNames.name;
+        }
+
+        if (!lastName && trailingNames.lastName) {
+          lastName = trailingNames.lastName;
+        }
+      }
+
       continue;
     }
 
@@ -307,6 +321,24 @@ function resolveNamePartsFromSegment(value: string): {
     ...(isFirstNameValid ? { name: firstName } : {}),
     ...(isLastNameValid ? { lastName: resolvedLastName } : {}),
   };
+}
+
+function resolveNamePartsFromLabeledSegment(value: string): {
+  name?: string;
+  lastName?: string;
+} {
+  const stripped = value
+    .replace(/\b(?:order[_\s-]?id|pedido|orden|order)\s*[:=#-]?\s*#?\s*\d{1,12}\b/gi, ' ')
+    .replace(/\b(?:dni|documento)\s*[:=#-]?\s*[0-9.\-\s]{1,20}\b/gi, ' ')
+    .replace(
+      /\b(?:telefono|tel[eé]fono|celular|whatsapp|phone)\s*[:=#-]?\s*[+0-9()\-.\s]{1,30}\b/gi,
+      ' ',
+    )
+    .replace(/\b(?:nombre|name|apellido|last[_\s-]?name)\s*[:=#-]?\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return resolveNamePartsFromSegment(stripped);
 }
 
 function normalizePhoneCandidate(value: string): string {

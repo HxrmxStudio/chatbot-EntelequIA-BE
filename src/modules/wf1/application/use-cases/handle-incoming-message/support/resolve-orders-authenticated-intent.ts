@@ -4,6 +4,9 @@ const ORDER_QUERY_SIGNAL_PATTERNS: readonly RegExp[] = [
   /\bmis?\s+pedidos?\b/i,
   /\bestado\s+de\s+(mi|mis)\s+(pedido|pedidos|orden|ordenes)\b/i,
   /\b(ver|consultar|revisar)\s+(mi|mis)\s+(pedido|pedidos|orden|ordenes)\b/i,
+  /\bque\s+(tenia|traia|trae|incluye)\s+(ese|este|el|mi)?\s*(pedido|orden)\b/i,
+  /\bproductos?\s+del\s+(pedido|orden)\b/i,
+  /\bdetalle\s+del\s+(pedido|orden)\b/i,
   /\bpedido\s*#?\s*\d{1,12}\b/i,
   /\borden\s*#?\s*\d{1,12}\b/i,
 ];

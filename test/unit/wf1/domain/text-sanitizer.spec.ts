@@ -1,4 +1,7 @@
-import { sanitizeText } from '@/modules/wf1/domain/text-sanitizer';
+import {
+  sanitizeText,
+  sanitizeTextPreservingLineBreaks,
+} from '@/modules/wf1/domain/text-sanitizer';
 
 describe('sanitizeText', () => {
   it('returns empty string for non-string input', () => {
@@ -31,5 +34,11 @@ describe('sanitizeText', () => {
   it('preserves valid text', () => {
     expect(sanitizeText('Hola, ¿cómo estás?')).toBe('Hola, ¿cómo estás?');
     expect(sanitizeText('One Piece tomo 33')).toBe('One Piece tomo 33');
+  });
+
+  it('preserves semantic line breaks for structured extraction', () => {
+    expect(
+      sanitizeTextPreservingLineBreaks('Pedido #78399\ndni:38321532\nEmiliano rozas'),
+    ).toBe('Pedido #78399\ndni:38321532\nEmiliano rozas');
   });
 });

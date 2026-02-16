@@ -33,7 +33,7 @@ describe('validate-prompts', () => {
     expect(productsInstructions.toLowerCase()).toContain('solo compartir cantidad exacta');
 
     expect(storeInfoHours.toLowerCase()).toContain('lunes a viernes: 10:00 a 19:00 hs');
-    expect(storeInfoHours.toLowerCase()).toContain('sabados: 11:00 a 18:00 hs');
+    expect(storeInfoHours.toLowerCase()).toContain('sabados: 10:00 a 17:00 hs');
     expect(storeInfoHours.toLowerCase()).toContain('feriados y fechas especiales');
   });
 });

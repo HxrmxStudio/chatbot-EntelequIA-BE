@@ -31,6 +31,7 @@ import {
   formatDeterministicOrdersResponse,
   type OrdersDataSource,
 } from '../flows/orders/orders-deterministic-formatter';
+import { resolveOrdersDetailFollowup } from '../flows/orders/resolve-orders-detail-followup';
 import {
   resolveOrdersEscalationFlowStateFromHistory,
   shouldContinueOrdersEscalationFlow,
@@ -67,6 +68,7 @@ export interface ResolveResponseInput {
   };
   clientIp?: string;
   sanitizedText: string;
+  lookupSafeText: string;
   validatedIntent: {
     intent: string;
     entities: string[];
@@ -118,7 +120,19 @@ export interface ResolveResponseResult {
   orderStateCanonical?: string | null;
   ordersStateConflict: boolean;
   ordersDeterministicReply: boolean;
+  ordersGuestLookupAttempted: boolean;
+  ordersGuestLookupResultCode:
+    | 'success'
+    | 'not_found_or_mismatch'
+    | 'invalid_payload'
+    | 'unauthorized'
+    | 'throttled'
+    | 'exception'
+    | null;
+  ordersGuestLookupStatusCode: number | null;
 }
+
+const ORDER_ITEMS_RENDER_MAX = 5;
 
 export async function resolveResponse(input: ResolveResponseInput): Promise<ResolveResponseResult> {
   const state = buildInitialState(input);
@@ -159,6 +173,9 @@ export async function resolveResponse(input: ResolveResponseInput): Promise<Reso
     orderStateCanonical: state.orderStateCanonical,
     ordersStateConflict: state.ordersStateConflict,
     ordersDeterministicReply: state.ordersDeterministicReply,
+    ordersGuestLookupAttempted: state.ordersGuestLookupAttempted,
+    ordersGuestLookupResultCode: state.ordersGuestLookupResultCode,
+    ordersGuestLookupStatusCode: state.ordersGuestLookupStatusCode,
   };
 }
 
@@ -198,6 +215,16 @@ export interface MutableResolutionState {
   orderStateCanonical: string | null;
   ordersStateConflict: boolean;
   ordersDeterministicReply: boolean;
+  ordersGuestLookupAttempted: boolean;
+  ordersGuestLookupResultCode:
+    | 'success'
+    | 'not_found_or_mismatch'
+    | 'invalid_payload'
+    | 'unauthorized'
+    | 'throttled'
+    | 'exception'
+    | null;
+  ordersGuestLookupStatusCode: number | null;
 }
 
 function buildInitialState(input: ResolveResponseInput): MutableResolutionState {
@@ -221,6 +248,9 @@ function buildInitialState(input: ResolveResponseInput): MutableResolutionState 
     orderStateCanonical: null,
     ordersStateConflict: false,
     ordersDeterministicReply: false,
+    ordersGuestLookupAttempted: false,
+    ordersGuestLookupResultCode: null,
+    ordersGuestLookupStatusCode: null,
   };
 }
 
@@ -243,8 +273,9 @@ async function resolveFlowResponse(
   }
 
   const isGuestOrderFlow = !checkIfAuthenticated(input.payload.accessToken);
+  const guestLookupText = input.lookupSafeText;
   const guestOrderLookupSignals = resolveOrderLookupRequest({
-    text: input.sanitizedText,
+    text: guestLookupText,
     entities: input.validatedIntent.entities,
   });
   const hasStrongGuestOrderLookupSignals =
@@ -255,7 +286,7 @@ async function resolveFlowResponse(
     isGuestOrderFlow &&
     shouldContinueGuestOrderLookupFlow({
       currentFlowState: state.currentGuestOrderFlowState,
-      text: input.sanitizedText,
+      text: guestLookupText,
       entities: input.validatedIntent.entities,
       routedIntent: state.effectiveRoutedIntent,
     });
@@ -289,7 +320,7 @@ async function resolveFlowResponse(
         conversationId: input.payload.conversationId,
         userId: input.effectiveUserId,
         clientIp: input.clientIp,
-        text: input.sanitizedText,
+        text: guestLookupText,
         entities: input.validatedIntent.entities,
         currentFlowState: state.currentGuestOrderFlowState,
       },
@@ -297,6 +328,9 @@ async function resolveFlowResponse(
     );
     state.response = guestOrderFlow.response;
     state.guestOrderFlowStateToPersist = guestOrderFlow.nextFlowState;
+    state.ordersGuestLookupAttempted = guestOrderFlow.lookupTelemetry.ordersGuestLookupAttempted;
+    state.ordersGuestLookupResultCode = guestOrderFlow.lookupTelemetry.ordersGuestLookupResultCode;
+    state.ordersGuestLookupStatusCode = guestOrderFlow.lookupTelemetry.ordersGuestLookupStatusCode;
     return;
   }
 
@@ -327,12 +361,21 @@ async function resolveFlowResponse(
       text: state.effectiveText,
       entities: state.effectiveRoutedIntentResult.entities,
     });
+    const orderFollowupResolution = resolveOrdersDetailFollowup({
+      text: state.effectiveText,
+      historyRows: input.historyRows,
+      explicitOrderId: authenticatedOrderLookupSignals.orderId
+        ? String(authenticatedOrderLookupSignals.orderId)
+        : null,
+    });
+
     await resolveAuthenticatedOrdersDeterministicResponse(
       input,
       state,
-      authenticatedOrderLookupSignals.orderId
-        ? String(authenticatedOrderLookupSignals.orderId)
-        : null,
+      {
+        requestedOrderId: orderFollowupResolution.resolvedOrderId,
+        includeOrderItems: orderFollowupResolution.includeOrderItems,
+      },
     );
     if (state.response) {
       return;
@@ -393,7 +436,10 @@ function observeOrderFlow(
 async function resolveAuthenticatedOrdersDeterministicResponse(
   input: ResolveResponseInput,
   state: MutableResolutionState,
-  requestedOrderId?: string | null,
+  options: {
+    requestedOrderId?: string | null;
+    includeOrderItems?: boolean;
+  },
 ): Promise<void> {
   try {
     state.toolAttempts += 1;
@@ -405,12 +451,15 @@ async function resolveAuthenticatedOrdersDeterministicResponse(
       accessToken: input.payload.accessToken,
       requestId: input.requestId,
       conversationId: input.payload.conversationId,
+      orderIdOverride: options.requestedOrderId ?? undefined,
     });
 
     const deterministicResolution = formatDeterministicOrdersResponse({
       conversationId: input.payload.conversationId,
       contextBlocks: state.contextBlocks ?? [],
-      requestedOrderId: requestedOrderId ?? null,
+      requestedOrderId: options.requestedOrderId ?? null,
+      includeOrderItems: options.includeOrderItems ?? false,
+      orderItemsMax: ORDER_ITEMS_RENDER_MAX,
     });
 
     state.response = deterministicResolution.response;

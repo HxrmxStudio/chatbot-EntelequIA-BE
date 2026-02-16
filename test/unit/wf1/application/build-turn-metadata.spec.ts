@@ -35,6 +35,9 @@ describe('buildSharedTurnMetadata', () => {
     orderStateCanonical: null,
     ordersStateConflict: false,
     ordersDeterministicReply: false,
+    ordersGuestLookupAttempted: false,
+    ordersGuestLookupResultCode: null,
+    ordersGuestLookupStatusCode: null,
   };
 
   it('includes policy version and fallback llm path', () => {
@@ -44,6 +47,9 @@ describe('buildSharedTurnMetadata', () => {
     expect(out.lowStockThreshold).toBe(3);
     expect(out.ordersDeterministicReply).toBe(false);
     expect(out.ordersStateConflict).toBe(false);
+    expect(out.ordersGuestLookupAttempted).toBe(false);
+    expect(out.ordersGuestLookupResultCode).toBeNull();
+    expect(out.ordersGuestLookupStatusCode).toBeNull();
   });
 
   it('uses llmMetadata when provided', () => {

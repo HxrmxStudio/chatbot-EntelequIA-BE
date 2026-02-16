@@ -48,4 +48,16 @@ describe('resolve-orders-authenticated-intent', () => {
 
     expect(shouldGuide).toBe(true);
   });
+
+  it('rescues orders intent when user asks for order contents', () => {
+    const result = shouldRescueOrdersIntent({
+      accessToken: 'token-123',
+      routedIntent: 'general',
+      text: 'que tenia ese pedido?',
+      entities: [],
+    });
+
+    expect(result.shouldRescue).toBe(true);
+    expect(result.reason).toBe('authenticated_orders_signal');
+  });
 });

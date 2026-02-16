@@ -101,6 +101,7 @@ export class EnrichContextByIntentUseCase {
     accessToken?: string;
     requestId?: string;
     conversationId?: string;
+    orderIdOverride?: string;
   }): Promise<ContextBlock[]> {
     const { intentResult } = input;
 
@@ -200,7 +201,7 @@ export class EnrichContextByIntentUseCase {
           emptyMessage: this.promptTemplates.getOrdersEmptyContextMessage(),
         };
 
-        const orderId = resolveOrderId(intentResult.entities, input.text);
+        const orderId = resolvePreferredOrderId(input.orderIdOverride, intentResult.entities, input.text);
         if (orderId) {
           const orderDetail = await this.entelequiaContextPort.getOrderDetail({
             accessToken: input.accessToken,
@@ -816,6 +817,15 @@ function findOrderSummaryById(
   }
 
   return null;
+}
+
+function resolvePreferredOrderId(
+  orderIdOverride: string | undefined,
+  entities: string[],
+  text: string,
+): string | undefined {
+  const normalizedOverride = typeof orderIdOverride === 'string' ? orderIdOverride.trim() : '';
+  return normalizedOverride.length > 0 ? normalizedOverride : resolveOrderId(entities, text);
 }
 
 function normalizeOrderId(value: string | number): string {

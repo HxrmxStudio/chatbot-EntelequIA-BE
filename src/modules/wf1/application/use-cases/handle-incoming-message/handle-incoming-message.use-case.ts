@@ -26,7 +26,7 @@ import type { ChatRequestDto } from '../../../dto/chat-request.dto';
 import type { Wf1Response } from '../../../domain/wf1-response';
 import { WF1_MAX_TEXT_CHARS } from '../../../domain/text-policy';
 import { WF1_MAX_CONVERSATION_HISTORY_MESSAGES } from '../../../domain/conversation-history';
-import { sanitizeText } from '../../../domain/text-sanitizer';
+import { sanitizeText, sanitizeTextPreservingLineBreaks } from '../../../domain/text-sanitizer';
 import { resolveBooleanFlag } from '../../../../../common/utils/config.utils';
 import { createLogger } from '../../../../../common/utils/logger';
 import { EnrichContextByIntentUseCase } from '../enrich-context-by-intent';
@@ -96,6 +96,7 @@ export class HandleIncomingMessageUseCase {
     }
 
     const sanitizedText = sanitizeText(input.payload.text);
+    const lookupSafeText = sanitizeTextPreservingLineBreaks(input.payload.text);
     if (sanitizedText.length === 0 || sanitizedText.length > WF1_MAX_TEXT_CHARS) {
       throw new BadRequestException('Payload invalido.');
     }
@@ -141,6 +142,7 @@ export class HandleIncomingMessageUseCase {
         },
         clientIp: input.clientIp,
         sanitizedText,
+        lookupSafeText,
         validatedIntent: requestContext.validatedIntent,
         routedIntent: requestContext.routedIntent,
         routedIntentResult: requestContext.routedIntentResult,
@@ -216,6 +218,9 @@ export class HandleIncomingMessageUseCase {
         orderStateCanonical: resolvedResponse.orderStateCanonical ?? null,
         ordersStateConflict: resolvedResponse.ordersStateConflict,
         ordersDeterministicReply: resolvedResponse.ordersDeterministicReply,
+        ordersGuestLookupAttempted: resolvedResponse.ordersGuestLookupAttempted,
+        ordersGuestLookupResultCode: resolvedResponse.ordersGuestLookupResultCode,
+        ordersGuestLookupStatusCode: resolvedResponse.ordersGuestLookupStatusCode,
         authPresent: checkIfAuthenticated(input.payload.accessToken),
         chatPersistence: this.chatPersistence,
         idempotencyPort: this.idempotencyPort,

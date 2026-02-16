@@ -553,7 +553,7 @@ class E2ELlm {
         normalizedText.includes('abren') ||
         normalizedText.includes('feriado')
       ) {
-        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
+        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 10:00 a 17:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
       }
     }
 
@@ -1328,7 +1328,7 @@ describe('WF1 API (e2e)', () => {
       .expect(({ body }) => {
         expect(body.ok).toBe(true);
         expect(body.message).toContain('Lunes a viernes 10:00 a 19:00 hs');
-        expect(body.message).toContain('Sabados 11:00 a 18:00 hs');
+        expect(body.message).toContain('Sabados 10:00 a 17:00 hs');
         expect(body.message).toContain('feriados');
       });
   });

@@ -1,5 +1,8 @@
 # Medios de pago
 - Tarjetas de credito y debito.
 - Mercado Pago.
+- Paypal.
 - Transferencia bancaria desde checkout.
+- Debito automatico (online).
 - Efectivo en local.
+- Mercado Pago QR (en local).

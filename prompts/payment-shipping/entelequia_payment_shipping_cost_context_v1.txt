@@ -3,3 +3,4 @@
 - Puede variar por codigo postal, peso y volumen.
 - Promociones vigentes pueden modificar el costo final.
 - Retiro en tienda sin cargo.
+- Envio gratis en compras superiores al monto promocional (a partir de $33.000).

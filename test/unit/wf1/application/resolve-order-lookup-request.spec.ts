@@ -101,6 +101,38 @@ describe('resolveOrderLookupRequest', () => {
     expect(result.invalidFactors).toEqual([]);
   });
 
+  it('extracts identity factors from multiline payload preserving line breaks', () => {
+    const result = resolveOrderLookupRequest({
+      text: 'Pedido #78399\ndni:38321532\nEmiliano rozas',
+      entities: [],
+    });
+
+    expect(result.orderId).toBe(78399);
+    expect(result.providedFactors).toBe(3);
+    expect(result.identity).toEqual({
+      dni: '38321532',
+      name: 'Emiliano',
+      lastName: 'rozas',
+    });
+    expect(result.invalidFactors).toEqual([]);
+  });
+
+  it('extracts trailing full name from partially labeled single-line payload', () => {
+    const result = resolveOrderLookupRequest({
+      text: 'Pedido #78399 dni:38321532 Emiliano rozas',
+      entities: [],
+    });
+
+    expect(result.orderId).toBe(78399);
+    expect(result.providedFactors).toBeGreaterThanOrEqual(2);
+    expect(result.identity).toEqual({
+      dni: '38321532',
+      name: 'Emiliano',
+      lastName: 'rozas',
+    });
+    expect(result.invalidFactors).toEqual([]);
+  });
+
   it('reports invalid factors when formats are incorrect', () => {
     const result = resolveOrderLookupRequest({
       text: 'pedido 12345, dni 123, nombre Ju4n, telefono abcdef',

@@ -3,7 +3,9 @@ export const DEFAULT_PAYMENT_METHODS: string[] = [
   'Mercado Pago',
   'Paypal',
   'Transferencia bancaria',
+  'Debito automatico',
   'Efectivo en local',
+  'Mercado Pago QR',
 ];
 
 export const DEFAULT_PAYMENT_CONTEXT = [
@@ -12,7 +14,8 @@ export const DEFAULT_PAYMENT_CONTEXT = [
   '- Tambien podes pagar con Mercado Pago.',
   '- Tambien podes pagar con Paypal.',
   '- Transferencia bancaria disponible en checkout.',
-  '- En local tambien podes pagar en efectivo.',
+  '- Debito automatico disponible online.',
+  '- En local: efectivo, tarjetas y Mercado Pago QR.',
 ].join('\n');
 
 export const DEFAULT_SHIPPING_CONTEXT = [
@@ -28,11 +31,12 @@ export const DEFAULT_COST_CONTEXT = [
   '- El costo exacto se calcula en checkout segun destino y carrito.',
   '- Si queres ahorrar envio, revisa promociones vigentes.',
   '- Retiro en tienda sin cargo.',
+  '- Envio gratis en compras superiores al monto promocional (a partir de $33.000).',
 ].join('\n');
 
 export const DEFAULT_TIME_CONTEXT = [
   'TIEMPOS DE ENTREGA',
-  '- CABA (moto): en el dia (pedido antes de las 13hs∫).',
+  '- CABA (moto): 24-48hs (entrega en el dia comprando antes de las 13hs).',
   '- Interior con Andreani: 3-5 dias habiles.',
   '- Interior con Correo Argentino: 5-7 dias habiles.',
   '- Envio internacional con DHL: menos de 4 dias habiles.',

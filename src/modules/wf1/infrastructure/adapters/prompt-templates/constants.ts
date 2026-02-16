@@ -147,9 +147,11 @@ export const DEFAULT_PAYMENT_SHIPPING_PAYMENT_CONTEXT = [
   '# Medios de pago',
   '- Tarjetas de credito y debito.',
   '- Mercado Pago.',
-  '- Paypal',
-  '- Transferencia bancaria .',
+  '- Paypal.',
+  '- Transferencia bancaria.',
+  '- Debito automatico (online).',
   '- Efectivo en local.',
+  '- Mercado Pago QR (en local).',
 ].join('\n');
 export const DEFAULT_PAYMENT_SHIPPING_SHIPPING_CONTEXT = [
   '# Envios',
@@ -164,10 +166,11 @@ export const DEFAULT_PAYMENT_SHIPPING_COST_CONTEXT = [
   '- Puede variar por codigo postal, peso y volumen.',
   '- Promociones vigentes pueden modificar el costo final.',
   '- Retiro en tienda sin cargo.',
+  '- Envio gratis en compras superiores al monto promocional (a partir de $33.000).',
 ].join('\n');
 export const DEFAULT_PAYMENT_SHIPPING_TIME_CONTEXT = [
   '# Tiempos de entrega',
-  '- CABA (moto): 24-48hs.',
+  '- CABA (moto): 24-48hs (entrega en el dia comprando antes de las 13hs).',
   '- Interior con Andreani: 3-5 dias habiles.',
   '- Interior con Correo Argentino: 5-7 dias habiles.',
   '- Envio internacional con DHL: menos de 4 dias habiles.',
@@ -288,7 +291,7 @@ export const DEFAULT_STORE_INFO_LOCATION_CONTEXT = [
 export const DEFAULT_STORE_INFO_HOURS_CONTEXT = [
   '# Horarios de atencion',
   '- Lunes a viernes: 10:00 a 19:00 hs.',
-  '- Sabados: 11:00 a 18:00 hs.',
+  '- Sabados: 10:00 a 17:00 hs.',
   '- Domingos: cerrado.',
   '- Feriados y fechas especiales: pueden variar; sugerir confirmar en web/redes oficiales.',
 ].join('\n');
@@ -364,7 +367,7 @@ export const DEFAULT_STATIC_CONTEXT = [
   '',
   '# Horarios de atencion',
   '- Lunes a viernes: 10:00 a 19:00 hs',
-  '- Sabados: 11:00 a 18:00 hs',
+  '- Sabados: 10:00 a 17:00 hs',
   '- Domingos: cerrado',
   '- Feriados y fechas especiales: validar horarios actualizados en web/redes antes de venir',
   '',

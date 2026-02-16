@@ -509,7 +509,7 @@ class StubLlm implements LlmPort {
         normalizedText.includes('abren') ||
         normalizedText.includes('feriado')
       ) {
-        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 11:00 a 18:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
+        return 'Nuestros horarios son: Lunes a viernes 10:00 a 19:00 hs, Sabados 10:00 a 17:00 hs y Domingos cerrado. En feriados o fechas especiales el horario puede variar, valida en web/redes oficiales.';
       }
     }
 
@@ -793,7 +793,7 @@ class StubPromptTemplates {
     return [
       'HORARIOS DE ATENCION',
       '- Lunes a viernes: 10:00 a 19:00 hs.',
-      '- Sabados: 11:00 a 18:00 hs.',
+      '- Sabados: 10:00 a 17:00 hs.',
       '- Domingos: cerrado.',
       '- Feriados y fechas especiales: validar horario actualizado en canales oficiales.',
     ].join('\n');
@@ -1117,6 +1117,11 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.message).toContain('Estado: En preparación');
     expect(response.message).toContain('Tracking: ABC123');
     expect(llm.lastInput?.intent).not.toBe('orders');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestLookupAttempted).toBe(true);
+    expect(metadata.ordersGuestLookupResultCode).toBe('success');
+    expect(metadata.ordersGuestLookupStatusCode).toBe(200);
   });
 
   it('accepts compact unlabeled order payload without forcing SI/NO again', async () => {
@@ -1143,6 +1148,37 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(true);
     expect(response.message).toContain('PEDIDO #12345');
+  });
+
+  it('accepts multiline lookup payload and executes backend lookup path', async () => {
+    const response = await useCase.execute({
+      requestId: 'req-lookup-multiline-1',
+      externalEventId: 'event-lookup-multiline-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Pedido #78399\ndni:38321532\nEmiliano rozas',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-1',
+        text: 'Pedido #78399\ndni:38321532\nEmiliano rozas',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.001Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message).toContain('PEDIDO #12345');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestLookupAttempted).toBe(true);
+    expect(metadata.ordersGuestLookupResultCode).toBe('success');
+    expect(metadata.ordersGuestLookupStatusCode).toBe(200);
   });
 
   it('returns deterministic order summary after SI confirmation and lookup payload', async () => {
@@ -1243,6 +1279,11 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
 
     expect(response.ok).toBe(false);
     expect(response.message).toContain('No pudimos validar los datos del pedido');
+    const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
+      {}) as Record<string, unknown>;
+    expect(metadata.ordersGuestLookupAttempted).toBe(true);
+    expect(metadata.ordersGuestLookupResultCode).toBe('not_found_or_mismatch');
+    expect(metadata.ordersGuestLookupStatusCode).toBe(404);
   });
 
   it('asks for missing identity factors while awaiting lookup payload', async () => {
@@ -1314,6 +1355,8 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     const metadata = (persistence.turns[persistence.turns.length - 1].metadata ??
       {}) as Record<string, unknown>;
     expect(metadata.ordersGuestFlowState).toBe('awaiting_lookup_payload');
+    expect(metadata.ordersGuestLookupAttempted).toBe(false);
+    expect(metadata.ordersGuestLookupResultCode).toBeNull();
   });
 
   it('does not hijack conversation when pending state receives irrelevant text', async () => {
@@ -1668,6 +1711,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(response.ok).toBe(true);
     expect('intent' in response && response.intent).toBe('orders');
     expect(response.message.toLowerCase()).toContain('pedido #78399');
+    expect(response.message.toLowerCase()).not.toContain('productos del pedido');
     expect(entelequia.orderDetailCalls).toBe(1);
     expect(entelequia.ordersCalls).toBe(1);
     expect(llmSpy).not.toHaveBeenCalled();
@@ -1677,6 +1721,85 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(metadata.ordersDeterministicReply).toBe(true);
     expect(metadata.ordersDataSource).toBe('detail');
     expect(metadata.ordersStateConflict).toBe(false);
+  });
+
+  it('reuses latest orderIdResolved for items follow-up without explicit id', async () => {
+    entelequia.orderDetailPayload = {
+      order: {
+        id: 78399,
+        state: 'processing',
+        orderItems: [
+          {
+            productTitle: 'One Piece 01',
+            quantity: 2,
+            productPrice: { amount: 12000, currency: 'ARS' },
+          },
+          {
+            productTitle: 'Naruto 03',
+            quantity: 1,
+            productPrice: { amount: 9500, currency: 'ARS' },
+          },
+        ],
+      },
+    };
+    entelequia.ordersPayload = {
+      data: [
+        {
+          id: 78399,
+          state: 'processing',
+        },
+      ],
+    };
+
+    await useCase.execute({
+      requestId: 'req-orders-followup-1',
+      externalEventId: 'event-orders-followup-1',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-followup',
+        text: 'quiero saber estado del pedido 78399',
+        accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-followup',
+        text: 'quiero saber estado del pedido 78399',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    const followup = await useCase.execute({
+      requestId: 'req-orders-followup-2',
+      externalEventId: 'event-orders-followup-2',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-followup',
+        text: 'que tenia ese pedido?',
+        accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-followup',
+        text: 'que tenia ese pedido?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:01.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(followup.ok).toBe(true);
+    expect(followup.message).toContain('Productos del pedido:');
+    expect(followup.message).toContain('- One Piece 01 x2 - $12000 ARS');
+    expect(entelequia.orderDetailCalls).toBe(2);
+    expect(entelequia.ordersCalls).toBe(2);
   });
 
   it('returns conservative conflict message when list and detail states disagree', async () => {
@@ -1729,6 +1852,57 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     expect(metadata.ordersDeterministicReply).toBe(true);
     expect(metadata.ordersDataSource).toBe('conflict');
     expect(metadata.ordersStateConflict).toBe(true);
+  });
+
+  it('returns conflict-safe state and item disclaimer when user asks products', async () => {
+    entelequia.orderDetailPayload = {
+      order: {
+        id: 78399,
+        state: 'processing',
+        orderItems: [
+          {
+            productTitle: 'Bleach 01',
+            quantity: 1,
+            productPrice: { amount: 10000, currency: 'ARS' },
+          },
+        ],
+      },
+    };
+    entelequia.ordersPayload = {
+      data: [
+        {
+          id: 78399,
+          state: 'cancelled',
+        },
+      ],
+    };
+
+    const response = await useCase.execute({
+      requestId: 'req-orders-conflict-items',
+      externalEventId: 'event-orders-conflict-items',
+      payload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-conflict-items',
+        text: 'que tenia el pedido 78399?',
+        accessToken: 'token',
+      },
+      idempotencyPayload: {
+        source: 'web',
+        userId: 'user-1',
+        conversationId: 'conv-orders-conflict-items',
+        text: 'que tenia el pedido 78399?',
+        channel: null,
+        timestamp: '2026-02-10T00:00:00.000Z',
+        validated: null,
+        validSignature: 'true',
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.message.toLowerCase()).toContain('inconsistencia temporal');
+    expect(response.message).toContain('Segun el detalle actual del pedido, los productos son:');
+    expect(response.message).toContain('- Bleach 01 x1 - $10000 ARS');
   });
 
   it('guides re-authentication when user says session signal without token', async () => {
@@ -2718,7 +2892,7 @@ describe('HandleIncomingMessageUseCase (integration)', () => {
     }
     expect(response.intent).toBe('store_info');
     expect(response.message).toContain('Lunes a viernes 10:00 a 19:00 hs');
-    expect(response.message).toContain('Sabados 11:00 a 18:00 hs');
+    expect(response.message).toContain('Sabados 10:00 a 17:00 hs');
     expect(response.message).toContain('feriados');
     expect(llmSpy).not.toHaveBeenCalled();
 

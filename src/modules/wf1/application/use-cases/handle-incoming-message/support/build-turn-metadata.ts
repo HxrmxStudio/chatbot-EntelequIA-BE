@@ -39,6 +39,16 @@ export interface BuildSharedTurnMetadataInput {
   orderStateCanonical?: string | null;
   ordersStateConflict: boolean;
   ordersDeterministicReply: boolean;
+  ordersGuestLookupAttempted: boolean;
+  ordersGuestLookupResultCode:
+    | 'success'
+    | 'not_found_or_mismatch'
+    | 'invalid_payload'
+    | 'unauthorized'
+    | 'throttled'
+    | 'exception'
+    | null;
+  ordersGuestLookupStatusCode: number | null;
 }
 
 /**
@@ -91,6 +101,9 @@ export function buildSharedTurnMetadata(input: BuildSharedTurnMetadataInput): Re
     orderStateCanonical: input.orderStateCanonical ?? null,
     ordersStateConflict: input.ordersStateConflict,
     ordersDeterministicReply: input.ordersDeterministicReply,
+    ordersGuestLookupAttempted: input.ordersGuestLookupAttempted,
+    ordersGuestLookupResultCode: input.ordersGuestLookupResultCode,
+    ordersGuestLookupStatusCode: input.ordersGuestLookupStatusCode,
     ...input.guestOrderFlowMetadata,
     ...input.recommendationsFlowMetadata,
     ...input.recommendationsMemoryMetadata,

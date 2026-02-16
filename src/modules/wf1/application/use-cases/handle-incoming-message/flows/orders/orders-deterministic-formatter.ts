@@ -1,8 +1,10 @@
 import {
   type CanonicalOrderState,
+  type OrderLineItem,
   type OrderSummaryItem,
 } from '@/modules/wf1/domain/orders-context';
 import { CANONICAL_ORDER_STATE_LABELS } from '@/modules/wf1/domain/orders-context/constants';
+import { formatMoney } from '@/modules/wf1/domain/money';
 import type { ContextBlock } from '@/modules/wf1/domain/context-block';
 import type { Wf1Response } from '@/modules/wf1/domain/wf1-response';
 import {
@@ -12,6 +14,7 @@ import {
 import { reconcileOrdersState } from './reconcile-orders-state';
 
 export type OrdersDataSource = 'list' | 'detail' | 'conflict';
+const DEFAULT_ORDER_ITEMS_MAX = 5;
 
 export interface OrdersDeterministicResolution {
   response: Wf1Response;
@@ -27,13 +30,18 @@ export function formatDeterministicOrdersResponse(input: {
   conversationId: string;
   contextBlocks: ContextBlock[];
   requestedOrderId?: string | null;
+  includeOrderItems?: boolean;
+  orderItemsMax?: number;
 }): OrdersDeterministicResolution {
+  const orderItemsMax = resolveOrderItemsMax(input.orderItemsMax);
   const detailBlock = input.contextBlocks.find((block) => block.contextType === 'order_detail');
   if (detailBlock) {
     return formatDetailResponse({
       conversationId: input.conversationId,
       block: detailBlock,
       requestedOrderId: input.requestedOrderId ?? null,
+      includeOrderItems: input.includeOrderItems === true,
+      orderItemsMax,
     });
   }
 
@@ -49,6 +57,8 @@ function formatDetailResponse(input: {
   conversationId: string;
   block: ContextBlock;
   requestedOrderId: string | null;
+  includeOrderItems: boolean;
+  orderItemsMax: number;
 }): OrdersDeterministicResolution {
   const detailOrder = extractOrderDetail(input.block.contextPayload);
   const detailOrderId =
@@ -83,10 +93,15 @@ function formatDetailResponse(input: {
         orderId: detailOrderId,
         detailStateRaw: reconciliation.detailStateRaw,
         listStateRaw: reconciliation.listStateRaw,
+        order: detailOrder,
+        includeOrderItems: input.includeOrderItems,
+        orderItemsMax: input.orderItemsMax,
       })
     : buildDetailMessage({
         order: detailOrder,
         fallbackOrderId: detailOrderId,
+        includeOrderItems: input.includeOrderItems,
+        orderItemsMax: input.orderItemsMax,
       });
 
   return {
@@ -137,6 +152,8 @@ function formatListResponse(input: {
 function buildDetailMessage(input: {
   order: OrderSummaryItem | null;
   fallbackOrderId: string | null;
+  includeOrderItems: boolean;
+  orderItemsMax: number;
 }): string {
   if (!input.order && !input.fallbackOrderId) {
     return 'No pude obtener el detalle de ese pedido en este momento. Intenta nuevamente en unos minutos.';
@@ -158,6 +175,11 @@ function buildDetailMessage(input: {
     lines.push(`Metodo de envio: ${shipMethod}.`);
   }
 
+  if (input.includeOrderItems) {
+    lines.push('Productos del pedido:');
+    lines.push(...formatOrderItemsLines(input.order?.orderItems ?? [], input.orderItemsMax));
+  }
+
   lines.push('Si queres, reviso otro pedido de tu cuenta.');
   return lines.join('\n');
 }
@@ -166,17 +188,26 @@ function buildConflictMessage(input: {
   orderId: string | null;
   detailStateRaw: string | null;
   listStateRaw: string | null;
+  order: OrderSummaryItem | null;
+  includeOrderItems: boolean;
+  orderItemsMax: number;
 }): string {
   const orderLabel = input.orderId ? `#${input.orderId}` : 'solicitado';
   const detailState = input.detailStateRaw ?? 'sin dato';
   const listState = input.listStateRaw ?? 'sin dato';
-
-  return [
+  const lines = [
     `Detecte una inconsistencia temporal en el estado del pedido ${orderLabel}.`,
     `Detalle de pedido: ${detailState}.`,
     `Listado de pedidos: ${listState}.`,
     'Para evitar informarte un estado incorrecto, te sugiero revalidarlo en unos minutos o pedir soporte humano.',
-  ].join('\n');
+  ];
+
+  if (input.includeOrderItems) {
+    lines.push('Segun el detalle actual del pedido, los productos son:');
+    lines.push(...formatOrderItemsLines(input.order?.orderItems ?? [], input.orderItemsMax));
+  }
+
+  return lines.join('\n');
 }
 
 function buildOrdersListMessage(orders: OrderSummaryItem[]): string {
@@ -225,6 +256,40 @@ function findOrderById(orders: OrderSummaryItem[], orderId: string): OrderSummar
   }
 
   return null;
+}
+
+function formatOrderItemsLines(orderItems: OrderLineItem[], orderItemsMax: number): string[] {
+  if (!Array.isArray(orderItems) || orderItems.length === 0) {
+    return ['- Sin detalle de productos para este pedido.'];
+  }
+
+  const visibleItems = orderItems.slice(0, orderItemsMax);
+  const lines = visibleItems.map((item, index) => buildOrderItemLine(item, index));
+  const hiddenCount = orderItems.length - visibleItems.length;
+  if (hiddenCount > 0) {
+    lines.push(`... y ${hiddenCount} mas.`);
+  }
+
+  return lines;
+}
+
+function buildOrderItemLine(item: OrderLineItem, index: number): string {
+  const title = readString(item.title) ?? `Item ${index + 1}`;
+  const quantity =
+    typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity > 0
+      ? Math.floor(item.quantity)
+      : 1;
+  const price = item.unitPrice ? formatMoney(item.unitPrice) : 'Precio no disponible';
+
+  return `- ${title} x${quantity} - ${price}`;
+}
+
+function resolveOrderItemsMax(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_ORDER_ITEMS_MAX;
+  }
+
+  return Math.max(1, Math.floor(value));
 }
 
 function readString(value: unknown): string | null {

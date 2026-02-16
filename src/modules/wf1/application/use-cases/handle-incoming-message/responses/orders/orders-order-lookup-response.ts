@@ -93,7 +93,7 @@ export function buildOrderLookupVerificationFailedResponse(): Wf1Response {
   return {
     ok: false,
     message:
-      'No pudimos validar los datos del pedido. Verifica el numero de pedido y tus datos, e intenta nuevamente.',
+      'No pudimos validar los datos del pedido. Verifica el numero de pedido y tus datos, e intenta nuevamente. Revisa que coincidan exactamente con los usados en la compra (nombre, apellido, telefono o DNI).',
   };
 }
 
