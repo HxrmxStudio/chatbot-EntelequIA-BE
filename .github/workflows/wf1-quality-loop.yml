@@ -92,7 +92,8 @@ jobs:
         run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/inject-golden-samples.ts
 
       - name: Calculate reviewer agreement
-        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/calculate-reviewer-agreement.ts
+        if: ${{ secrets.WF1_REVIEWER_ID != '' }}
+        run: npx ts-node --files -r tsconfig-paths/register --project tsconfig.json scripts/calculate-reviewer-agreement.ts --reviewer ${{ secrets.WF1_REVIEWER_ID }}
 
       - name: Validate learning seeds
         run: npm run wf1:learning:validate-seeds
