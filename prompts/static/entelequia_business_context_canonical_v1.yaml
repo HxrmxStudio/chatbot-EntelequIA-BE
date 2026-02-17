@@ -3,12 +3,12 @@ source: entelequia_business_context
 
 static_context: |
   🏢 **SOBRE ENTELEQUIA**
-  
+
   **Historia:**
   - Fundada en 1981 (más de 43 años de experiencia)
   - Pioneros en la venta de productos de culto en Argentina
   - Comiquería y librería especializada en importación y distribución
-  
+
   **Especialidades:**
   - Historietas argentinas, estadounidenses y europeas
   - Manga y anime
@@ -17,22 +17,22 @@ static_context: |
   - Merchandising, figuras de acción, pósters, trading cards
   - Juegos de mesa y juegos de rol
   - Ítems coleccionables
-  
+
   **Valores:**
   - Servicio personalizado
   - Trato amable con el cliente
   - Pasión por el arte y el mundo fantástico
   - Más amplio catálogo del mercado argentino
-  
+
   📍 **LOCALES ENTELEQUIA**
-  
+
   **Local Centro (San Nicolás):**
   - Dirección: Uruguay 341, CABA (C1015ABG)
   - Entre Av. Corrientes y Sarmiento
   - Teléfono: (011) 4371-7282 / 4371-0886
   - Email: info@entelequia.com.ar
   - Horario: Lunes a viernes 10:00 - 19:00hs | Sábados 10:00 - 17:00hs
-  
+
   **Local Belgrano:**
   - Dirección: Juramento 2584, CABA (C1428DNR)
   - Zona: Belgrano, cerca de Plaza Noruega
@@ -40,21 +40,21 @@ static_context: |
   - Email: belgrano@entelequia.com.ar
   - Horario: Lunes a viernes 10:00 - 19:00hs | Sábados 10:00 - 17:00hs
   - Accesibilidad: Limitada para sillas de ruedas
-  
+
   **Contacto Online:**
   - Web: https://entelequia.com.ar
   - WhatsApp: +54 9 11 6189-8533
   - Instagram: @entelequia / @entelequiagram
   - Facebook: Entelequia Comicbookstore
-  
+
   **Retiro en Local:**
   - Sin cargo en ambos locales
   - Disponible 24-48hs después de realizar la compra online
   - Llevá tu número de pedido
   - Verificá disponibilidad de stock antes de ir
-  
+
   📚 **CATEGORÍAS DE PRODUCTOS**
-  
+
   **Manga:**
   - Shonen (acción, aventura)
   - Seinen (adulto, maduro)
@@ -62,7 +62,7 @@ static_context: |
   - Editoriales: Ivrea, Panini, Editorial Mil Sueños
   - Lanzamientos y preventas disponibles
   - Catálogo de editoriales argentinas y extranjeras
-  
+
   **Comics:**
   - Marvel Comics
   - DC Comics
@@ -70,7 +70,7 @@ static_context: |
   - Historietas argentinas
   - Comics europeos (Franco-Belga)
   - Novelas gráficas
-  
+
   **Libros:**
   - Ciencia ficción
   - Fantasía
@@ -78,13 +78,13 @@ static_context: |
   - Libros de arte e ilustración
   - Libros sobre música, diseño, animación
   - Libros sobre cine y efectos especiales
-  
+
   **Juegos:**
   - Juegos de mesa (board games)
   - Juegos de rol (RPG)
   - Trading cards
   - Expansiones y accesorios
-  
+
   **Merchandising y Coleccionables:**
   - Figuras de acción
   - Estatuas y bustos
@@ -97,66 +97,66 @@ static_context: |
   - Cuadros
   - Artículos de decoración
   - Productos para fans y coleccionistas
-  
+
   **Productos Especiales:**
   - Ediciones especiales y limitadas
   - Art books
   - Productos importados
   - Artículos de culto
   - Ítems exclusivos
-  
+
   📚 **PREGUNTAS FRECUENTES - PRODUCTOS**
-  
+
   **¿Cómo sé si un producto está en stock?**
   - En la ficha del producto aparece claramente "En stock" o "Sin stock"
   - Actualizamos el stock en tiempo real
   - Si dice "Bajo pedido", contactanos para consultar disponibilidad y tiempo de llegada
-  
+
   **¿Puedo reservar un producto?**
   - Sí, podés reservar por 48hs con seña del 30%
   - Contactanos por WhatsApp (+54 9 11 6189-8533) o email
   - Indicá el producto y tu método de pago preferido
-  
+
   **¿Hacen preventa de mangas y comics?**
   - Sí, abrimos preventas para todos los lanzamientos
   - Consultá el calendario de lanzamientos en la web
   - Las preventas se despachan cuando llega el stock oficial
   - Te avisamos por email cuando está disponible para retiro/envío
-  
+
   **¿Venden productos usados o de segunda mano?**
   - No, todos nuestros productos son nuevos y sellados
   - Ocasionalmente tenemos outlet con descuentos (productos nuevos con empaque dañado)
   - Verificá la sección de ofertas en la web
-  
+
   **¿Qué editoriales de manga tienen?**
   - Ivrea Argentina (distribuidor principal)
   - Panini Comics Argentina
-  - Editorial Mil Sueños
+  - Ovni Press Argentina
   - Importados de España y otros países (consultar disponibilidad)
-  
+
   **¿Traen productos importados o bajo pedido especial?**
   - Sí, podemos traer productos específicos que no estén en catálogo
   - Consultá disponibilidad, precio y tiempo de llegada
   - Generalmente demora 30-60 días (según país de origen)
   - Se requiere seña del 50%
-  
+
   **¿Los precios en la web están actualizados?**
   - Sí, los precios se actualizan diariamente
   - En caso de diferencia entre web y local, consultar
   - Promociones especiales pueden variar
-  
+
   **¿Puedo ver el producto antes de comprarlo?**
   - Sí, visitá nuestros locales en Centro o Belgrano
   - Nuestro personal te puede mostrar el catálogo
   - Algunos productos sellados no se pueden abrir (política editorial)
-  
+
   **¿Tienen figuras exclusivas o ediciones limitadas?**
   - Sí, somos importadores oficiales de varias líneas
   - Consultá la sección "Coleccionables" en la web
   - Suscribite al newsletter para enterarte de lanzamientos
-  
+
   📦 **PREGUNTAS FRECUENTES - PEDIDOS**
-  
+
   **¿Cómo hago un pedido online?**
   1. Navegá por el catálogo en https://entelequia.com.ar
   2. Agregá productos al carrito
@@ -165,93 +165,92 @@ static_context: |
   5. Elegí método de pago
   6. Confirmá tu pedido
   7. Recibirás email de confirmación
-  
+
   **¿Cómo sigo mi pedido?**
   - Ingresá a tu cuenta en la web
   - Andá a "Mi cuenta" → "Mis pedidos"
   - Recibirás emails con actualizaciones de estado
   - Cuando se despache, te llega el tracking number
-  
+
   **¿Puedo modificar mi pedido después de comprarlo?**
   - Sí, pero solo ANTES del despacho
   - Contactanos inmediatamente por WhatsApp o email
   - Indicá tu número de pedido y los cambios necesarios
   - No garantizamos modificaciones si ya fue preparado
-  
+
   **¿Puedo cancelar mi pedido?**
   - Sí, antes del despacho sin penalización
   - Después del despacho: sujeto a política de devoluciones
   - Reembolso en 7-10 días hábiles al mismo medio de pago
-  
+
   **¿Qué hago si no estoy cuando llega el pedido?**
   - El correo dejará aviso de visita
   - Tenés plazo para retirarlo en sucursal del correo (consultar)
   - También podés coordinar nueva entrega con el correo
   - Verificá el tracking para saber cuándo pasa
-  
+
   **¿Qué pasa si mi pedido llega dañado?**
   - Hacé el reclamo dentro de las 48hs de recibido
   - Enviá fotos del paquete y del producto dañado por email/WhatsApp
   - Evaluaremos el caso
   - Reposición sin cargo o reembolso total
-  
+
   **¿Por qué demora mi pedido?**
   - Productos bajo pedido o importados pueden demorar más
   - Stock externo de editoriales puede tardar
   - Te avisamos por email si hay demoras
   - Podés cancelar si no querés esperar
-  
+
   **¿Puedo cambiar la dirección de envío?**
   - Sí, antes del despacho sin problema
   - Una vez despachado, tendrás que coordinar con el correo
   - Contactanos lo antes posible
-  
+
   **¿Cómo sé cuándo va a llegar mi pedido?**
   - Al despachar recibirás email con tracking
-  - Estimado: CABA 24-48hs / Interior 5-7 días hábiles
+  - Estimado: CABA en el mismo dia (antes de las 13hs) o 24-48hs / Interior 5-7 días hábiles
   - Seguí el tracking en la web del correo
-  
+
   **¿Qué pasa si falta un producto de mi pedido?**
   - Revisá el remito que viene con el paquete
   - Puede haberse despachado en envíos separados (te avisamos)
   - Si no está en el remito, contactanos inmediatamente
   - Resolveremos el error y te enviaremos el producto faltante
-  
+
   ℹ️ **INFORMACIÓN ADICIONAL**
-  
+
   **Atención al Cliente:**
   - WhatsApp: +54 9 11 6189-8533 (Lun-Vie 10-19hs)
   - Email: info@entelequia.com.ar / belgrano@entelequia.com.ar
   - Tiempo de respuesta: 24-48hs hábiles
   - Para urgencias: Llamar por teléfono a los locales
-  
+
   **Programa de Fidelidad / Newsletter:**
   - Suscribite al newsletter para promociones exclusivas
   - Enterate de lanzamientos antes que nadie
   - Descuentos especiales para clientes recurrentes
   - Eventos y firmas de autores
-  
+
   **Eventos Especiales:**
-  - Free Comic Book Day (primer sábado de mayo)
   - Convenciones y eventos de manga/anime
   - Firmas de autores nacionales e internacionales
   - Consultar calendario en redes sociales
-  
+
   **Horarios Especiales:**
   - Feriados: 11 a 19hs
   - Días de cierre: Avisamos con anticipación
   - Horarios extendidos en fechas especiales (Navidad, etc.)
-  
+
   **Reconocimientos:**
   - Más de 43 años en el mercado argentino
   - Pioneros en productos de culto
   - Distribuidores oficiales de marcas internacionales
   - Presencia en eventos nacionales de cómic y manga
-  
+
   **Recomendado por Editoriales Internacionales:**
   - Arechimanga (España) recomienda Entelequia para fans en Argentina
   - Distribuidores oficiales de múltiples editoriales
-  
+
   **Servicios Adicionales:**
   - Asesoramiento personalizado en tienda
   - Búsqueda de productos específicos
@@ -260,57 +259,57 @@ static_context: |
 
 critical_policy_context: |
   📋 **POLÍTICAS DE ENTELEQUIA**
-  
+
   **Cambios y Devoluciones:**
   - **Plazo:** 30 días corridos desde la fecha de compra
   - **Condición:** Producto sin abrir, sin usar, en su embalaje original
   - **Requisito:** Presentar comprobante de compra
   - **Opciones:** Reintegro de dinero o cambio por otro producto
-  
+
   **Proceso de Cambio:**
   1. Contactar por email, WhatsApp o acercarte al local
   2. Indicar número de pedido y motivo del cambio
   3. Coordinar devolución (presencial o envío)
   4. Producto será evaluado (debe estar en perfectas condiciones)
   5. Una vez aprobado: cambio o reintegro en 7-10 días hábiles
-  
+
   **Excepciones (NO se aceptan cambios):**
   - Productos usados o sin embalaje original
   - Productos dañados por mal uso del cliente
   - Productos en oferta o liquidación (consultar política específica)
   - Productos bajo pedido especial (salvo defecto de fábrica)
-  
+
   **Garantía:**
   - Productos con defecto de fábrica: Cambio o reintegro
   - Garantía según fabricante
   - Cubrimos defectos de fábrica (no cubre mal uso)
   - Plazo: Según legislación argentina de defensa del consumidor
-  
+
   **Productos Dañados en Envío:**
   - Reclamo dentro de las 48hs de recibido
   - Con fotos del paquete y producto
   - Reposición sin cargo o reembolso
   - Importante: Revisar el paquete al recibirlo
-  
+
   **Cancelaciones:**
   - Antes del despacho: Cancelación sin cargo
   - Después del despacho: Sujeto a política de devoluciones
   - Reembolso en 7-10 días hábiles
-  
+
   **Privacidad y Protección de Datos:**
   - No compartimos tus datos con terceros
   - Encriptación segura en todas las transacciones
   - Cumplimos con la Ley de Protección de Datos Personales Argentina
   - Podés solicitar eliminación de tus datos en cualquier momento
-  
+
   ## ENVÍOS Y COBERTURA (RESUMEN OPERATIVO)
   - Envíos a todo el país (Argentina).
   - Envíos internacionales con DHL.
   - Retiro en local sin cargo.
   - Tracking al despachar y seguimiento por web.
-  
+
   ## TIEMPOS ESTIMADOS DE ENVÍO (REFERENCIA)
-  - CABA (moto): 24-48hs.
+  - CABA (moto): en el mismo dia (antes de las 13hs) o 24-48hs.
   - Interior con Andreani: 3-5 días hábiles.
   - Interior con Correo Argentino: 5-7 días hábiles.
   - Internacional con DHL: menos de 4 días hábiles.
@@ -319,49 +318,49 @@ critical_policy_context: |
 
 tickets_returns_policy_context: |
   📋 **POLÍTICAS DE ENTELEQUIA**
-  
+
   **Cambios y Devoluciones:**
   - **Plazo:** 30 días corridos desde la fecha de compra
   - **Condición:** Producto sin abrir, sin usar, en su embalaje original
   - **Requisito:** Presentar comprobante de compra
   - **Opciones:** Reintegro de dinero o cambio por otro producto
-  
+
   **Proceso de Cambio:**
   1. Contactar por email, WhatsApp o acercarte al local
   2. Indicar número de pedido y motivo del cambio
   3. Coordinar devolución (presencial o envío)
   4. Producto será evaluado (debe estar en perfectas condiciones)
   5. Una vez aprobado: cambio o reintegro en 7-10 días hábiles
-  
+
   **Excepciones (NO se aceptan cambios):**
   - Productos usados o sin embalaje original
   - Productos dañados por mal uso del cliente
   - Productos en oferta o liquidación (consultar política específica)
   - Productos bajo pedido especial (salvo defecto de fábrica)
-  
+
   **Garantía:**
   - Productos con defecto de fábrica: Cambio o reintegro
   - Garantía según fabricante
   - Cubrimos defectos de fábrica (no cubre mal uso)
   - Plazo: Según legislación argentina de defensa del consumidor
-  
+
   **Productos Dañados en Envío:**
   - Reclamo dentro de las 48hs de recibido
   - Con fotos del paquete y producto
   - Reposición sin cargo o reembolso
   - Importante: Revisar el paquete al recibirlo
-  
+
   **Cancelaciones:**
   - Antes del despacho: Cancelación sin cargo
   - Después del despacho: Sujeto a política de devoluciones
   - Reembolso en 7-10 días hábiles
-  
+
   **Privacidad y Protección de Datos:**
   - No compartimos tus datos con terceros
   - Encriptación segura en todas las transacciones
   - Cumplimos con la Ley de Protección de Datos Personales Argentina
   - Podés solicitar eliminación de tus datos en cualquier momento
-  
+
   ## CANALES PARA INICIAR GESTIÓN
   - WhatsApp: +54 9 11 6189-8533 (Lun-Vie 10-19hs).
   - Email: info@entelequia.com.ar / belgrano@entelequia.com.ar.
@@ -369,66 +368,66 @@ tickets_returns_policy_context: |
 
 payment_shipping_general_context: |
   🚚 **ENVÍOS**
-  
+
   **Opciones de Envío:**
   - Correo Argentino: 5-7 días hábiles
   - Andreani: 3-5 días hábiles
   - Moto mensajería CABA: 24-48hs (ENTREGA EN EL DIA COMPRANDO ANTES DE LAS 13)
   - Retiro en local: Sin cargo (ambos locales)
-  
+
   **Cobertura:**
   - Envíos a todo el país (Argentina)
   - CABA y Gran Buenos Aires
   - TODO EL MUNDO CON DHL EN MENOS DE 4 DIAS HABILES
-  
+
   **Costos:**
   - CABA: Consultar según peso y zona
   - Interior: Calculado por peso y destino
   - Envío gratis: En compras superiores a monto promocional (gratis a partir de $33.000 )
-  
+
   **Seguimiento:**
   - Recibirás email con número de tracking cuando se despache
   - Consultá el estado en "Mi cuenta" → "Mis pedidos"
   - Tracking disponible para Correo Argentino y Andreani
-  
+
   **Tiempos de Preparación:**
   - Productos en stock: Despacho en 24-48hs hábiles
   - Productos bajo pedido o importados: Consultar tiempo de llegada
   - Preventas: Se despachan cuando llega el stock (fechas estimadas en la web)
-  
+
   **Importante:**
   - Verificá el estado de tu pedido en la web antes de consultar
   - Si el correo no te encuentra, dejará aviso para retiro en sucursal
   - Tenés X días para retirar del correo (consultar política específica)
-  
+
   💳 **MEDIOS DE PAGO**
-  
+
   **Online (Web):**
   - Mercado Pago (todas las tarjetas de crédito y débito)
   - Transferencia bancaria (consultar descuentos)
   - Débito automático
-  
+
   **En Local (Presencial):**
   - Efectivo
   - Tarjetas de crédito y débito
   - Mercado Pago QR
   - Transferencia bancaria
-  
+
   **Cuotas:**
   - 3, 6, 12 cuotas sin interés (según promociones bancarias vigentes)
   - Consultar bancos y tarjetas adheridas
   - Promociones pueden variar mensualmente
-  
+
   **Descuentos Especiales:**
   - Transferencia bancaria: Hasta 5% de descuento (consultar vigencia)
   - Efectivo en local: Posible descuento (consultar en tienda)
   - Días de promoción especial (Black Friday, Cyber Monday, etc.)
-  
+
   **Facturación:**
   - Factura A o B disponible
   - Solicitá factura al momento del checkout
   - Para Factura A: Indicar CUIT y razón social
-  
+
   **Importante:**
   - Los precios en la web incluyen IVA
   - Verificá promociones vigentes en la web

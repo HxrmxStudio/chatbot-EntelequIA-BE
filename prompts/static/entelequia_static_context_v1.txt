@@ -127,7 +127,7 @@
 **¿Qué editoriales de manga tienen?**
 - Ivrea Argentina (distribuidor principal)
 - Panini Comics Argentina
-- Editorial Mil Sueños
+- Ovni Press Argentina
 - Importados de España y otros países (consultar disponibilidad)
 
 **¿Traen productos importados o bajo pedido especial?**
@@ -204,7 +204,7 @@
 
 **¿Cómo sé cuándo va a llegar mi pedido?**
 - Al despachar recibirás email con tracking
-- Estimado: CABA 24-48hs / Interior 5-7 días hábiles
+- Estimado: CABA en el mismo dia (antes de las 13hs) o 24-48hs / Interior 5-7 días hábiles
 - Seguí el tracking en la web del correo
 
 **¿Qué pasa si falta un producto de mi pedido?**
@@ -228,7 +228,6 @@
 - Eventos y firmas de autores
 
 **Eventos Especiales:**
-- Free Comic Book Day (primer sábado de mayo)
 - Convenciones y eventos de manga/anime
 - Firmas de autores nacionales e internacionales
 - Consultar calendario en redes sociales
